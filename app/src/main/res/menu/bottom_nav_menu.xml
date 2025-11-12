@@ -1,0 +1,28 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/nav_dashboard"
+        android:icon="@drawable/ic_home"
+        android:title="Dashboard" />
+
+    <item
+        android:id="@+id/nav_transaksi"
+        android:icon="@drawable/ic_list"
+        android:title="Transaksi" />
+
+    <item
+        android:id="@+id/nav_tambah"
+        android:icon="@drawable/ic_add"
+        android:title="Tambah" />
+
+    <item
+        android:id="@+id/nav_statistik"
+        android:icon="@drawable/ic_chart"
+        android:title="Statistik" />
+
+    <item
+        android:id="@+id/nav_pengaturan"
+        android:icon="@drawable/ic_settings"
+        android:title="Pengaturan" />
+
+</menu>

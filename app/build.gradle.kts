@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.google.ksp)
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.21"
     alias(libs.plugins.hilt)
+
 }
 
 android {
@@ -71,6 +72,11 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
-    implementation(libs.hilt.navigation.compose)
+//    implementation(libs.hilt.navigation.compose)
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.4")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
 
 }
