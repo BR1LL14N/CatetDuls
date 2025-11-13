@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,20 +22,16 @@ import kotlinx.coroutines.launch
     version = 1,
     exportSchema = false
 )
+@TypeConverters(Converters::class) // <-- [PERBAIKAN 2] Daftarkan Converters
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun categoryDao(): CategoryDao
     abstract fun transactionDao(): TransactionDao
 
     companion object {
-        // Singleton instance
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        /**
-         * Mendapatkan instance database
-         * Menggunakan pattern Singleton untuk memastikan hanya ada 1 instance
-         */
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -43,7 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "finnote_database"
                 )
                     .addCallback(DatabaseCallback(context))
-                    .fallbackToDestructiveMigration() // Hapus data lama jika ada perubahan skema
+                    .fallbackToDestructiveMigration()
                     .build()
 
                 INSTANCE = instance
@@ -51,9 +48,6 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        /**
-         * Untuk testing - bisa reset database
-         */
         fun destroyInstance() {
             INSTANCE = null
         }
@@ -69,10 +63,8 @@ abstract class AppDatabase : RoomDatabase() {
         override fun onCreate(db: SupportSQLiteDatabase) {
             super.onCreate(db)
 
-            // Jalankan di background thread
             CoroutineScope(Dispatchers.IO).launch {
                 INSTANCE?.let { database ->
-                    // Insert kategori default
                     insertDefaultCategories(database.categoryDao())
                 }
             }
@@ -81,67 +73,68 @@ abstract class AppDatabase : RoomDatabase() {
         /**
          * Insert kategori default
          */
+        // --- [PERBAIKAN 3] Seluruh fungsi ini diubah untuk menggunakan Enum ---
         private suspend fun insertDefaultCategories(categoryDao: CategoryDao) {
             val defaultCategories = listOf(
                 // Kategori Pengeluaran
                 Category(
                     name = "Makanan & Minuman",
                     icon = "🍔",
-                    type = "Pengeluaran",
+                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Transport",
                     icon = "🚌",
-                    type = "Pengeluaran",
+                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Belanja",
                     icon = "🛒",
-                    type = "Pengeluaran",
+                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Hiburan",
                     icon = "🎮",
-                    type = "Pengeluaran",
+                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Kesehatan",
                     icon = "💊",
-                    type = "Pengeluaran",
+                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Pendidikan",
                     icon = "📚",
-                    type = "Pengeluaran",
+                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Tagihan",
                     icon = "💡",
-                    type = "Pengeluaran",
+                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Rumah Tangga",
                     icon = "🏠",
-                    type = "Pengeluaran",
+                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Olahraga",
                     icon = "⚽",
-                    type = "Pengeluaran",
+                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Kecantikan",
                     icon = "💄",
-                    type = "Pengeluaran",
+                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
                     isDefault = true
                 ),
 
@@ -149,39 +142,45 @@ abstract class AppDatabase : RoomDatabase() {
                 Category(
                     name = "Gaji",
                     icon = "💼",
-                    type = "Pemasukan",
+                    type = TransactionType.PEMASUKAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Bonus",
                     icon = "💰",
-                    type = "Pemasukan",
+                    type = TransactionType.PEMASUKAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Investasi",
                     icon = "📈",
-                    type = "Pemasukan",
+                    type = TransactionType.PEMASUKAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Hadiah",
                     icon = "🎁",
-                    type = "Pemasukan",
+                    type = TransactionType.PEMASUKAN, // <-- Diperbaiki
                     isDefault = true
                 ),
                 Category(
                     name = "Freelance",
                     icon = "💻",
-                    type = "Pemasukan",
+                    type = TransactionType.PEMASUKAN, // <-- Diperbaiki
                     isDefault = true
                 ),
 
-                // Kategori Umum
+                // Kategori Umum (Logika "Semua" dihilangkan)
                 Category(
-                    name = "Lainnya",
+                    name = "Lainnya (Pemasukan)",
                     icon = "⚙️",
-                    type = "Semua",
+                    type = TransactionType.PEMASUKAN, // <-- Diperbaiki
+                    isDefault = true
+                ),
+                Category(
+                    name = "Lainnya (Pengeluaran)",
+                    icon = "⚙️",
+                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
                     isDefault = true
                 )
             )
@@ -193,7 +192,7 @@ abstract class AppDatabase : RoomDatabase() {
 
 /**
  * Extension function untuk mendapatkan repository
- * Bisa digunakan di Activity/Fragment tanpa Hilt
+ * (Bagian ini sudah benar, tidak perlu diubah)
  */
 fun Context.getTransactionRepository(): TransactionRepository {
     val database = AppDatabase.getDatabase(this)

@@ -36,7 +36,7 @@ data class Transaction(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
 
-    val type: String, // "Pemasukan" atau "Pengeluaran"
+    val type: TransactionType, // "Pemasukan" atau "Pengeluaran"
 
     val amount: Double, // Jumlah dalam Rupiah
 
@@ -46,30 +46,12 @@ data class Transaction(
 
     val notes: String = "" // Catatan opsional
 ) {
-    /**
-     * Helper function untuk validasi
-     */
+    // Helper function ini sekarang lebih sederhana
+    fun isIncome(): Boolean = type == TransactionType.PEMASUKAN
+    fun isExpense(): Boolean = type == TransactionType.PENGELUARAN
+
+    // Anda bisa hapus fungsi isValid() atau sesuaikan
     fun isValid(): Boolean {
-        return amount > 0 &&
-                type.isNotBlank() &&
-                (type == "Pemasukan" || type == "Pengeluaran") &&
-                categoryId > 0
+        return amount > 0 && categoryId > 0
     }
-
-    /**
-     * Format amount ke Rupiah
-     */
-    fun getFormattedAmount(): String {
-        return "Rp ${String.format("%,.0f", amount)}"
-    }
-
-    /**
-     * Apakah transaksi ini pemasukan?
-     */
-    fun isIncome(): Boolean = type == "Pemasukan"
-
-    /**
-     * Apakah transaksi ini pengeluaran?
-     */
-    fun isExpense(): Boolean = type == "Pengeluaran"
 }

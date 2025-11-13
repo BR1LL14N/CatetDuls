@@ -77,7 +77,7 @@ interface TransactionDao {
      */
     @Query("""
         SELECT 
-            COALESCE(SUM(CASE WHEN type = 'Pemasukan' THEN amount ELSE -amount END), 0) 
+            COALESCE(SUM(CASE WHEN type = 'PEMASUKAN' THEN amount ELSE -amount END), 0) 
         FROM transactions
     """)
     fun getTotalBalance(): Flow<Double?>
@@ -98,7 +98,7 @@ interface TransactionDao {
         AND date BETWEEN :startDate AND :endDate
     """)
     fun getTotalByTypeAndDateRange(
-        type: String,
+        type: TransactionType, // <-- DIPERBAIKI
         startDate: Long,
         endDate: Long
     ): Flow<Double?>
@@ -111,7 +111,7 @@ interface TransactionDao {
      * Filter berdasarkan tipe (Pemasukan/Pengeluaran)
      */
     @Query("SELECT * FROM transactions WHERE type = :type ORDER BY date DESC")
-    fun getTransactionsByType(type: String): Flow<List<Transaction>>
+    fun getTransactionsByType(type: TransactionType): Flow<List<Transaction>> // <-- DIPERBAIKI
 
     /**
      * Filter berdasarkan kategori
@@ -143,7 +143,10 @@ interface TransactionDao {
         WHERE type = :type AND categoryId = :categoryId 
         ORDER BY date DESC
     """)
-    fun getTransactionsByTypeAndCategory(type: String, categoryId: Int): Flow<List<Transaction>>
+    fun getTransactionsByTypeAndCategory(
+        type: TransactionType, // <-- DIPERBAIKI
+        categoryId: Int
+    ): Flow<List<Transaction>>
 
     /**
      * Filter kombinasi: type + rentang tanggal
@@ -155,7 +158,7 @@ interface TransactionDao {
         ORDER BY date DESC
     """)
     fun getTransactionsByTypeAndDateRange(
-        type: String,
+        type: TransactionType, // <-- DIPERBAIKI
         startDate: Long,
         endDate: Long
     ): Flow<List<Transaction>>
@@ -171,7 +174,7 @@ interface TransactionDao {
         ORDER BY date DESC
     """)
     fun getTransactionsByTypeAndCategoryAndDateRange(
-        type: String,
+        type: TransactionType, // <-- DIPERBAIKI
         categoryId: Int,
         startDate: Long,
         endDate: Long
@@ -192,10 +195,10 @@ interface TransactionDao {
             SUM(t.amount) as total
         FROM transactions t
         INNER JOIN categories c ON t.categoryId = c.id
-        WHERE t.type = 'Pengeluaran'
+        WHERE t.type = 'PENGELUARAN' 
         GROUP BY t.categoryId, c.name
         ORDER BY total DESC
-    """)
+    """) // <-- DIPERBAIKI
     fun getTotalExpenseByCategory(): Flow<List<CategoryExpense>>
 
     /**
@@ -208,11 +211,11 @@ interface TransactionDao {
             SUM(t.amount) as total
         FROM transactions t
         INNER JOIN categories c ON t.categoryId = c.id
-        WHERE t.type = 'Pengeluaran'
+        WHERE t.type = 'PENGELUARAN' 
         GROUP BY t.categoryId, c.name
         ORDER BY total DESC
         LIMIT 1
-    """)
+    """) // <-- DIPERBAIKI
     fun getTopExpenseCategory(): Flow<CategoryExpense?>
 
     /**
@@ -223,14 +226,14 @@ interface TransactionDao {
         SELECT 
             CAST(strftime('%m', date/1000, 'unixepoch') AS INTEGER) as month,
             CAST(strftime('%Y', date/1000, 'unixepoch') AS INTEGER) as year,
-            COALESCE(SUM(CASE WHEN type = 'Pemasukan' THEN amount ELSE 0 END), 0) as income,
-            COALESCE(SUM(CASE WHEN type = 'Pengeluaran' THEN amount ELSE 0 END), 0) as expense,
-            COALESCE(SUM(CASE WHEN type = 'Pemasukan' THEN amount ELSE -amount END), 0) as balance
+            COALESCE(SUM(CASE WHEN type = 'PEMASUKAN' THEN amount ELSE 0 END), 0) as income,
+            COALESCE(SUM(CASE WHEN type = 'PENGELUARAN' THEN amount ELSE 0 END), 0) as expense,
+            COALESCE(SUM(CASE WHEN type = 'PEMASUKAN' THEN amount ELSE -amount END), 0) as balance
         FROM transactions
         WHERE CAST(strftime('%Y', date/1000, 'unixepoch') AS INTEGER) = :year
         GROUP BY month, year
         ORDER BY month ASC
-    """)
+    """) // <-- DIPERBAIKI
     fun getMonthlyTotals(year: Int): Flow<List<MonthlyTotal>>
 
     /**
@@ -239,13 +242,13 @@ interface TransactionDao {
     @Query("""
         SELECT 
             date,
-            SUM(CASE WHEN type = 'Pemasukan' THEN amount ELSE 0 END) as income,
-            SUM(CASE WHEN type = 'Pengeluaran' THEN amount ELSE 0 END) as expense
+            SUM(CASE WHEN type = 'PEMASUKAN' THEN amount ELSE 0 END) as income,
+            SUM(CASE WHEN type = 'PENGELUARAN' THEN amount ELSE 0 END) as expense
         FROM transactions
         WHERE date BETWEEN :startDate AND :endDate
         GROUP BY date
         ORDER BY date ASC
-    """)
+    """) // <-- DIPERBAIKI
     fun getDailyTotals(startDate: Long, endDate: Long): Flow<List<DailyTotal>>
 
     /**
@@ -264,7 +267,7 @@ interface TransactionDao {
         GROUP BY t.categoryId, c.name
         ORDER BY total DESC
     """)
-    fun getCategoryStats(type: String): Flow<List<CategoryStats>>
+    fun getCategoryStats(type: TransactionType): Flow<List<CategoryStats>> // <-- DIPERBAIKI
 
     // ========================================
     // Utility Queries
@@ -311,23 +314,3 @@ interface TransactionDao {
 // ========================================
 // Data Classes untuk Query Results
 // ========================================
-
-/**
- * Result untuk total harian
- */
-data class DailyTotal(
-    val date: Long,
-    val income: Double,
-    val expense: Double
-)
-
-/**
- * Result untuk statistik kategori detail
- */
-data class CategoryStats(
-    val categoryId: Int,
-    val categoryName: String,
-    val transactionCount: Int,
-    val total: Double,
-    val average: Double
-)

@@ -21,59 +21,36 @@ class TransactionRepository(
     // CRUD Operations - Basic
     // ========================================
 
-    /**
-     * Mengambil semua transaksi terurut dari terbaru
-     */
     fun getAllTransactions(): Flow<List<Transaction>> =
         transactionDao.getAllTransactions()
 
-    /**
-     * Mengambil transaksi berdasarkan ID
-     */
     fun getTransactionById(id: Int): Flow<Transaction?> =
         transactionDao.getTransactionById(id)
 
-    /**
-     * Menambah transaksi baru
-     */
     suspend fun insertTransaction(transaction: Transaction) {
         transactionDao.insertTransaction(transaction)
     }
 
-    /**
-     * Update transaksi yang sudah ada
-     */
     suspend fun updateTransaction(transaction: Transaction) {
         transactionDao.updateTransaction(transaction)
     }
 
-    /**
-     * Hapus transaksi
-     */
     suspend fun deleteTransaction(transaction: Transaction) {
         transactionDao.deleteTransaction(transaction)
     }
 
-    /**
-     * Hapus semua transaksi (untuk fitur reset data)
-     */
     suspend fun deleteAllTransactions() {
         transactionDao.deleteAllTransactions()
     }
+
 
     // ========================================
     // Dashboard - Ringkasan Keuangan
     // ========================================
 
-    /**
-     * Menghitung total saldo (pemasukan - pengeluaran)
-     */
     fun getTotalBalance(): Flow<Double?> =
         transactionDao.getTotalBalance()
 
-    /**
-     * Mengambil 5 transaksi terakhir untuk ditampilkan di Dashboard
-     */
     fun getRecentTransactions(limit: Int = 5): Flow<List<Transaction>> =
         transactionDao.getRecentTransactions(limit)
 
@@ -81,46 +58,30 @@ class TransactionRepository(
      * Total pemasukan bulan ini
      */
     fun getTotalIncomeThisMonth(): Flow<Double?> {
-        val calendar = Calendar.getInstance()
-        val startOfMonth = calendar.apply {
-            set(Calendar.DAY_OF_MONTH, 1)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-
-        val endOfMonth = calendar.apply {
-            set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
-            set(Calendar.HOUR_OF_DAY, 23)
-            set(Calendar.MINUTE, 59)
-            set(Calendar.SECOND, 59)
-        }.timeInMillis
-
-        return transactionDao.getTotalByTypeAndDateRange("Pemasukan", startOfMonth, endOfMonth)
+        val (startOfMonth, endOfMonth) = getThisMonthDateRange()
+        // --- DIPERBAIKI ---
+        return transactionDao.getTotalByTypeAndDateRange(
+            TransactionType.PEMASUKAN,
+            startOfMonth,
+            endOfMonth
+        )
     }
 
     /**
      * Total pengeluaran bulan ini
      */
     fun getTotalExpenseThisMonth(): Flow<Double?> {
-        val calendar = Calendar.getInstance()
-        val startOfMonth = calendar.apply {
-            set(Calendar.DAY_OF_MONTH, 1)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+        val (startOfMonth, endOfMonth) = getThisMonthDateRange()
+        // --- DIPERBAIKI ---
+        return transactionDao.getTotalByTypeAndDateRange(
+            TransactionType.PENGELUARAN,
+            startOfMonth,
+            endOfMonth
+        )
+    }
 
-        val endOfMonth = calendar.apply {
-            set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
-            set(Calendar.HOUR_OF_DAY, 23)
-            set(Calendar.MINUTE, 59)
-            set(Calendar.SECOND, 59)
-        }.timeInMillis
-
-        return transactionDao.getTotalByTypeAndDateRange("Pengeluaran", startOfMonth, endOfMonth)
+    suspend fun insertAll(transactions: List<Transaction>) {
+        transactionDao.insertAll(transactions)
     }
 
     // ========================================
@@ -130,32 +91,32 @@ class TransactionRepository(
     /**
      * Filter transaksi berdasarkan jenis (Pemasukan/Pengeluaran)
      */
-    fun getTransactionsByType(type: String): Flow<List<Transaction>> =
+    // --- DIPERBAIKI ---
+    fun getTransactionsByType(type: TransactionType): Flow<List<Transaction>> =
         transactionDao.getTransactionsByType(type)
 
-    /**
-     * Filter transaksi berdasarkan kategori
-     */
     fun getTransactionsByCategory(categoryId: Int): Flow<List<Transaction>> =
         transactionDao.getTransactionsByCategory(categoryId)
 
-    /**
-     * Filter transaksi berdasarkan rentang tanggal
-     */
     fun getTransactionsByDateRange(startDate: Long, endDate: Long): Flow<List<Transaction>> =
         transactionDao.getTransactionsByDateRange(startDate, endDate)
 
     /**
      * Search transaksi berdasarkan catatan
+     * Catatan: Ini HANYA akan berfungsi jika DAO Anda adalah:
+     * @Query("... WHERE notes LIKE :query ...")
      */
-    fun searchTransactions(query: String): Flow<List<Transaction>> =
-        transactionDao.searchTransactions("%$query%")
+    fun searchTransactions(query: String): Flow<List<Transaction>> {
+        // Menambahkan wildcard % di sini
+        return transactionDao.searchTransactions("%$query%")
+    }
 
     /**
      * Filter kombinasi: jenis + kategori + rentang tanggal
      */
+    // --- DIPERBAIKI ---
     fun getFilteredTransactions(
-        type: String? = null,
+        type: TransactionType? = null, // <-- Diperbaiki
         categoryId: Int? = null,
         startDate: Long? = null,
         endDate: Long? = null
@@ -183,29 +144,17 @@ class TransactionRepository(
     // Halaman Statistik - Analisis Data
     // ========================================
 
-    /**
-     * Total pengeluaran berdasarkan kategori (untuk Pie Chart)
-     */
     fun getTotalExpenseByCategory(): Flow<List<CategoryExpense>> =
         transactionDao.getTotalExpenseByCategory()
 
-    /**
-     * Total pemasukan & pengeluaran per bulan (untuk Bar Chart)
-     */
     fun getMonthlyTotals(year: Int): Flow<List<MonthlyTotal>> =
         transactionDao.getMonthlyTotals(year)
 
-    /**
-     * Kategori dengan pengeluaran terbesar
-     */
     fun getTopExpenseCategory(): Flow<CategoryExpense?> =
         transactionDao.getTopExpenseCategory()
 
-    /**
-     * Total transaksi dalam periode tertentu
-     */
     fun getTotalByTypeAndDateRange(
-        type: String,
+        type: TransactionType, // <-- Diperbaiki
         startDate: Long,
         endDate: Long
     ): Flow<Double?> =
@@ -213,11 +162,9 @@ class TransactionRepository(
 
     // ========================================
     // Helper Functions untuk Business Logic
+    // (Bagian ini sudah benar)
     // ========================================
 
-    /**
-     * Mendapatkan rentang tanggal minggu ini
-     */
     fun getThisWeekDateRange(): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
         calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
@@ -236,9 +183,6 @@ class TransactionRepository(
         return Pair(startOfWeek, endOfWeek)
     }
 
-    /**
-     * Mendapatkan rentang tanggal bulan ini
-     */
     fun getThisMonthDateRange(): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
         calendar.set(Calendar.DAY_OF_MONTH, 1)
@@ -257,16 +201,10 @@ class TransactionRepository(
         return Pair(startOfMonth, endOfMonth)
     }
 
-    /**
-     * Validasi transaksi sebelum disimpan
-     */
     fun validateTransaction(transaction: Transaction): ValidationResult {
         return when {
             transaction.amount <= 0 -> {
                 ValidationResult.Error("Jumlah harus lebih dari 0")
-            }
-            transaction.type.isBlank() -> {
-                ValidationResult.Error("Jenis transaksi harus dipilih")
             }
             transaction.categoryId == 0 -> {
                 ValidationResult.Error("Kategori harus dipilih")
@@ -274,39 +212,4 @@ class TransactionRepository(
             else -> ValidationResult.Success
         }
     }
-}
-
-// ========================================
-// Data Classes untuk Statistik
-// ========================================
-
-/**
- * Data class untuk total pengeluaran per kategori
- * Digunakan untuk Pie Chart di halaman Statistik
- */
-data class CategoryExpense(
-    val categoryId: Int,
-    val categoryName: String,
-    val total: Double,
-    val percentage: Float? = null
-)
-
-/**
- * Data class untuk total bulanan
- * Digunakan untuk Bar Chart di halaman Statistik
- */
-data class MonthlyTotal(
-    val month: Int,
-    val year: Int,
-    val income: Double,
-    val expense: Double,
-    val balance: Double
-)
-
-/**
- * Sealed class untuk hasil validasi
- */
-sealed class ValidationResult {
-    object Success : ValidationResult()
-    data class Error(val message: String) : ValidationResult()
 }

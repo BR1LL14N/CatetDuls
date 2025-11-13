@@ -17,7 +17,7 @@ class CategoryRepository(
         categoryDao.deleteCategory(category)
     }
 
-    fun getCategoriesByType(type: String): Flow<List<Category>> {
+    fun getCategoriesByType(type: TransactionType): Flow<List<Category>> {
         return categoryDao.getCategoriesByType(type)
     }
 

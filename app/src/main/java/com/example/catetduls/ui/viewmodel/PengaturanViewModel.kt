@@ -8,12 +8,15 @@ import com.example.catetduls.data.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+
+
 
 /**
  * ViewModel untuk PengaturanPage
@@ -29,6 +32,7 @@ class PengaturanViewModel(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
     private val context: Context
+
 ) : ViewModel() {
 
     // ========================================
@@ -82,17 +86,20 @@ class PengaturanViewModel(
     /**
      * Export data ke JSON
      */
-    fun exportToJson(): String? {
+    suspend fun exportToJson(): String? {
         return try {
             _isLoading.value = true
+
+            val transactions = transactionRepository.getAllTransactions().first()
+            val categories = categoryRepository.getAllCategories().first()
 
             // TODO: Implement actual data fetching
             // Untuk sementara return dummy data
             val json = JSONObject().apply {
                 put("version", "1.0")
                 put("exportDate", System.currentTimeMillis())
-                put("transactions", JSONArray())
-                put("categories", JSONArray())
+                put("transactions", BackupHelper.transactionsToJson(transactions))
+                put("categories", BackupHelper.categoriesToJson(categories))
             }
 
             _successMessage.value = "Data berhasil di-export"
@@ -109,19 +116,16 @@ class PengaturanViewModel(
     /**
      * Export data ke CSV
      */
-    fun exportToCsv(): String? {
+    suspend fun exportToCsv(): String? {
         return try {
             _isLoading.value = true
-
-            val csv = StringBuilder()
-            csv.append("Tanggal,Tipe,Kategori,Jumlah,Catatan\n")
-
-            // TODO: Implement actual data fetching
+            val transactions = transactionRepository.getAllTransactions().first()
+            val csv = BackupHelper.transactionsToCsv(transactions)
 
             _successMessage.value = "Data berhasil di-export ke CSV"
             _isLoading.value = false
-            csv.toString()
-
+//            csv.toString()
+            return csv
         } catch (e: Exception) {
             _errorMessage.value = "Gagal export CSV: ${e.message}"
             _isLoading.value = false
@@ -134,6 +138,8 @@ class PengaturanViewModel(
      */
     fun saveBackupToFile(data: String): File? {
         return try {
+            val isCsv = false
+            val extension = if (isCsv) "csv" else "json"
             val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
             val timestamp = dateFormat.format(Date())
             val fileName = "finnote_backup_$timestamp.json"
@@ -164,10 +170,10 @@ class PengaturanViewModel(
             try {
                 val json = JSONObject(jsonString)
 
-                // TODO: Implement actual data import
-                // 1. Parse JSON
-                // 2. Validate data
-                // 3. Insert to database
+                val categories = BackupHelper.jsonToCategories(json.getJSONArray("categories"))
+                val transactions = BackupHelper.jsonToTransactions(json.getJSONArray("transactions"))
+                categoryRepository.insertAll(categories)
+                transactionRepository.insertAll(transactions)
 
                 _successMessage.value = "Data berhasil di-import"
                 _isLoading.value = false
@@ -209,22 +215,24 @@ class PengaturanViewModel(
             try {
                 // Daftar kategori default (disalin dari AppDatabase.kt)
                 val defaultCategories = listOf(
-                    Category(name = "Makanan & Minuman", icon = "🍔", type = "Pengeluaran", isDefault = true),
-                    Category(name = "Transport", icon = "🚌", type = "Pengeluaran", isDefault = true),
-                    Category(name = "Belanja", icon = "🛒", type = "Pengeluaran", isDefault = true),
-                    Category(name = "Hiburan", icon = "🎮", type = "Pengeluaran", isDefault = true),
-                    Category(name = "Kesehatan", icon = "💊", type = "Pengeluaran", isDefault = true),
-                    Category(name = "Pendidikan", icon = "📚", type = "Pengeluaran", isDefault = true),
-                    Category(name = "Tagihan", icon = "💡", type = "Pengeluaran", isDefault = true),
-                    Category(name = "Rumah Tangga", icon = "🏠", type = "Pengeluaran", isDefault = true),
-                    Category(name = "Olahraga", icon = "⚽", type = "Pengeluaran", isDefault = true),
-                    Category(name = "Kecantikan", icon = "💄", type = "Pengeluaran", isDefault = true),
-                    Category(name = "Gaji", icon = "💼", type = "Pemasukan", isDefault = true),
-                    Category(name = "Bonus", icon = "💰", type = "Pemasukan", isDefault = true),
-                    Category(name = "Investasi", icon = "📈", type = "Pemasukan", isDefault = true),
-                    Category(name = "Hadiah", icon = "🎁", type = "Pemasukan", isDefault = true),
-                    Category(name = "Freelance", icon = "💻", type = "Pemasukan", isDefault = true),
-                    Category(name = "Lainnya", icon = "⚙️", type = "Semua", isDefault = true)
+                    Category(name = "Makanan & Minuman", icon = "🍔", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(name = "Transport", icon = "🚌", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(name = "Belanja", icon = "🛒", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(name = "Hiburan", icon = "🎮", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(name = "Kesehatan", icon = "💊", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(name = "Pendidikan", icon = "📚", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(name = "Tagihan", icon = "💡", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(name = "Rumah Tangga", icon = "🏠", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(name = "Olahraga", icon = "⚽", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(name = "Kecantikan", icon = "💄", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(name = "Gaji", icon = "💼", type = TransactionType.PEMASUKAN, isDefault = true),
+                    Category(name = "Bonus", icon = "💰", type = TransactionType.PEMASUKAN, isDefault = true),
+                    Category(name = "Investasi", icon = "📈", type = TransactionType.PEMASUKAN, isDefault = true),
+                    Category(name = "Hadiah", icon = "🎁", type = TransactionType.PEMASUKAN, isDefault = true),
+                    Category(name = "Freelance", icon = "💻", type = TransactionType.PEMASUKAN, isDefault = true),
+                    // Logika "Semua" dihilangkan, diganti jadi 2
+                    Category(name = "Lainnya (Pemasukan)", icon = "⚙️", type = TransactionType.PEMASUKAN, isDefault = true),
+                    Category(name = "Lainnya (Pengeluaran)", icon = "⚙️", type = TransactionType.PENGELUARAN, isDefault = true)
                 )
 
                 // Panggil 'insertAll' dari repository Anda
@@ -341,7 +349,9 @@ object BackupHelper {
             transactions.add(
                 Transaction(
                     id = json.getInt("id"),
-                    type = json.getString("type"),
+                    // --- [PERBAIKAN 6] Convert String dari JSON ke Enum ---
+                    type = TransactionType.valueOf(json.getString("type")),
+                    // ---------------------------------------------------
                     amount = json.getDouble("amount"),
                     categoryId = json.getInt("categoryId"),
                     date = json.getLong("date"),
@@ -382,7 +392,9 @@ object BackupHelper {
                     id = json.getInt("id"),
                     name = json.getString("name"),
                     icon = json.getString("icon"),
-                    type = json.getString("type"),
+                    // --- [PERBAIKAN 7] Convert String dari JSON ke Enum ---
+                    type = TransactionType.valueOf(json.getString("type")),
+                    // ---------------------------------------------------
                     isDefault = json.getBoolean("isDefault")
                 )
             )

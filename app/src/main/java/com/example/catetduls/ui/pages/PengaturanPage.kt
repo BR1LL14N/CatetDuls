@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.appcompat.widget.SwitchCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import com.example.catetduls.R
 import com.example.catetduls.data.getCategoryRepository
 import com.example.catetduls.data.getTransactionRepository
@@ -21,6 +22,7 @@ import com.google.android.material.card.MaterialCardView
 import java.io.File
 import androidx.lifecycle.Observer
 import androidx.lifecycle.asLiveData
+import kotlinx.coroutines.launch
 
 
 /**
@@ -111,40 +113,44 @@ class PengaturanPage : Fragment() {
     private fun setupButtons() {
         // Kelola Kategori
         cardKelolaKategori.setOnClickListener {
-            // TODO: Navigate to category management page
             Toast.makeText(requireContext(), "Kelola Kategori - Coming Soon", Toast.LENGTH_SHORT).show()
         }
 
         // Backup
         btnBackup.setOnClickListener {
-            val jsonData = viewModel.exportToJson()
-            if (jsonData != null) {
-                val file = viewModel.saveBackupToFile(jsonData)
-                if (file != null) {
-                    Toast.makeText(requireContext(), "Backup disimpan: ${file.name}", Toast.LENGTH_LONG).show()
+            viewLifecycleOwner.lifecycleScope.launch {
+                val jsonData = viewModel.exportToJson()
+                if (jsonData != null) {
+                    val file = viewModel.saveBackupToFile(jsonData)
+                    if (file != null) {
+                        Toast.makeText(requireContext(), "Backup disimpan: ${file.name}", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }
 
         // Restore
         btnRestore.setOnClickListener {
-            // TODO: Implement file picker untuk restore
             Toast.makeText(requireContext(), "Restore - Coming Soon", Toast.LENGTH_SHORT).show()
         }
 
         // Export CSV
         btnExportCsv.setOnClickListener {
-            val csvData = viewModel.exportToCsv()
-            if (csvData != null) {
-                Toast.makeText(requireContext(), "Export CSV berhasil", Toast.LENGTH_SHORT).show()
+            viewLifecycleOwner.lifecycleScope.launch {
+                val csvData = viewModel.exportToCsv()
+                if (csvData != null) {
+                    Toast.makeText(requireContext(), "Export CSV berhasil", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
         // Export JSON
         btnExportJson.setOnClickListener {
-            val jsonData = viewModel.exportToJson()
-            if (jsonData != null) {
-                Toast.makeText(requireContext(), "Export JSON berhasil", Toast.LENGTH_SHORT).show()
+            viewLifecycleOwner.lifecycleScope.launch {
+                val jsonData = viewModel.exportToJson()
+                if (jsonData != null) {
+                    Toast.makeText(requireContext(), "Export JSON berhasil", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 

@@ -115,13 +115,13 @@ class StatistikViewModel(
                 val (startDate, endDate) = getDateRange(_selectedPeriod.value)
 
                 // Load total pemasukan
-                repository.getTotalByTypeAndDateRange("Pemasukan", startDate, endDate)
+                repository.getTotalByTypeAndDateRange(TransactionType.PEMASUKAN, startDate, endDate)
                     .collect { income ->
                         _periodIncome.value = income ?: 0.0
                     }
 
                 // Load total pengeluaran
-                repository.getTotalByTypeAndDateRange("Pengeluaran", startDate, endDate)
+                repository.getTotalByTypeAndDateRange(TransactionType.PENGELUARAN, startDate, endDate)
                     .collect { expense ->
                         _periodExpense.value = expense ?: 0.0
 

@@ -3,6 +3,7 @@ package com.example.catetduls.viewmodel
 import androidx.lifecycle.*
 import com.example.catetduls.data.Transaction
 import com.example.catetduls.data.TransactionRepository
+import com.example.catetduls.data.TransactionType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,8 +40,10 @@ class TransaksiViewModel(
     // Filter States
     // ========================================
 
-    private val _selectedType = MutableStateFlow<String?>(null) // "Pemasukan", "Pengeluaran", atau null (semua)
-    val selectedType: StateFlow<String?> = _selectedType.asStateFlow()
+    // --- [PERBAIKAN 2] ---
+    private val _selectedType = MutableStateFlow<TransactionType?>(null)
+    val selectedType: StateFlow<TransactionType?> = _selectedType.asStateFlow()
+    // ---------------------
 
     private val _selectedCategoryId = MutableStateFlow<Int?>(null)
     val selectedCategoryId: StateFlow<Int?> = _selectedCategoryId.asStateFlow()
@@ -64,13 +67,15 @@ class TransaksiViewModel(
     /**
      * Total dari transaksi yang sedang ditampilkan
      */
+    // --- [PERBAIKAN 3] ---
     val displayedTotalIncome: LiveData<Double> = transactions.map { list ->
-        list.filter { it.type == "Pemasukan" }.sumOf { it.amount }
+        list.filter { it.type == TransactionType.PEMASUKAN }.sumOf { it.amount }
     }
 
     val displayedTotalExpense: LiveData<Double> = transactions.map { list ->
-        list.filter { it.type == "Pengeluaran" }.sumOf { it.amount }
+        list.filter { it.type == TransactionType.PENGELUARAN }.sumOf { it.amount }
     }
+    // ---------------------
 
     // ========================================
     // Initialization
@@ -93,18 +98,20 @@ class TransaksiViewModel(
             try {
                 val query = _searchQuery.value
 
-                // Jika ada search query, gunakan search
                 if (query.isNotBlank()) {
                     repository.searchTransactions(query)
                         .collect { _transactions.value = it }
                 } else {
-                    // Gunakan filter
+                    // --- [PERBAIKAN 4] ---
+                    // Pemanggilan ini sekarang valid karena _selectedType.value
+                    // sudah memiliki tipe data yang benar (TransactionType?)
                     repository.getFilteredTransactions(
                         type = _selectedType.value,
                         categoryId = _selectedCategoryId.value,
                         startDate = _startDate.value,
                         endDate = _endDate.value
                     ).collect { _transactions.value = it }
+                    // ---------------------
                 }
 
                 _isLoading.value = false
@@ -118,10 +125,12 @@ class TransaksiViewModel(
     /**
      * Set filter tipe (Pemasukan/Pengeluaran)
      */
-    fun setTypeFilter(type: String?) {
+    // --- [PERBAIKAN 5] ---
+    fun setTypeFilter(type: TransactionType?) {
         _selectedType.value = type
         loadTransactions()
     }
+    // ---------------------
 
     /**
      * Set filter kategori
@@ -168,7 +177,8 @@ class TransaksiViewModel(
             try {
                 repository.deleteTransaction(transaction)
                 _successMessage.value = "Transaksi berhasil dihapus"
-                loadTransactions()
+                // loadTransactions() tidak perlu dipanggil di sini karena
+                // _transactions (sebagai Flow/LiveData) akan otomatis update
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal menghapus transaksi: ${e.message}"
             }
@@ -199,19 +209,22 @@ class TransaksiViewModel(
 
     /**
      * Format tanggal untuk display
+     * (Sebaiknya dipindahkan ke View/Adapter)
      */
     fun formatDate(timestamp: Long): String {
         val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
         val day = calendar.get(Calendar.DAY_OF_MONTH)
-        val month = calendar.get(Calendar.MONTH) + 1
+        val month = calendar.get(Calendar.MONTH) + 1 // Bulan dimulai dari 0
         val year = calendar.get(Calendar.YEAR)
         return "$day/$month/$year"
     }
 
     /**
      * Format currency
+     * (Sebaiknya dipindahkan ke View/Adapter)
      */
     fun formatCurrency(amount: Double): String {
+        // Sebaiknya gunakan NumberFormat.getCurrencyInstance()
         return "Rp ${String.format("%,.0f", amount)}"
     }
 
@@ -227,25 +240,16 @@ class TransaksiViewModel(
     // Quick Filters (Helper)
     // ========================================
 
-    /**
-     * Filter transaksi bulan ini
-     */
     fun filterThisMonth() {
         val (start, end) = repository.getThisMonthDateRange()
         setDateRangeFilter(start, end)
     }
 
-    /**
-     * Filter transaksi minggu ini
-     */
     fun filterThisWeek() {
         val (start, end) = repository.getThisWeekDateRange()
         setDateRangeFilter(start, end)
     }
 
-    /**
-     * Filter hari ini
-     */
     fun filterToday() {
         val calendar = Calendar.getInstance()
         calendar.set(Calendar.HOUR_OF_DAY, 0)
@@ -265,6 +269,7 @@ class TransaksiViewModel(
 
 /**
  * Factory untuk TransaksiViewModel
+ * (File ini sudah 100% benar, tidak perlu diubah)
  */
 class TransaksiViewModelFactory(
     private val repository: TransactionRepository

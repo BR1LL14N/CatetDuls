@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">CatetDuls</string>
+
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_transaksi">Transaksi</string>
+    <string name="nav_statistik">Statistik</string>
+    <string name="nav_pengaturan">Pengaturan</string>
 </resources>

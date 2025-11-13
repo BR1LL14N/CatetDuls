@@ -28,13 +28,10 @@ class TambahViewModel(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
-
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-
     private val _successMessage = MutableStateFlow<String?>(null)
     val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
 
@@ -45,8 +42,8 @@ class TambahViewModel(
     private val _transactionId = MutableStateFlow<Int?>(null)
     val transactionId: StateFlow<Int?> = _transactionId.asStateFlow()
 
-    private val _selectedType = MutableStateFlow("Pengeluaran") // Default: Pengeluaran
-    val selectedType: StateFlow<String> = _selectedType.asStateFlow()
+    private val _selectedType = MutableStateFlow(TransactionType.PENGELUARAN) // Default: Pengeluaran
+    val selectedType: StateFlow<TransactionType> = _selectedType.asStateFlow()
 
     private val _selectedCategoryId = MutableStateFlow<Int?>(null)
     val selectedCategoryId: StateFlow<Int?> = _selectedCategoryId.asStateFlow()
@@ -97,9 +94,9 @@ class TambahViewModel(
     /**
      * Set tipe transaksi (Pemasukan/Pengeluaran)
      */
-    fun setType(type: String) {
+    fun setType(type: TransactionType) {
         _selectedType.value = type
-        _selectedCategoryId.value = null // Reset kategori saat ganti tipe
+        _selectedCategoryId.value = null // Reset kategori (logika ini sudah benar)
     }
 
     /**
@@ -207,18 +204,22 @@ class TambahViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                transactionRepository.getTransactionById(transactionId)
-                    .collect { transaction ->
-                        if (transaction != null) {
-                            _transactionId.value = transaction.id
-                            _selectedType.value = transaction.type
-                            _selectedCategoryId.value = transaction.categoryId
-                            _amount.value = transaction.amount.toString()
-                            _date.value = transaction.date
-                            _notes.value = transaction.notes
-                        }
-                        _isLoading.value = false
+                // .collect akan error di sini, ganti ke .asLiveData() atau .firstOrNull()
+                // Mari kita ubah sedikit logikanya agar lebih aman
+                val transactionFlow = transactionRepository.getTransactionById(transactionId)
+                transactionFlow.asLiveData().observeForever { transaction ->
+                    if (transaction != null) {
+                        _transactionId.value = transaction.id
+                        // --- [PERBAIKAN 6] Enum ke Enum, sekarang valid ---
+                        _selectedType.value = transaction.type
+                        // ------------------------------------------------
+                        _selectedCategoryId.value = transaction.categoryId
+                        _amount.value = transaction.amount.toString() // Sederhanakan
+                        _date.value = transaction.date
+                        _notes.value = transaction.notes
                     }
+                    _isLoading.value = false
+                }
             } catch (e: Exception) {
                 _isLoading.value = false
                 _errorMessage.value = "Gagal memuat transaksi: ${e.message}"
@@ -231,7 +232,7 @@ class TambahViewModel(
      */
     fun resetForm() {
         _transactionId.value = null
-        _selectedType.value = "Pengeluaran"
+        _selectedType.value = TransactionType.PENGELUARAN
         _selectedCategoryId.value = null
         _amount.value = ""
         _date.value = System.currentTimeMillis()

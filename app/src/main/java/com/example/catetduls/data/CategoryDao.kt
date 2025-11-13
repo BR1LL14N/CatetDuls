@@ -14,7 +14,6 @@ interface CategoryDao {
 
     /**
      * Insert multiple categories (untuk data awal)
-     * INI YANG KURANG!
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(categories: List<Category>)
@@ -32,7 +31,7 @@ interface CategoryDao {
     suspend fun deleteCategory(category: Category)
 
     /**
-     * Delete berdasarkan ID
+     * Delete berdasarkan ID (Logika Anda sudah benar)
      */
     @Query("DELETE FROM categories WHERE id = :categoryId AND isDefault = 0")
     suspend fun deleteCategoryById(categoryId: Int)
@@ -46,8 +45,10 @@ interface CategoryDao {
     /**
      * Get kategori berdasarkan tipe
      */
-    @Query("SELECT * FROM categories WHERE type = :type OR type = 'Semua' ORDER BY name ASC")
-    fun getCategoriesByType(type: String): Flow<List<Category>>
+    // --- DIPERBAIKI ---
+    @Query("SELECT * FROM categories WHERE type = :type ORDER BY name ASC")
+    fun getCategoriesByType(type: TransactionType): Flow<List<Category>>
+    // -------------------
 
     /**
      * Get kategori berdasarkan ID
@@ -80,7 +81,7 @@ interface CategoryDao {
         SELECT c.*, COUNT(t.id) as transactionCount
         FROM categories c
         LEFT JOIN transactions t ON c.id = t.categoryId
-        GROUP BY c.id
+        GROUP BY c.id, c.name, c.icon, c.type, c.isDefault, c.id /* Group by all columns of c */
         ORDER BY transactionCount DESC
     """)
     fun getCategoriesWithTransactionCount(): Flow<List<CategoryWithCount>>
@@ -89,11 +90,4 @@ interface CategoryDao {
 /**
  * Data class untuk kategori dengan jumlah transaksi
  */
-data class CategoryWithCount(
-    val id: Int,
-    val name: String,
-    val icon: String,
-    val type: String,
-    val isDefault: Boolean,
-    val transactionCount: Int
-)
+// --- DIPERBAIKI (Menggunakan @Embedded) ---

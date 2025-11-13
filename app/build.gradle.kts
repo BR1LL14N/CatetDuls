@@ -4,7 +4,6 @@ plugins {
     alias(libs.plugins.google.ksp)
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.21"
     alias(libs.plugins.hilt)
-
 }
 
 android {
@@ -45,6 +44,10 @@ android {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
         }
     }
+    ksp {
+        arg("room.incremental", "true")
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
 }
 
 dependencies {
@@ -78,5 +81,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
 
 }

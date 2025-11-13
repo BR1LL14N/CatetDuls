@@ -17,6 +17,11 @@ import androidx.room.PrimaryKey
  * - Gaji 💼
  * - Lainnya ⚙️
  */
+
+enum class TransactionType {
+    PEMASUKAN,
+    PENGELUARAN
+}
 @Entity(tableName = "categories")
 data class Category(
     @PrimaryKey(autoGenerate = true)
@@ -26,7 +31,7 @@ data class Category(
 
     val icon: String = "⚙️", // Emoji icon
 
-    val type: String, // "Pemasukan" atau "Pengeluaran" atau "Semua"
+    val type: TransactionType, //hanya boleh pemasukkan dan pengeluaran
 
     val isDefault: Boolean = false // Kategori default tidak bisa dihapus
 )

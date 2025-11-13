@@ -10,6 +10,9 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.example.catetduls.R
 import com.example.catetduls.data.Category
+// --- [PERBAIKAN 1] Import Enum ---
+import com.example.catetduls.data.TransactionType
+// ---------------------------------
 import com.example.catetduls.data.getCategoryRepository
 import com.example.catetduls.data.getTransactionRepository
 import com.example.catetduls.viewmodel.TambahViewModel
@@ -23,17 +26,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
 import androidx.lifecycle.Lifecycle
 
-/**
- * TambahTransaksiPage - Form untuk tambah/edit transaksi
- *
- * Fitur:
- * - Radio button (Pemasukan/Pengeluaran)
- * - Spinner kategori (dinamis berdasarkan tipe)
- * - Input amount dengan format Rupiah
- * - Date picker
- * - Notes (opsional)
- * - Validasi
- */
 class TambahTransaksiPage : Fragment() {
 
     private lateinit var viewModel: TambahViewModel
@@ -64,7 +56,7 @@ class TambahTransaksiPage : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Initialize ViewModel
+        // Initialize ViewModel (Sudah Benar)
         val transactionRepo = requireContext().getTransactionRepository()
         val categoryRepo = requireContext().getCategoryRepository()
         val factory = TambahViewModelFactory(transactionRepo, categoryRepo)
@@ -83,6 +75,7 @@ class TambahTransaksiPage : Fragment() {
     }
 
     private fun initViews(view: View) {
+        // ... (Tidak ada perubahan, sudah benar)
         radioGroupType = view.findViewById(R.id.radio_group_type)
         radioPemasukan = view.findViewById(R.id.radio_pemasukan)
         radioPengeluaran = view.findViewById(R.id.radio_pengeluaran)
@@ -98,19 +91,32 @@ class TambahTransaksiPage : Fragment() {
 
     private fun setupRadioGroup() {
         radioGroupType.setOnCheckedChangeListener { _, checkedId ->
+            // --- [PERBAIKAN 2] Gunakan Enum saat memanggil ViewModel ---
             when (checkedId) {
-                R.id.radio_pemasukan -> viewModel.setType("Pemasukan")
-                R.id.radio_pengeluaran -> viewModel.setType("Pengeluaran")
+                R.id.radio_pemasukan -> viewModel.setType(TransactionType.PEMASUKAN)
+                R.id.radio_pengeluaran -> viewModel.setType(TransactionType.PENGELUARAN)
             }
+            // --------------------------------------------------------
         }
 
-        // Set default
-        radioPengeluaran.isChecked = true
+        // Mengamati perubahan tipe dari ViewModel untuk update RadioButton
+        // Ini adalah "Two-way binding" manual
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.selectedType.collect { type ->
+                if (type == TransactionType.PEMASUKAN) {
+                    radioPemasukan.isChecked = true
+                } else {
+                    radioPengeluaran.isChecked = true
+                }
+            }
+        }
     }
 
     private fun setupDatePicker() {
+        // ... (Tidak ada perubahan, sudah benar)
         btnSelectDate.setOnClickListener {
             val calendar = Calendar.getInstance()
+            calendar.timeInMillis = viewModel.date.value // Ambil tanggal terakhir dari VM
 
             DatePickerDialog(
                 requireContext(),
@@ -127,15 +133,13 @@ class TambahTransaksiPage : Fragment() {
 
     private fun setupButtons() {
         btnSimpan.setOnClickListener {
-            // Get values from inputs
+            // (Tidak ada perubahan, sudah benar)
             val amount = etAmount.text.toString()
             val notes = etNotes.text.toString()
 
-            // Set to ViewModel
             viewModel.setAmount(amount)
             viewModel.setNotes(notes)
 
-            // Save
             if (viewModel.isFormValid()) {
                 viewModel.saveTransaction()
             } else {
@@ -145,14 +149,14 @@ class TambahTransaksiPage : Fragment() {
 
         btnReset.setOnClickListener {
             viewModel.resetForm()
-            clearInputs()
+            // Kita tidak perlu memanggil clearInputs() lagi karena
+            // ViewModel akan meng-update UI melalui observer
         }
     }
 
     private fun observeData() {
 
         // 1. OBSERVE UNTUK STATEFLOW (di dalam lifecycleScope)
-        // ===================================================
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 
@@ -163,7 +167,24 @@ class TambahTransaksiPage : Fragment() {
                     }
                 }
 
-                // Observe loading state
+                // --- [PERBAIKAN 3] Tambahkan observer untuk reset form ---
+                launch {
+                    viewModel.amount.collect { amountString ->
+                        if (amountString.isEmpty() && etAmount.text.toString().isNotEmpty()) {
+                            etAmount.text?.clear()
+                        }
+                    }
+                }
+                launch {
+                    viewModel.notes.collect { notesString ->
+                        if (notesString.isEmpty() && etNotes.text.toString().isNotEmpty()) {
+                            etNotes.text?.clear()
+                        }
+                    }
+                }
+                // ----------------------------------------------------
+
+                // Observe loading state (sudah benar)
                 launch {
                     viewModel.isSaving.collect { isSaving ->
                         progressBar.visibility = if (isSaving) View.VISIBLE else View.GONE
@@ -177,12 +198,13 @@ class TambahTransaksiPage : Fragment() {
                         message?.let {
                             Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
                             viewModel.clearMessages()
-                            clearInputs()
+                            // Tidak perlu clearInputs(), resetForm sudah dipanggil
+                            // atau bisa juga panggil viewModel.resetForm() di sini
                         }
                     }
                 }
 
-                // Observe error message
+                // Observe error message (sudah benar)
                 launch {
                     viewModel.errorMessage.collect { error ->
                         error?.let {
@@ -195,9 +217,8 @@ class TambahTransaksiPage : Fragment() {
         }
 
         // 2. OBSERVE UNTUK LIVE DATA (di luar lifecycleScope)
-        // ==================================================
 
-        // Observe categories berdasarkan tipe
+        // Observe categories berdasarkan tipe (sudah benar)
         viewModel.categories.observe(viewLifecycleOwner) { categories: List<Category> ->
             categoriesList = categories
 
@@ -210,6 +231,12 @@ class TambahTransaksiPage : Fragment() {
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             spinnerKategori.adapter = adapter
 
+            // --- [PERBAIKAN 4] Atur seleksi spinner berdasarkan ViewModel ---
+            val selectedId = viewModel.selectedCategoryId.value
+            val selectedIndex = categoriesList.indexOfFirst { it.id == selectedId }.coerceAtLeast(0)
+            spinnerKategori.setSelection(selectedIndex)
+            // ------------------------------------------------------------
+
             // Listener untuk set category ID
             spinnerKategori.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
@@ -217,16 +244,25 @@ class TambahTransaksiPage : Fragment() {
                         viewModel.setCategory(categoriesList[position].id)
                     }
                 }
+                override fun onNothingSelected(parent: AdapterView<*>?) {
+                    viewModel.setCategory(0) // Atau null
+                }
+            }
+        }
 
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
+        // Mengamati amount dari VM untuk memformat input
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.amount.collect { amountString ->
+                if (amountString != etAmount.text.toString()) {
+                    // Logika format amount bisa ditambahkan di sini jika perlu
+                    // etAmount.setText(viewModel.formatAmountDisplay(amountString))
+                }
             }
         }
     }
 
-    private fun clearInputs() {
-        etAmount.text?.clear()
-        etNotes.text?.clear()
-        radioPengeluaran.isChecked = true
-        spinnerKategori.setSelection(0)
-    }
+    // --- [PERBAIKAN 5] Hapus fungsi ini ---
+    // Logika reset UI sekarang ditangani oleh observer
+    // yang mengamati state di ViewModel.
+    // private fun clearInputs() { ... }
 }
