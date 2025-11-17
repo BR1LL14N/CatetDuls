@@ -78,14 +78,24 @@ class TransaksiPage : Fragment() {
     }
 
     private fun initViews(view: View) {
-        // ... (Tidak ada perubahan, sudah benar)
         rvTransactions = view.findViewById(R.id.rv_transactions)
         searchView = view.findViewById(R.id.search_view)
         chipGroup = view.findViewById(R.id.chip_group_type)
         chipSemua = view.findViewById(R.id.chip_semua)
         chipPemasukan = view.findViewById(R.id.chip_pemasukan)
         chipPengeluaran = view.findViewById(R.id.chip_pengeluaran)
-        // ... (sisanya sudah benar)
+        tvTotalPemasukan = view.findViewById(R.id.tv_total_pemasukan)
+        tvTotalPengeluaran = view.findViewById(R.id.tv_total_pengeluaran)
+
+        // Perbaikan: Tambahkan null-check
+        btnFilterHariIni = view.findViewById(R.id.btn_filter_hari_ini)
+            ?: throw IllegalStateException("btn_filter_hari_ini not found in layout")
+        btnFilterMingguIni = view.findViewById(R.id.btn_filter_minggu_ini)
+            ?: throw IllegalStateException("btn_filter_minggu_ini not found in layout")
+        btnFilterBulanIni = view.findViewById(R.id.btn_filter_bulan_ini)
+            ?: throw IllegalStateException("btn_filter_bulan_ini not found in layout")
+        btnClearFilter = view.findViewById(R.id.btn_clear_filter)
+            ?: throw IllegalStateException("btn_clear_filter not found in layout")
     }
 
     private fun setupRecyclerView() {

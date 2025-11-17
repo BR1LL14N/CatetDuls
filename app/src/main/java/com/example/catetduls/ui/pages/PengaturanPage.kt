@@ -1,6 +1,7 @@
 package com.example.catetduls.ui.pages
 
 import android.app.AlertDialog
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -99,13 +100,14 @@ class PengaturanPage : Fragment() {
     }
 
     private fun setupDarkMode() {
-        // Set initial state
-        viewModel.isDarkMode.asLiveData().observe(viewLifecycleOwner, Observer { isDark ->
-            switchDarkMode.isChecked = isDark
-        })
+        // Set initial state langsung dari SharedPreferences
+        val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val currentDarkMode = prefs.getBoolean("dark_mode", false)
+        switchDarkMode.isChecked = currentDarkMode
+
+        // Listener untuk toggle
         switchDarkMode.setOnCheckedChangeListener { _, isChecked ->
             viewModel.toggleDarkMode()
-            // TODO: Apply theme change
             Toast.makeText(requireContext(), "Dark Mode akan aktif setelah restart", Toast.LENGTH_SHORT).show()
         }
     }
