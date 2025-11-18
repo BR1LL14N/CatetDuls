@@ -198,7 +198,7 @@ interface TransactionDao {
         WHERE t.type = 'PENGELUARAN' 
         GROUP BY t.categoryId, c.name
         ORDER BY total DESC
-    """) // <-- DIPERBAIKI
+    """)
     fun getTotalExpenseByCategory(): Flow<List<CategoryExpense>>
 
     /**
