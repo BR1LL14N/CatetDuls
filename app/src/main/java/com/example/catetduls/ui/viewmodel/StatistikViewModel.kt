@@ -5,18 +5,12 @@ import com.example.catetduls.data.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.util.*
+import kotlin.math.abs
 
 /**
  * ViewModel untuk StatistikPage
- *
- * Mengelola:
- * - Data untuk Pie Chart (pengeluaran per kategori)
- * - Data untuk Bar Chart (pemasukan & pengeluaran per bulan)
- * - Filter waktu (harian/mingguan/bulanan)
- * - Statistik ringkasan
  */
 class StatistikViewModel(
     private val repository: TransactionRepository
@@ -36,7 +30,7 @@ class StatistikViewModel(
     // Filter State
     // ========================================
 
-    private val _selectedPeriod = MutableStateFlow("Bulan Ini") // "Hari Ini", "Minggu Ini", "Bulan Ini", "Tahun Ini"
+    private val _selectedPeriod = MutableStateFlow("Bulan Ini")
     val selectedPeriod: StateFlow<String> = _selectedPeriod.asStateFlow()
 
     private val _selectedYear = MutableStateFlow(Calendar.getInstance().get(Calendar.YEAR))
@@ -164,47 +158,23 @@ class StatistikViewModel(
 
         return when (period) {
             "Hari Ini" -> {
-                calendar.set(Calendar.HOUR_OF_DAY, 0)
-                calendar.set(Calendar.MINUTE, 0)
-                calendar.set(Calendar.SECOND, 0)
-                calendar.set(Calendar.MILLISECOND, 0)
+                calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0); calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
                 val start = calendar.timeInMillis
-
-                calendar.set(Calendar.HOUR_OF_DAY, 23)
-                calendar.set(Calendar.MINUTE, 59)
-                calendar.set(Calendar.SECOND, 59)
+                calendar.set(Calendar.HOUR_OF_DAY, 23); calendar.set(Calendar.MINUTE, 59); calendar.set(Calendar.SECOND, 59)
                 val end = calendar.timeInMillis
-
                 Pair(start, end)
             }
-
-            "Minggu Ini" -> {
-                repository.getThisWeekDateRange()
-            }
-
-            "Bulan Ini" -> {
-                repository.getThisMonthDateRange()
-            }
-
+            "Minggu Ini" -> repository.getThisWeekDateRange()
+            "Bulan Ini" -> repository.getThisMonthDateRange()
             "Tahun Ini" -> {
-                calendar.set(Calendar.MONTH, Calendar.JANUARY)
-                calendar.set(Calendar.DAY_OF_MONTH, 1)
-                calendar.set(Calendar.HOUR_OF_DAY, 0)
-                calendar.set(Calendar.MINUTE, 0)
-                calendar.set(Calendar.SECOND, 0)
-                calendar.set(Calendar.MILLISECOND, 0)
+                calendar.set(Calendar.MONTH, Calendar.JANUARY); calendar.set(Calendar.DAY_OF_MONTH, 1)
+                calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0); calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
                 val start = calendar.timeInMillis
-
-                calendar.set(Calendar.MONTH, Calendar.DECEMBER)
-                calendar.set(Calendar.DAY_OF_MONTH, 31)
-                calendar.set(Calendar.HOUR_OF_DAY, 23)
-                calendar.set(Calendar.MINUTE, 59)
-                calendar.set(Calendar.SECOND, 59)
+                calendar.set(Calendar.MONTH, Calendar.DECEMBER); calendar.set(Calendar.DAY_OF_MONTH, 31)
+                calendar.set(Calendar.HOUR_OF_DAY, 23); calendar.set(Calendar.MINUTE, 59); calendar.set(Calendar.SECOND, 59)
                 val end = calendar.timeInMillis
-
                 Pair(start, end)
             }
-
             else -> repository.getThisMonthDateRange()
         }
     }
@@ -240,21 +210,21 @@ class StatistikViewModel(
      * Get warna untuk kategori (untuk Pie Chart)
      */
     fun getCategoryColor(index: Int): Int {
-        val colors = arrayOf(
-            android.graphics.Color.parseColor("#FF6384"),
-            android.graphics.Color.parseColor("#36A2EB"),
-            android.graphics.Color.parseColor("#FFCE56"),
-            android.graphics.Color.parseColor("#4BC0C0"),
-            android.graphics.Color.parseColor("#9966FF"),
-            android.graphics.Color.parseColor("#FF9F40"),
-            android.graphics.Color.parseColor("#FF6384"),
-            android.graphics.Color.parseColor("#C9CBCF")
+        val colors = listOf(
+            android.graphics.Color.parseColor("#FF6384"), // Pink
+            android.graphics.Color.parseColor("#36A2EB"), // Biru
+            android.graphics.Color.parseColor("#FFCE56"), // Kuning
+            android.graphics.Color.parseColor("#4BC0C0"), // Cyan
+            android.graphics.Color.parseColor("#9966FF"), // Ungu
+            android.graphics.Color.parseColor("#FF9F40"), // Oranye
+            android.graphics.Color.parseColor("#33FFCC"), // Hijau Muda
+            android.graphics.Color.parseColor("#C9CBCF")  // Abu-abu
         )
         return colors[index % colors.size]
     }
 
     /**
-     * Data untuk Pie Chart dengan persentase
+     * Data untuk Pie Chart dengan persentase (Fungsi ini mungkin tidak perlu jika menggunakan PieEntry langsung)
      */
     fun getPieChartData(): LiveData<List<CategoryExpenseWithPercentage>> {
         return expenseByCategory.map { categories ->
@@ -278,10 +248,13 @@ class StatistikViewModel(
         val expense = _periodExpense.value ?: 0.0
         val balance = income - expense
 
+        // Menggunakan formatCurrency untuk angka, tapi tanpa "Rp"
+        val formattedBalance = String.format("%,.0f", abs(balance))
+
         return when {
-            balance > 0 -> "Surplus ${formatCurrency(balance)}"
-            balance < 0 -> "Defisit ${formatCurrency(Math.abs(balance))}"
-            else -> "Seimbang"
+            balance > 0 -> "Anda surplus bulan ini: $formattedBalance"
+            balance < 0 -> "Anda defisit bulan ini: $formattedBalance"
+            else -> "Seimbang bulan ini."
         }
     }
 }
