@@ -1,5 +1,72 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <!-- Primary Colors -->
+    <color name="primary">#6C63FF</color>
+    <color name="primary_dark">#5548E8</color>
+    <color name="primary_light">#8F87FF</color>
+    <color name="primary_variant">#4E46DC</color>
+
+    <!-- Secondary Colors -->
+    <color name="secondary">#FF6584</color>
+    <color name="secondary_dark">#E84A6F</color>
+    <color name="secondary_light">#FF8FA3</color>
+
+    <!-- Accent Colors -->
+    <color name="accent">#FFD166</color>
+    <color name="accent_dark">#F5BC47</color>
+
+    <!-- Success & Income -->
+    <color name="success">#26C281</color>
+    <color name="success_light">#4CD497</color>
+    <color name="success_bg">#E8F8F2</color>
+
+    <!-- Danger & Expense -->
+    <color name="danger">#FF6B6B</color>
+    <color name="danger_light">#FF8989</color>
+    <color name="danger_bg">#FFF0F0</color>
+
+    <!-- Warning -->
+    <color name="warning">#FFA726</color>
+    <color name="warning_light">#FFB84D</color>
+    <color name="warning_bg">#FFF8E8</color>
+
+    <!-- Info -->
+    <color name="info">#3498DB</color>
+    <color name="info_light">#5FAEE3</color>
+    <color name="info_bg">#EBF5FB</color>
+
+    <!-- Neutral Colors -->
+    <color name="black">#1A1A1A</color>
+    <color name="white">#FFFFFF</color>
+    <color name="background">#F8F9FA</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_variant">#F5F6F8</color>
+
+    <!-- Text Colors -->
+    <color name="text_primary">#2C3E50</color>
+    <color name="text_secondary">#7F8C9A</color>
+    <color name="text_tertiary">#B4BDC7</color>
+    <color name="text_on_primary">#FFFFFF</color>
+
+    <!-- Border & Divider -->
+    <color name="border">#E8EAED</color>
+    <color name="divider">#F0F2F5</color>
+
+    <!-- Overlay -->
+    <color name="overlay_light">#40000000</color>
+    <color name="overlay_dark">#80000000</color>
+
+    <!-- Gradient Colors -->
+    <color name="gradient_start">#6C63FF</color>
+    <color name="gradient_end">#8F87FF</color>
+
+    <!-- Dark Mode Colors -->
+    <color name="dark_background">#121212</color>
+    <color name="dark_surface">#1E1E1E</color>
+    <color name="dark_surface_variant">#2C2C2C</color>
+    <color name="dark_text_primary">#E1E1E1</color>
+    <color name="dark_text_secondary">#A0A0A0</color>
+
+    <!-- Card Shadow -->
+    <color name="shadow">#1A000000</color>
 </resources>

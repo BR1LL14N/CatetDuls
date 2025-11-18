@@ -13,6 +13,7 @@ import com.example.catetduls.data.Category
 // --- [PERBAIKAN 1] Import Enum ---
 import com.example.catetduls.data.TransactionType
 // ---------------------------------
+import com.google.android.material.card.MaterialCardView
 import com.example.catetduls.data.getCategoryRepository
 import com.example.catetduls.data.getTransactionRepository
 import com.example.catetduls.viewmodel.TambahViewModel
@@ -25,6 +26,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
 import androidx.lifecycle.Lifecycle
+import androidx.core.content.ContextCompat
 
 class TambahTransaksiPage : Fragment() {
 
@@ -34,6 +36,12 @@ class TambahTransaksiPage : Fragment() {
     private lateinit var radioGroupType: RadioGroup
     private lateinit var radioPemasukan: RadioButton
     private lateinit var radioPengeluaran: RadioButton
+    private lateinit var tvLabelPemasukan: TextView
+    private lateinit var tvLabelPengeluaran: TextView
+    private lateinit var tvIconPemasukan: TextView
+    private lateinit var tvIconPengeluaran: TextView
+    private lateinit var cardPemasukan: MaterialCardView
+    private lateinit var cardPengeluaran: MaterialCardView
     private lateinit var spinnerKategori: Spinner
     private lateinit var etAmount: TextInputEditText
     private lateinit var tvDate: TextView
@@ -64,6 +72,7 @@ class TambahTransaksiPage : Fragment() {
 
         // Initialize Views
         initViews(view)
+        setupRadioGroup()
 
         // Setup
         setupRadioGroup()
@@ -79,6 +88,12 @@ class TambahTransaksiPage : Fragment() {
         radioGroupType = view.findViewById(R.id.radio_group_type)
         radioPemasukan = view.findViewById(R.id.radio_pemasukan)
         radioPengeluaran = view.findViewById(R.id.radio_pengeluaran)
+        tvLabelPemasukan = view.findViewById(R.id.tv_label_pemasukan)
+        tvLabelPengeluaran = view.findViewById(R.id.tv_label_pengeluaran)
+        tvIconPemasukan = view.findViewById(R.id.tv_icon_pemasukan)
+        tvIconPengeluaran = view.findViewById(R.id.tv_icon_pengeluaran)
+        cardPemasukan = view.findViewById(R.id.card_pemasukan)
+        cardPengeluaran = view.findViewById(R.id.card_pengeluaran)
         spinnerKategori = view.findViewById(R.id.spinner_kategori)
         etAmount = view.findViewById(R.id.et_amount)
         tvDate = view.findViewById(R.id.tv_date)
@@ -90,25 +105,134 @@ class TambahTransaksiPage : Fragment() {
     }
 
     private fun setupRadioGroup() {
-        radioGroupType.setOnCheckedChangeListener { _, checkedId ->
-            // --- [PERBAIKAN 2] Gunakan Enum saat memanggil ViewModel ---
-            when (checkedId) {
-                R.id.radio_pemasukan -> viewModel.setType(TransactionType.PEMASUKAN)
-                R.id.radio_pengeluaran -> viewModel.setType(TransactionType.PENGELUARAN)
-            }
-            // --------------------------------------------------------
+        val cardPemasukan = view?.findViewById<MaterialCardView>(R.id.card_pemasukan)
+        val cardPengeluaran = view?.findViewById<MaterialCardView>(R.id.card_pengeluaran)
+
+        // Klik card pemasukan
+        cardPemasukan?.setOnClickListener {
+            radioPemasukan.isChecked = true
+            radioPengeluaran.isChecked = false
+            viewModel.setType(TransactionType.PEMASUKAN)
+            updateCardSelection()
         }
 
-        // Mengamati perubahan tipe dari ViewModel untuk update RadioButton
-        // Ini adalah "Two-way binding" manual
+        // Klik card pengeluaran
+        cardPengeluaran?.setOnClickListener {
+            radioPengeluaran.isChecked = true
+            radioPemasukan.isChecked = false
+            viewModel.setType(TransactionType.PENGELUARAN)
+            updateCardSelection()
+        }
+
+        // Radio button listener (backup jika radio button langsung di klik)
+        radioGroupType.setOnCheckedChangeListener { _, checkedId ->
+            when (checkedId) {
+                R.id.radio_pemasukan -> {
+                    viewModel.setType(TransactionType.PEMASUKAN)
+                }
+                R.id.radio_pengeluaran -> {
+                    viewModel.setType(TransactionType.PENGELUARAN)
+                }
+            }
+            updateCardSelection()
+        }
+
+        // Set initial selection
+        updateCardSelection()
+
+        // Observer dari ViewModel
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.selectedType.collect { type ->
                 if (type == TransactionType.PEMASUKAN) {
                     radioPemasukan.isChecked = true
+                    radioPengeluaran.isChecked = false
                 } else {
                     radioPengeluaran.isChecked = true
+                    radioPemasukan.isChecked = false
                 }
+                updateCardSelection()
             }
+        }
+    }
+
+    private fun updateCardSelection() {
+        val cardPemasukan = view?.findViewById<MaterialCardView>(R.id.card_pemasukan)
+        val cardPengeluaran = view?.findViewById<MaterialCardView>(R.id.card_pengeluaran)
+
+        val tvLabelPemasukan = view?.findViewById<TextView>(R.id.tv_label_pemasukan)
+        val tvLabelPengeluaran = view?.findViewById<TextView>(R.id.tv_label_pengeluaran)
+        val tvIconPemasukan = view?.findViewById<TextView>(R.id.tv_icon_pemasukan)
+        val tvIconPengeluaran = view?.findViewById<TextView>(R.id.tv_icon_pengeluaran)
+
+        // Log untuk debug
+        val isPemasukanChecked = radioPemasukan.isChecked
+        android.util.Log.d("TambahTransaksi", "Update: Pemasukan=$isPemasukanChecked, Pengeluaran=${radioPengeluaran.isChecked}")
+
+        if (isPemasukanChecked) {
+            // ========== PEMASUKAN SELECTED ==========
+
+            // Card Pemasukan - ACTIVE
+            cardPemasukan?.apply {
+                strokeColor = ContextCompat.getColor(requireContext(), R.color.success)
+                strokeWidth = 8
+                cardElevation = 6f
+            }
+
+            // Text & Icon Pemasukan - BOLD
+            tvLabelPemasukan?.apply {
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                textSize = 16f
+            }
+            tvIconPemasukan?.setTypeface(null, android.graphics.Typeface.BOLD)
+
+            // Card Pengeluaran - INACTIVE
+            cardPengeluaran?.apply {
+                strokeColor = ContextCompat.getColor(requireContext(), R.color.border)
+                strokeWidth = 2
+                cardElevation = 2f
+            }
+
+            // Text & Icon Pengeluaran - NORMAL
+            tvLabelPengeluaran?.apply {
+                setTypeface(null, android.graphics.Typeface.NORMAL)
+                textSize = 15f
+            }
+            tvIconPengeluaran?.setTypeface(null, android.graphics.Typeface.NORMAL)
+
+            android.util.Log.d("TambahTransaksi", "✅ Pemasukan is now BOLD")
+
+        } else {
+            // ========== PENGELUARAN SELECTED ==========
+
+            // Card Pengeluaran - ACTIVE
+            cardPengeluaran?.apply {
+                strokeColor = ContextCompat.getColor(requireContext(), R.color.danger)
+                strokeWidth = 8
+                cardElevation = 6f
+            }
+
+            // Text & Icon Pengeluaran - BOLD
+            tvLabelPengeluaran?.apply {
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                textSize = 16f
+            }
+            tvIconPengeluaran?.setTypeface(null, android.graphics.Typeface.BOLD)
+
+            // Card Pemasukan - INACTIVE
+            cardPemasukan?.apply {
+                strokeColor = ContextCompat.getColor(requireContext(), R.color.border)
+                strokeWidth = 2
+                cardElevation = 2f
+            }
+
+            // Text & Icon Pemasukan - NORMAL
+            tvLabelPemasukan?.apply {
+                setTypeface(null, android.graphics.Typeface.NORMAL)
+                textSize = 15f
+            }
+            tvIconPemasukan?.setTypeface(null, android.graphics.Typeface.NORMAL)
+
+            android.util.Log.d("TambahTransaksi", "✅ Pengeluaran is now BOLD")
         }
     }
 
