@@ -11,7 +11,6 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- Header dengan Modern Gradient -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -39,7 +38,6 @@
 
         </LinearLayout>
 
-        <!-- Content dengan Margin Negatif -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -49,7 +47,6 @@
             android:paddingEnd="16dp"
             android:paddingBottom="16dp">
 
-            <!-- Card Total Saldo Modern -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_saldo"
                 android:layout_width="match_parent"
@@ -73,21 +70,36 @@
                         android:textColor="@color/text_secondary"
                         android:textSize="15sp" />
 
-                    <TextView
-                        android:id="@+id/tv_total_saldo"
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="Rp 0"
-                        android:textColor="@color/primary"
-                        android:textSize="36sp"
-                        android:textStyle="bold" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:layout_marginEnd="8dp"
+                            android:src="@drawable/ic_wallet_24"
+                            app:tint="@color/primary"
+                            android:contentDescription="Wallet Icon" />
+
+                        <TextView
+                            android:id="@+id/tv_total_saldo"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Rp 0"
+                            android:textColor="@color/primary"
+                            android:textSize="36sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
 
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Row: Pemasukan & Pengeluaran Modern -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -96,7 +108,6 @@
                 android:orientation="horizontal"
                 android:weightSum="2">
 
-                <!-- Card Pemasukan -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -110,47 +121,45 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="20dp">
-
-                        <FrameLayout
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_icon_container_green">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="center"
-                                android:text="↓"
-                                android:textColor="@color/success"
-                                android:textSize="20sp"
-                                android:textStyle="bold" />
-
-                        </FrameLayout>
+                        android:padding="16dp">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
                             android:text="Pemasukan"
                             android:textColor="@color/text_secondary"
                             android:textSize="13sp" />
 
-                        <TextView
-                            android:id="@+id/tv_total_pemasukan"
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="6dp"
-                            android:text="Rp 0"
-                            android:textColor="@color/success"
-                            android:textSize="17sp"
-                            android:textStyle="bold" />
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="6dp"
+                                android:text="↓"
+                                android:textColor="@color/success"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tv_total_pemasukan"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Rp 0"
+                                android:textColor="@color/success"
+                                android:textSize="17sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
 
                     </LinearLayout>
 
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Card Pengeluaran -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -164,41 +173,40 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="20dp">
-
-                        <FrameLayout
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_icon_container_red">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="center"
-                                android:text="↑"
-                                android:textColor="@color/danger"
-                                android:textSize="20sp"
-                                android:textStyle="bold" />
-
-                        </FrameLayout>
+                        android:padding="16dp">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
                             android:text="Pengeluaran"
                             android:textColor="@color/text_secondary"
                             android:textSize="13sp" />
 
-                        <TextView
-                            android:id="@+id/tv_total_pengeluaran"
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="6dp"
-                            android:text="Rp 0"
-                            android:textColor="@color/danger"
-                            android:textSize="17sp"
-                            android:textStyle="bold" />
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="6dp"
+                                android:text="↑"
+                                android:textColor="@color/danger"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tv_total_pengeluaran"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Rp 0"
+                                android:textColor="@color/danger"
+                                android:textSize="17sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
 
                     </LinearLayout>
 
@@ -206,7 +214,6 @@
 
             </LinearLayout>
 
-            <!-- Section Header Transaksi Terakhir -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -241,7 +248,6 @@
 
             </LinearLayout>
 
-            <!-- RecyclerView untuk transaksi terakhir -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rv_recent_transactions"
                 android:layout_width="match_parent"

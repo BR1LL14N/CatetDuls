@@ -72,7 +72,7 @@ class TransactionRepository(
      */
     fun getTotalExpenseThisMonth(): Flow<Double?> {
         val (startOfMonth, endOfMonth) = getThisMonthDateRange()
-        // --- DIPERBAIKI ---
+
         return transactionDao.getTotalByTypeAndDateRange(
             TransactionType.PENGELUARAN,
             startOfMonth,
@@ -91,7 +91,7 @@ class TransactionRepository(
     /**
      * Filter transaksi berdasarkan jenis (Pemasukan/Pengeluaran)
      */
-    // --- DIPERBAIKI ---
+
     fun getTransactionsByType(type: TransactionType): Flow<List<Transaction>> =
         transactionDao.getTransactionsByType(type)
 
@@ -114,7 +114,7 @@ class TransactionRepository(
     /**
      * Filter kombinasi: jenis + kategori + rentang tanggal
      */
-    // --- DIPERBAIKI ---
+
     fun getFilteredTransactions(
         type: TransactionType? = null, // <-- Diperbaiki
         categoryId: Int? = null,
@@ -162,7 +162,6 @@ class TransactionRepository(
 
     // ========================================
     // Helper Functions untuk Business Logic
-    // (Bagian ini sudah benar)
     // ========================================
 
     fun getThisWeekDateRange(): Pair<Long, Long> {

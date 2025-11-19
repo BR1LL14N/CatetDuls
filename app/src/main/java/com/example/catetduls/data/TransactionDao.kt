@@ -158,7 +158,7 @@ interface TransactionDao {
         ORDER BY date DESC
     """)
     fun getTransactionsByTypeAndDateRange(
-        type: TransactionType, // <-- DIPERBAIKI
+        type: TransactionType,
         startDate: Long,
         endDate: Long
     ): Flow<List<Transaction>>
@@ -174,7 +174,7 @@ interface TransactionDao {
         ORDER BY date DESC
     """)
     fun getTransactionsByTypeAndCategoryAndDateRange(
-        type: TransactionType, // <-- DIPERBAIKI
+        type: TransactionType,
         categoryId: Int,
         startDate: Long,
         endDate: Long
@@ -267,7 +267,7 @@ interface TransactionDao {
         GROUP BY t.categoryId, c.name
         ORDER BY total DESC
     """)
-    fun getCategoryStats(type: TransactionType): Flow<List<CategoryStats>> // <-- DIPERBAIKI
+    fun getCategoryStats(type: TransactionType): Flow<List<CategoryStats>>
 
     // ========================================
     // Utility Queries
@@ -310,7 +310,3 @@ interface TransactionDao {
         endDate: Long
     ): Double
 }
-
-// ========================================
-// Data Classes untuk Query Results
-// ========================================

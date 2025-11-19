@@ -144,11 +144,11 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
                     android:text="Backup &amp; Restore"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
                     android:textColor="@android:color/black"
-                    android:layout_marginBottom="12dp" />
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -157,23 +157,23 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_backup"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
                         android:layout_marginEnd="4dp"
+                        android:layout_weight="1"
                         android:text="Backup"
-                        app:icon="@android:drawable/ic_menu_save"
-                        style="@style/Widget.Material3.Button.OutlinedButton" />
+                        app:icon="@android:drawable/ic_menu_save" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_restore"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
                         android:layout_marginStart="4dp"
+                        android:layout_weight="1"
                         android:text="Restore"
-                        app:icon="@android:drawable/ic_menu_revert"
-                        style="@style/Widget.Material3.Button.OutlinedButton" />
+                        app:icon="@android:drawable/ic_menu_revert" />
 
                 </LinearLayout>
 

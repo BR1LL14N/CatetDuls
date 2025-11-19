@@ -124,7 +124,7 @@ class PengaturanViewModel(
 
             _successMessage.value = "Data berhasil di-export ke CSV"
             _isLoading.value = false
-//            csv.toString()
+
             return csv
         } catch (e: Exception) {
             _errorMessage.value = "Gagal export CSV: ${e.message}"
@@ -275,9 +275,11 @@ class PengaturanViewModel(
     /**
      * Format date untuk backup filename
      */
-    fun getBackupFileName(): String {
+    fun getBackupFileName(extension: String = "json"): String { // <<< DITAMBAHKAN PARAMETER
         val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-        return "finnote_backup_${dateFormat.format(Date())}.json"
+        val timestamp = dateFormat.format(Date())
+        // Menggunakan extension yang diberikan
+        return "finnote_backup_$timestamp.$extension"
     }
 
     /**

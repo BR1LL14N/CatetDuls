@@ -2,7 +2,7 @@ package com.example.catetduls.ui.pages
 
 import android.app.AlertDialog
 import android.content.Context
-import android.content.Intent
+import android.net.Uri // Import yang diperlukan
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -20,11 +20,9 @@ import com.example.catetduls.viewmodel.PengaturanViewModel
 import com.example.catetduls.viewmodel.PengaturanViewModelFactory
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import java.io.File
-import androidx.lifecycle.Observer
 import androidx.lifecycle.asLiveData
 import kotlinx.coroutines.launch
-
+import androidx.activity.result.contract.ActivityResultContracts // <<< DITAMBAHKAN
 
 /**
  * PengaturanPage - Halaman pengaturan aplikasi
@@ -54,6 +52,37 @@ class PengaturanPage : Fragment() {
     private lateinit var tvTotalTransaksi: TextView
     private lateinit var tvTotalKategori: TextView
 
+    // ===============================================
+    // DUA LAUNCHER UNTUK EXPORT FILE (MENGGUNAKAN SAF)
+    // ===============================================
+
+    /** Launcher untuk membuat file CSV (mimeType: text/csv) */
+    private val createCsvFileLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri: Uri? ->
+        uri?.let { fileUri ->
+            viewLifecycleOwner.lifecycleScope.launch {
+                handleCsvExportAndSave(fileUri)
+            }
+        } ?: run {
+            Toast.makeText(requireContext(), "Export CSV dibatalkan", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Launcher untuk membuat file JSON (mimeType: application/json) */
+    private val createJsonFileLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        uri?.let { fileUri ->
+            viewLifecycleOwner.lifecycleScope.launch {
+                handleJsonExportAndSave(fileUri)
+            }
+        } ?: run {
+            Toast.makeText(requireContext(), "Export JSON dibatalkan", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -68,6 +97,8 @@ class PengaturanPage : Fragment() {
         // Initialize ViewModel
         val transactionRepo = requireContext().getTransactionRepository()
         val categoryRepo = requireContext().getCategoryRepository()
+        // PERHATIAN: Anda harus memastikan PengaturanViewModel memiliki fungsi
+        // fun getBackupFileName(extension: String = "json"): String
         val factory = PengaturanViewModelFactory(transactionRepo, categoryRepo, requireContext())
         viewModel = ViewModelProvider(this, factory)[PengaturanViewModel::class.java]
 
@@ -99,6 +130,7 @@ class PengaturanPage : Fragment() {
         tvTotalKategori = view.findViewById(R.id.tv_total_kategori)
     }
 
+
     private fun setupDarkMode() {
         // Set initial state langsung dari SharedPreferences
         val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
@@ -118,7 +150,7 @@ class PengaturanPage : Fragment() {
             Toast.makeText(requireContext(), "Kelola Kategori - Coming Soon", Toast.LENGTH_SHORT).show()
         }
 
-        // Backup
+        // Backup (Internal Backup) - Tetap menggunakan logika lama
         btnBackup.setOnClickListener {
             viewLifecycleOwner.lifecycleScope.launch {
                 val jsonData = viewModel.exportToJson()
@@ -136,24 +168,18 @@ class PengaturanPage : Fragment() {
             Toast.makeText(requireContext(), "Restore - Coming Soon", Toast.LENGTH_SHORT).show()
         }
 
-        // Export CSV
+        // Export CSV - Memicu pemilih file
         btnExportCsv.setOnClickListener {
-            viewLifecycleOwner.lifecycleScope.launch {
-                val csvData = viewModel.exportToCsv()
-                if (csvData != null) {
-                    Toast.makeText(requireContext(), "Export CSV berhasil", Toast.LENGTH_SHORT).show()
-                }
-            }
+            // Gunakan nama file default dari ViewModel (asumsi sudah diperbaiki untuk menerima ekstensi)
+            val defaultFileName = viewModel.getBackupFileName("csv")
+            createCsvFileLauncher.launch(defaultFileName)
         }
 
-        // Export JSON
+        // Export JSON - Memicu pemilih file
         btnExportJson.setOnClickListener {
-            viewLifecycleOwner.lifecycleScope.launch {
-                val jsonData = viewModel.exportToJson()
-                if (jsonData != null) {
-                    Toast.makeText(requireContext(), "Export JSON berhasil", Toast.LENGTH_SHORT).show()
-                }
-            }
+            // Gunakan nama file default dari ViewModel
+            val defaultFileName = viewModel.getBackupFileName("json")
+            createJsonFileLauncher.launch(defaultFileName)
         }
 
         // Reset Data
@@ -164,6 +190,48 @@ class PengaturanPage : Fragment() {
         // Reset Kategori
         btnResetKategori.setOnClickListener {
             showResetKategoriDialog()
+        }
+    }
+
+    // ===============================================
+    // FUNGSI UNTUK MENULIS DATA KE URI (SETELAH DIPILIH)
+    // ===============================================
+
+    /**
+     * Ambil data CSV dari ViewModel dan tulis ke URI yang dipilih pengguna.
+     */
+    private suspend fun handleCsvExportAndSave(fileUri: Uri) {
+        val csvData = viewModel.exportToCsv()
+        if (csvData != null) {
+            try {
+                // Gunakan ContentResolver untuk membuka OutputStream ke URI
+                requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream ->
+                    outputStream.write(csvData.toByteArray())
+                    Toast.makeText(requireContext(), "Export CSV berhasil disimpan!", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Gagal menyimpan file CSV: ${e.message}", Toast.LENGTH_LONG).show()
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * Ambil data JSON dari ViewModel dan tulis ke URI yang dipilih pengguna.
+     */
+    private suspend fun handleJsonExportAndSave(fileUri: Uri) {
+        val jsonData = viewModel.exportToJson()
+        if (jsonData != null) {
+            try {
+                // Gunakan ContentResolver untuk membuka OutputStream ke URI
+                requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream ->
+                    outputStream.write(jsonData.toByteArray())
+                    Toast.makeText(requireContext(), "Export JSON berhasil disimpan!", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Gagal menyimpan file JSON: ${e.message}", Toast.LENGTH_LONG).show()
+                e.printStackTrace()
+            }
         }
     }
 
@@ -194,6 +262,8 @@ class PengaturanPage : Fragment() {
         viewModel.successMessage.asLiveData().observe(viewLifecycleOwner) { message ->
             message?.let {
                 Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
+
+                loadStatistics()
                 viewModel.clearMessages()
             }
         }

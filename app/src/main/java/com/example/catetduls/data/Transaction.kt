@@ -13,34 +13,34 @@ import androidx.room.PrimaryKey
             entity = Category::class,
             parentColumns = ["id"],
             childColumns = ["categoryId"],
-            onDelete = ForeignKey.CASCADE // Jika kategori dihapus, transaksi juga terhapus
+            onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [
-        Index(value = ["categoryId"]), // Index untuk mempercepat query berdasarkan kategori
-        Index(value = ["date"]), // Index untuk mempercepat query berdasarkan tanggal
-        Index(value = ["type"]) // Index untuk mempercepat query berdasarkan tipe
+        Index(value = ["categoryId"]),
+        Index(value = ["date"]),
+        Index(value = ["type"])
     ]
 )
 data class Transaction(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
 
-    val type: TransactionType, // "Pemasukan" atau "Pengeluaran"
+    val type: TransactionType,
 
-    val amount: Double, // Jumlah dalam Rupiah
+    val amount: Double,
 
-    val categoryId: Int, // Foreign key ke Category
+    val categoryId: Int,
 
-    val date: Long = System.currentTimeMillis(), // Timestamp
+    val date: Long = System.currentTimeMillis(),
 
-    val notes: String = "" // Catatan opsional
+    val notes: String = ""
 ) {
-    // Helper function ini sekarang lebih sederhana
+
     fun isIncome(): Boolean = type == TransactionType.PEMASUKAN
     fun isExpense(): Boolean = type == TransactionType.PENGELUARAN
 
-    // Anda bisa hapus fungsi isValid() atau sesuaikan
+
     fun isValid(): Boolean {
         return amount > 0 && categoryId > 0
     }

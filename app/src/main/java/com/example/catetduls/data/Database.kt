@@ -73,68 +73,67 @@ abstract class AppDatabase : RoomDatabase() {
         /**
          * Insert kategori default
          */
-        // --- [PERBAIKAN 3] Seluruh fungsi ini diubah untuk menggunakan Enum ---
         private suspend fun insertDefaultCategories(categoryDao: CategoryDao) {
             val defaultCategories = listOf(
                 // Kategori Pengeluaran
                 Category(
                     name = "Makanan & Minuman",
                     icon = "🍔",
-                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
+                    type = TransactionType.PENGELUARAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Transport",
                     icon = "🚌",
-                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
+                    type = TransactionType.PENGELUARAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Belanja",
                     icon = "🛒",
-                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
+                    type = TransactionType.PENGELUARAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Hiburan",
                     icon = "🎮",
-                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
+                    type = TransactionType.PENGELUARAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Kesehatan",
                     icon = "💊",
-                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
+                    type = TransactionType.PENGELUARAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Pendidikan",
                     icon = "📚",
-                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
+                    type = TransactionType.PENGELUARAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Tagihan",
                     icon = "💡",
-                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
+                    type = TransactionType.PENGELUARAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Rumah Tangga",
                     icon = "🏠",
-                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
+                    type = TransactionType.PENGELUARAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Olahraga",
                     icon = "⚽",
-                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
+                    type = TransactionType.PENGELUARAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Kecantikan",
                     icon = "💄",
-                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
+                    type = TransactionType.PENGELUARAN,
                     isDefault = true
                 ),
 
@@ -142,31 +141,31 @@ abstract class AppDatabase : RoomDatabase() {
                 Category(
                     name = "Gaji",
                     icon = "💼",
-                    type = TransactionType.PEMASUKAN, // <-- Diperbaiki
+                    type = TransactionType.PEMASUKAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Bonus",
                     icon = "💰",
-                    type = TransactionType.PEMASUKAN, // <-- Diperbaiki
+                    type = TransactionType.PEMASUKAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Investasi",
                     icon = "📈",
-                    type = TransactionType.PEMASUKAN, // <-- Diperbaiki
+                    type = TransactionType.PEMASUKAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Hadiah",
                     icon = "🎁",
-                    type = TransactionType.PEMASUKAN, // <-- Diperbaiki
+                    type = TransactionType.PEMASUKAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Freelance",
                     icon = "💻",
-                    type = TransactionType.PEMASUKAN, // <-- Diperbaiki
+                    type = TransactionType.PEMASUKAN,
                     isDefault = true
                 ),
 
@@ -174,13 +173,13 @@ abstract class AppDatabase : RoomDatabase() {
                 Category(
                     name = "Lainnya (Pemasukan)",
                     icon = "⚙️",
-                    type = TransactionType.PEMASUKAN, // <-- Diperbaiki
+                    type = TransactionType.PEMASUKAN,
                     isDefault = true
                 ),
                 Category(
                     name = "Lainnya (Pengeluaran)",
                     icon = "⚙️",
-                    type = TransactionType.PENGELUARAN, // <-- Diperbaiki
+                    type = TransactionType.PENGELUARAN,
                     isDefault = true
                 )
             )

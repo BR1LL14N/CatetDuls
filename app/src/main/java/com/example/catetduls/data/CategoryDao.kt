@@ -45,7 +45,7 @@ interface CategoryDao {
     /**
      * Get kategori berdasarkan tipe
      */
-    // --- DIPERBAIKI ---
+
     @Query("SELECT * FROM categories WHERE type = :type ORDER BY name ASC")
     fun getCategoriesByType(type: TransactionType): Flow<List<Category>>
     // -------------------
@@ -87,7 +87,3 @@ interface CategoryDao {
     fun getCategoriesWithTransactionCount(): Flow<List<CategoryWithCount>>
 }
 
-/**
- * Data class untuk kategori dengan jumlah transaksi
- */
-// --- DIPERBAIKI (Menggunakan @Embedded) ---

@@ -22,7 +22,6 @@ data class CategoryStats(
     val average: Double
 )
 
-// ========= BARU DITAMBAHKAN (KARENA HILANG) =========
 
 /**
  * Result untuk total pengeluaran per kategori (Pie Chart)
