@@ -25,13 +25,13 @@ interface CategoryDao {
     suspend fun updateCategory(category: Category)
 
     /**
-     * Delete kategori (hanya yang bukan default)
+     * Delete kategori
      */
     @Delete
     suspend fun deleteCategory(category: Category)
 
     /**
-     * Delete berdasarkan ID (Logika Anda sudah benar)
+     * Delete berdasarkan ID
      */
     @Query("DELETE FROM categories WHERE id = :categoryId AND isDefault = 0")
     suspend fun deleteCategoryById(categoryId: Int)

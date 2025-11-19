@@ -22,7 +22,7 @@ class CategoryRepository(
     }
 
     /**
-     * Get satu kategori berdasarkan ID (untuk getCategoryName)
+     * Get satu kategori berdasarkan ID
      */
     fun getCategoryById(id: Int): Flow<Category?> {
         return categoryDao.getCategoryById(id)

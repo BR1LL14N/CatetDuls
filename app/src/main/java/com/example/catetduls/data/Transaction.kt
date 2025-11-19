@@ -5,17 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * Entity untuk tabel transactions
- *
- * Struktur tabel:
- * - id: Primary key (auto-generated)
- * - type: "Pemasukan" atau "Pengeluaran"
- * - amount: Jumlah uang (dalam Rupiah)
- * - categoryId: Foreign key ke tabel categories
- * - date: Timestamp dalam milliseconds
- * - notes: Catatan tambahan (opsional)
- */
+
 @Entity(
     tableName = "transactions",
     foreignKeys = [
