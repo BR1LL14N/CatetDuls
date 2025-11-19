@@ -6,25 +6,23 @@ import androidx.fragment.app.Fragment
 import com.example.catetduls.ui.pages.*
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
-/**
- * MainActivity - Activity utama dengan Bottom Navigation
- */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var bottomNav: BottomNavigationView
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(R.style.Theme_CatetDuls)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         bottomNav = findViewById(R.id.bottom_navigation)
 
-        // Set default fragment (Dashboard)
+
         if (savedInstanceState == null) {
             loadFragment(DashboardPage())
         }
 
-        // Setup bottom navigation listener
+
         bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_dashboard -> {
@@ -52,9 +50,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Load fragment ke container
-     */
     private fun loadFragment(fragment: Fragment) {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, fragment)
