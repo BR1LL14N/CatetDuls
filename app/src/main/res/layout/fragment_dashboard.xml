@@ -11,7 +11,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- Header dengan Gradient -->
+        <!-- Header dengan Modern Gradient -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -32,10 +32,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:alpha="0.9"
+                android:alpha="0.95"
                 android:text="Ringkasan Keuangan Anda"
                 android:textColor="@color/white"
-                android:textSize="16sp" />
+                android:textSize="15sp" />
 
         </LinearLayout>
 
@@ -49,7 +49,7 @@
             android:paddingEnd="16dp"
             android:paddingBottom="16dp">
 
-            <!-- Card Total Saldo dengan Shadow -->
+            <!-- Card Total Saldo Modern -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_saldo"
                 android:layout_width="match_parent"
@@ -57,7 +57,7 @@
                 android:layout_marginBottom="20dp"
                 app:cardBackgroundColor="@color/surface"
                 app:cardCornerRadius="20dp"
-                app:cardElevation="8dp">
+                app:cardElevation="4dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -71,55 +71,23 @@
                         android:layout_height="wrap_content"
                         android:text="Total Saldo"
                         android:textColor="@color/text_secondary"
-                        android:textSize="16sp" />
+                        android:textSize="15sp" />
 
                     <TextView
                         android:id="@+id/tv_total_saldo"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
+                        android:layout_marginTop="8dp"
                         android:text="Rp 0"
                         android:textColor="@color/primary"
                         android:textSize="36sp"
                         android:textStyle="bold" />
 
-                    <!-- Indicator -->
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:background="@drawable/bg_indicator_success"
-                        android:gravity="center"
-                        android:orientation="horizontal"
-                        android:paddingStart="12dp"
-                        android:paddingTop="6dp"
-                        android:paddingEnd="12dp"
-                        android:paddingBottom="6dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="↑"
-                            android:textColor="@color/success"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="4dp"
-                            android:text="Bulan Ini"
-                            android:textColor="@color/success"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                    </LinearLayout>
-
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Row: Pemasukan & Pengeluaran -->
+            <!-- Row: Pemasukan & Pengeluaran Modern -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -134,7 +102,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginEnd="8dp"
                     android:layout_weight="1"
-                    app:cardBackgroundColor="@color/success_bg"
+                    app:cardBackgroundColor="@color/success_bg_solid"
                     app:cardCornerRadius="16dp"
                     app:cardElevation="0dp">
 
@@ -144,21 +112,21 @@
                         android:orientation="vertical"
                         android:padding="20dp">
 
-                        <LinearLayout
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:background="@drawable/bg_icon_success"
-                            android:padding="10dp">
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_icon_container_green">
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:layout_gravity="center"
                                 android:text="↓"
                                 android:textColor="@color/success"
                                 android:textSize="20sp"
                                 android:textStyle="bold" />
 
-                        </LinearLayout>
+                        </FrameLayout>
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -175,7 +143,7 @@
                             android:layout_marginTop="6dp"
                             android:text="Rp 0"
                             android:textColor="@color/success"
-                            android:textSize="18sp"
+                            android:textSize="17sp"
                             android:textStyle="bold" />
 
                     </LinearLayout>
@@ -188,7 +156,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
-                    app:cardBackgroundColor="@color/danger_bg"
+                    app:cardBackgroundColor="@color/danger_bg_solid"
                     app:cardCornerRadius="16dp"
                     app:cardElevation="0dp">
 
@@ -198,21 +166,21 @@
                         android:orientation="vertical"
                         android:padding="20dp">
 
-                        <LinearLayout
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:background="@drawable/bg_icon_danger"
-                            android:padding="10dp">
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_icon_container_red">
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:layout_gravity="center"
                                 android:text="↑"
                                 android:textColor="@color/danger"
                                 android:textSize="20sp"
                                 android:textStyle="bold" />
 
-                        </LinearLayout>
+                        </FrameLayout>
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -229,7 +197,7 @@
                             android:layout_marginTop="6dp"
                             android:text="Rp 0"
                             android:textColor="@color/danger"
-                            android:textSize="18sp"
+                            android:textSize="17sp"
                             android:textStyle="bold" />
 
                     </LinearLayout>
@@ -252,16 +220,24 @@
                     android:layout_weight="1"
                     android:text="Transaksi Terakhir"
                     android:textColor="@color/text_primary"
-                    android:textSize="20sp"
+                    android:textSize="18sp"
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/tv_view_all"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Lihat Semua"
                     android:textColor="@color/primary"
                     android:textSize="14sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp" />
 
             </LinearLayout>
 

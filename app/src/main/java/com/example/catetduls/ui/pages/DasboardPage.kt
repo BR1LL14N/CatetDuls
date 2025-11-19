@@ -8,13 +8,18 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.catetduls.R
+import com.example.catetduls.data.getCategoryRepository
 import com.example.catetduls.data.getTransactionRepository
+import com.example.catetduls.ui.adapter.TransactionAdapter
 import com.example.catetduls.viewmodel.DashboardViewModel
 import com.example.catetduls.viewmodel.DashboardViewModelFactory
 import com.google.android.material.card.MaterialCardView
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * DashboardPage - Halaman utama aplikasi
@@ -28,12 +33,14 @@ import com.google.android.material.card.MaterialCardView
 class DashboardPage : Fragment() {
 
     private lateinit var viewModel: DashboardViewModel
+    private lateinit var transactionAdapter: TransactionAdapter
 
     // Views
     private lateinit var tvTotalSaldo: TextView
     private lateinit var tvTotalPemasukan: TextView
     private lateinit var tvTotalPengeluaran: TextView
     private lateinit var rvRecentTransactions: RecyclerView
+    private lateinit var tvViewAll: TextView
     private lateinit var cardSaldo: MaterialCardView
 
     override fun onCreateView(
@@ -60,6 +67,9 @@ class DashboardPage : Fragment() {
 
         // Observe data
         observeData()
+
+        // Setup click listeners
+        setupClickListeners()
     }
 
     private fun initViews(view: View) {
@@ -67,12 +77,52 @@ class DashboardPage : Fragment() {
         tvTotalPemasukan = view.findViewById(R.id.tv_total_pemasukan)
         tvTotalPengeluaran = view.findViewById(R.id.tv_total_pengeluaran)
         rvRecentTransactions = view.findViewById(R.id.rv_recent_transactions)
+        tvViewAll = view.findViewById(R.id.tv_view_all)
         cardSaldo = view.findViewById(R.id.card_saldo)
     }
 
     private fun setupRecyclerView() {
-        rvRecentTransactions.layoutManager = LinearLayoutManager(requireContext())
-        // Adapter akan dibuat nanti
+        val categoryRepository = requireContext().getCategoryRepository()
+
+        transactionAdapter = TransactionAdapter(
+            onItemClick = { transaction ->
+                // Navigate to detail or edit
+                // TODO: Implement navigation
+            },
+            getCategoryName = { categoryId ->
+                var name = "Unknown"
+                viewLifecycleOwner.lifecycleScope.launch {
+                    categoryRepository.getCategoryById(categoryId).first()?.let {
+                        name = it.name
+                    }
+                }
+                name
+            },
+            getCategoryIcon = { categoryId ->
+                var icon = "💰"
+                viewLifecycleOwner.lifecycleScope.launch {
+                    categoryRepository.getCategoryById(categoryId).first()?.let {
+                        icon = it.icon
+                    }
+                }
+                icon
+            }
+        )
+
+        rvRecentTransactions.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = transactionAdapter
+            isNestedScrollingEnabled = false
+        }
+    }
+
+    private fun setupClickListeners() {
+        tvViewAll.setOnClickListener {
+            // Navigate to Transaksi page
+            requireActivity().findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(
+                R.id.bottom_navigation
+            )?.selectedItemId = R.id.nav_transaksi
+        }
     }
 
     private fun observeData() {
@@ -80,7 +130,7 @@ class DashboardPage : Fragment() {
         viewModel.totalBalance.observe(viewLifecycleOwner) { balance ->
             tvTotalSaldo.text = viewModel.formatCurrency(balance)
 
-            // Set warna card berdasarkan saldo
+            // Set warna saldo
             val color = viewModel.getBalanceColor(balance)
             tvTotalSaldo.setTextColor(color)
         }
@@ -97,8 +147,7 @@ class DashboardPage : Fragment() {
 
         // Observe transaksi terakhir
         viewModel.recentTransactions.observe(viewLifecycleOwner) { transactions ->
-            // Setup adapter dengan data transactions
-            // TODO: Implement RecyclerView Adapter
+            transactionAdapter.submitList(transactions)
         }
     }
 }
