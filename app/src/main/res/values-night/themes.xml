@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Dark theme -->
     <style name="Base.Theme.CatetDuls" parent="Theme.Material3.Dark.NoActionBar">
@@ -28,5 +29,12 @@
         <!-- Navigation Bar -->
         <item name="android:navigationBarColor">@color/dark_surface</item>
         <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+
+    <style name="Theme.App.Starting" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:statusBarColor">@color/primary_light</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>
