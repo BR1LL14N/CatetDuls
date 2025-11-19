@@ -41,14 +41,15 @@ interface CategoryDao {
      */
     @Query("SELECT * FROM categories ORDER BY name ASC")
     fun getAllCategories(): Flow<List<Category>>
+    @Query("SELECT * FROM categories")
+    suspend fun getAllCategoriesSync(): List<Category>
 
     /**
      * Get kategori berdasarkan tipe
      */
 
-    @Query("SELECT * FROM categories WHERE type = :type ORDER BY name ASC")
+    @Query("SELECT DISTINCT name, * FROM categories WHERE type = :type GROUP BY name ORDER BY name ASC")
     fun getCategoriesByType(type: TransactionType): Flow<List<Category>>
-    // -------------------
 
     /**
      * Get kategori berdasarkan ID

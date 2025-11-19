@@ -40,7 +40,7 @@ class TransaksiViewModel(
     // Filter States
     // ========================================
 
-    // --- [PERBAIKAN 2] ---
+
     private val _selectedType = MutableStateFlow<TransactionType?>(null)
     val selectedType: StateFlow<TransactionType?> = _selectedType.asStateFlow()
     // ---------------------

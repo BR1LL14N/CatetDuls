@@ -22,13 +22,13 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import androidx.lifecycle.asLiveData
 import kotlinx.coroutines.launch
-import androidx.activity.result.contract.ActivityResultContracts // <<< DITAMBAHKAN
+import androidx.activity.result.contract.ActivityResultContracts
 
 /**
  * PengaturanPage - Halaman pengaturan aplikasi
  *
  * Fitur:
- * - Dark Mode toggle
+ * - Dark Mode toggle <-- DIHAPUS
  * - Kelola Kategori
  * - Backup & Restore
  * - Export CSV/JSON
@@ -40,7 +40,7 @@ class PengaturanPage : Fragment() {
     private lateinit var viewModel: PengaturanViewModel
 
     // Views
-    private lateinit var switchDarkMode: SwitchCompat
+    // private lateinit var switchDarkMode: SwitchCompat <-- DIHAPUS
     private lateinit var cardKelolaKategori: MaterialCardView
     private lateinit var btnBackup: MaterialButton
     private lateinit var btnRestore: MaterialButton
@@ -88,6 +88,8 @@ class PengaturanPage : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
+        // Asumsi layout R.layout.fragment_pengaturan juga akan diubah
+        // untuk menghapus elemen Dark Mode
         return inflater.inflate(R.layout.fragment_pengaturan, container, false)
     }
 
@@ -97,8 +99,6 @@ class PengaturanPage : Fragment() {
         // Initialize ViewModel
         val transactionRepo = requireContext().getTransactionRepository()
         val categoryRepo = requireContext().getCategoryRepository()
-        // PERHATIAN: Anda harus memastikan PengaturanViewModel memiliki fungsi
-        // fun getBackupFileName(extension: String = "json"): String
         val factory = PengaturanViewModelFactory(transactionRepo, categoryRepo, requireContext())
         viewModel = ViewModelProvider(this, factory)[PengaturanViewModel::class.java]
 
@@ -106,7 +106,7 @@ class PengaturanPage : Fragment() {
         initViews(view)
 
         // Setup
-        setupDarkMode()
+        // setupDarkMode() <-- DIHAPUS
         setupButtons()
 
         // Observe data
@@ -117,7 +117,7 @@ class PengaturanPage : Fragment() {
     }
 
     private fun initViews(view: View) {
-        switchDarkMode = view.findViewById(R.id.switch_dark_mode)
+        // switchDarkMode = view.findViewById(R.id.switch_dark_mode) <-- DIHAPUS
         cardKelolaKategori = view.findViewById(R.id.card_kelola_kategori)
         btnBackup = view.findViewById(R.id.btn_backup)
         btnRestore = view.findViewById(R.id.btn_restore)
@@ -131,18 +131,18 @@ class PengaturanPage : Fragment() {
     }
 
 
-    private fun setupDarkMode() {
-        // Set initial state langsung dari SharedPreferences
-        val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        val currentDarkMode = prefs.getBoolean("dark_mode", false)
-        switchDarkMode.isChecked = currentDarkMode
-
-        // Listener untuk toggle
-        switchDarkMode.setOnCheckedChangeListener { _, isChecked ->
-            viewModel.toggleDarkMode()
-            Toast.makeText(requireContext(), "Dark Mode akan aktif setelah restart", Toast.LENGTH_SHORT).show()
-        }
-    }
+    // private fun setupDarkMode() { <-- SELURUH FUNGSI DIHAPUS
+    //     // Set initial state langsung dari SharedPreferences
+    //     val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+    //     val currentDarkMode = prefs.getBoolean("dark_mode", false)
+    //     switchDarkMode.isChecked = currentDarkMode
+    //
+    //     // Listener untuk toggle
+    //     switchDarkMode.setOnCheckedChangeListener { _, isChecked ->
+    //         viewModel.toggleDarkMode()
+    //         Toast.makeText(requireContext(), "Dark Mode akan aktif setelah restart", Toast.LENGTH_SHORT).show()
+    //     }
+    // }
 
     private fun setupButtons() {
         // Kelola Kategori
