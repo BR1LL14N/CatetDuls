@@ -3,19 +3,40 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_marginBottom="4dp"
     android:orientation="vertical"
     android:gravity="center_horizontal"
     android:padding="2dp">
 
-    <TextView
-        android:id="@+id/tv_day_number"
-        android:layout_width="wrap_content"
+    <FrameLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/text_primary"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        tools:text="19" />
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:id="@+id/tv_day_number"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|center_horizontal"
+            android:textColor="@color/text_primary"
+            android:textSize="11sp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            tools:text="19" />
+
+        <View
+            android:id="@+id/view_day_marker"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:background="@drawable/bg_day_marker_blue"
+            android:layout_gravity="center_horizontal"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+    </FrameLayout>
+
 
     <TextView
         android:id="@+id/tv_day_income"
@@ -37,6 +58,18 @@
         android:ellipsize="end"
         android:textColor="@color/danger"
         android:textSize="8sp"
+        tools:text="220.000,00" />
+
+    <TextView
+        android:id="@+id/tv_day_total"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="@color/text_primary"
+        android:textSize="8sp"
+        android:textStyle="bold"
         tools:text="-170.000,00" />
 
 </LinearLayout>

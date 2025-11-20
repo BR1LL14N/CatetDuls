@@ -50,6 +50,12 @@ data class CategoryWithCount(
     val transactionCount: Int
 )
 
+data class DailySummary(
+    val dayOfMonth: Int, // Nomor hari dalam bulan (1 - 31)
+    val totalIncome: Double,
+    val totalExpense: Double
+)
+
 
 /**
  * Sealed class untuk hasil validasi

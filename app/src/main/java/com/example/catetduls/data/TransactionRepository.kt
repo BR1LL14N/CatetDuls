@@ -160,6 +160,14 @@ class TransactionRepository(
     ): Flow<Double?> =
         transactionDao.getTotalByTypeAndDateRange(type, startDate, endDate)
 
+
+
+    fun getMonthlyDailySummary(startDate: Long, endDate: Long): Flow<List<DailySummary>> {
+        // ASUMSI: transactionDao memiliki fungsi getDailySummaries(startDate, endDate)
+        // yang mengembalikan List<DailySummary>
+        return transactionDao.getDailySummaries(startDate, endDate)
+    }
+
     // ========================================
     // Helper Functions untuk Business Logic
     // ========================================

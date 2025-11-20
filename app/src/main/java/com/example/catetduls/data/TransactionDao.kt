@@ -201,6 +201,18 @@ interface TransactionDao {
     """)
     fun getTotalExpenseByCategory(): Flow<List<CategoryExpense>>
 
+
+    @Query("""
+    SELECT 
+        CAST(strftime('%d', datetime(date/1000, 'unixepoch', 'localtime')) AS INTEGER) AS dayOfMonth,
+        SUM(CASE WHEN type = 'PEMASUKAN' THEN amount ELSE 0 END) AS totalIncome,
+        SUM(CASE WHEN type = 'PENGELUARAN' THEN amount ELSE 0 END) AS totalExpense
+    FROM transactions
+    WHERE date BETWEEN :startDate AND :endDate
+    GROUP BY dayOfMonth
+""")
+    fun getDailySummaries(startDate: Long, endDate: Long): Flow<List<DailySummary>>
+
     /**
      * Kategori dengan pengeluaran terbesar
      */
