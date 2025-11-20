@@ -22,7 +22,6 @@ data class CategoryStats(
     val average: Double
 )
 
-// ========= BARU DITAMBAHKAN (KARENA HILANG) =========
 
 /**
  * Result untuk total pengeluaran per kategori (Pie Chart)
@@ -49,6 +48,12 @@ data class CategoryWithCount(
     val category: Category,
 
     val transactionCount: Int
+)
+
+data class DailySummary(
+    val dayOfMonth: Int, // Nomor hari dalam bulan (1 - 31)
+    val totalIncome: Double,
+    val totalExpense: Double
 )
 
 

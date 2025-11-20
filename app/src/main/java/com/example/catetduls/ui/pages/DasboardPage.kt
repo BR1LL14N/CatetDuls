@@ -1,6 +1,5 @@
 package com.example.catetduls.ui.pages
 
-import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -12,6 +11,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.catetduls.R
+import com.example.catetduls.data.Category
 import com.example.catetduls.data.getCategoryRepository
 import com.example.catetduls.data.getTransactionRepository
 import com.example.catetduls.ui.adapter.TransactionAdapter
@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * DashboardPage - Halaman utama aplikasi
+ * DashboardPage
  *
  * Menampilkan:
  * - Total Saldo
@@ -35,7 +35,8 @@ class DashboardPage : Fragment() {
     private lateinit var viewModel: DashboardViewModel
     private lateinit var transactionAdapter: TransactionAdapter
 
-    // Views
+    private var categoryMap: Map<Int, Category> = emptyMap()
+
     private lateinit var tvTotalSaldo: TextView
     private lateinit var tvTotalPemasukan: TextView
     private lateinit var tvTotalPengeluaran: TextView
@@ -54,21 +55,18 @@ class DashboardPage : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Initialize ViewModel
         val repository = requireContext().getTransactionRepository()
         val factory = DashboardViewModelFactory(repository)
         viewModel = ViewModelProvider(this, factory)[DashboardViewModel::class.java]
 
-        // Initialize Views
         initViews(view)
 
-        // Setup RecyclerView
+        loadCategoriesMap()
+
         setupRecyclerView()
 
-        // Observe data
         observeData()
 
-        // Setup click listeners
         setupClickListeners()
     }
 
@@ -81,31 +79,42 @@ class DashboardPage : Fragment() {
         cardSaldo = view.findViewById(R.id.card_saldo)
     }
 
-    private fun setupRecyclerView() {
+    /**
+     * Memuat semua kategori dari database dan menyimpannya dalam Map.
+     * Ini membuat pencarian nama dan ikon menjadi sinkron dan cepat.
+     */
+    private fun loadCategoriesMap() {
         val categoryRepository = requireContext().getCategoryRepository()
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            // Ambil data kategori
+            val categories = categoryRepository.getAllCategories().first()
+
+
+            categoryMap = categories.associateBy { it.id }
+
+
+            viewModel.recentTransactions.value?.let {
+                transactionAdapter.submitList(it)
+            }
+        }
+    }
+
+    private fun setupRecyclerView() {
 
         transactionAdapter = TransactionAdapter(
             onItemClick = { transaction ->
-                // Navigate to detail or edit
-                // TODO: Implement navigation
+
             },
+
             getCategoryName = { categoryId ->
-                var name = "Unknown"
-                viewLifecycleOwner.lifecycleScope.launch {
-                    categoryRepository.getCategoryById(categoryId).first()?.let {
-                        name = it.name
-                    }
-                }
-                name
+                // Jika categoryId ditemukan, ambil namanya. Jika tidak, gunakan "Unknown".
+                categoryMap[categoryId]?.name ?: "Unknown"
             },
+
             getCategoryIcon = { categoryId ->
-                var icon = "💰"
-                viewLifecycleOwner.lifecycleScope.launch {
-                    categoryRepository.getCategoryById(categoryId).first()?.let {
-                        icon = it.icon
-                    }
-                }
-                icon
+                // Jika categoryId ditemukan, ambil ikonnya. Jika tidak, gunakan "⚙️".
+                categoryMap[categoryId]?.icon ?: "⚙️"
             }
         )
 
@@ -118,7 +127,7 @@ class DashboardPage : Fragment() {
 
     private fun setupClickListeners() {
         tvViewAll.setOnClickListener {
-            // Navigate to Transaksi page
+            // Pindah ke tab Transaksi
             requireActivity().findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(
                 R.id.bottom_navigation
             )?.selectedItemId = R.id.nav_transaksi

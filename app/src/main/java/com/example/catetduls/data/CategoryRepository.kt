@@ -21,9 +21,10 @@ class CategoryRepository(
         return categoryDao.getCategoriesByType(type)
     }
 
-    /**
-     * Get satu kategori berdasarkan ID
-     */
+    suspend fun getAllCategoriesSync(): List<Category> {
+        return categoryDao.getAllCategoriesSync()
+    }
+
     fun getCategoryById(id: Int): Flow<Category?> {
         return categoryDao.getCategoryById(id)
     }

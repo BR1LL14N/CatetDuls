@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.*
+import kotlin.IllegalArgumentException
 
 /**
  * ViewModel untuk TambahTransaksiPage (Form Input/Edit)
@@ -57,6 +58,10 @@ class TambahViewModel(
     private val _notes = MutableStateFlow("")
     val notes: StateFlow<String> = _notes.asStateFlow()
 
+    // TOD0: Tambahkan StateFlow untuk imageUri di sini jika Anda mengimplementasikan penyimpanan URI di database
+    // private val _imageUri = MutableStateFlow<Uri?>(null)
+    // val imageUri: StateFlow<Uri?> = _imageUri.asStateFlow()
+
     // ========================================
     // Categories Data
     // ========================================
@@ -81,6 +86,8 @@ class TambahViewModel(
      * Validasi apakah form sudah valid
      */
     fun isFormValid(): Boolean {
+        // Hanya menghapus koma/titik jika Anda menggunakan format lokal.
+        // Untuk input sederhana, cukup parse ke DoubleOrNull.
         val amountValue = _amount.value.replace(",", "").replace(".", "").toDoubleOrNull()
         return amountValue != null &&
                 amountValue > 0 &&
@@ -96,7 +103,8 @@ class TambahViewModel(
      */
     fun setType(type: TransactionType) {
         _selectedType.value = type
-        _selectedCategoryId.value = null // Reset kategori (logika ini sudah benar)
+        // Reset kategori ketika tipe berubah
+        _selectedCategoryId.value = null
     }
 
     /**
@@ -129,6 +137,11 @@ class TambahViewModel(
         _notes.value = value
     }
 
+    // TOD0: Tambahkan setter untuk imageUri
+    // fun setImageUri(uri: Uri?) {
+    //     _imageUri.value = uri
+    // }
+
     /**
      * Parse amount string ke Double
      */
@@ -148,7 +161,7 @@ class TambahViewModel(
                 val amountValue = parseAmount()
                 val categoryId = _selectedCategoryId.value
 
-                // Validasi
+                // Validasi (disini Anda bisa menambahkan validasi untuk imageUri jika diperlukan)
                 if (amountValue == null || amountValue <= 0) {
                     _errorMessage.value = "Jumlah harus lebih dari 0"
                     _isSaving.value = false
@@ -169,6 +182,8 @@ class TambahViewModel(
                     categoryId = categoryId,
                     date = _date.value,
                     notes = _notes.value
+                    // TODO: tambahkan imageUri di sini
+                    // imageUri = _imageUri.value.toString()
                 )
 
                 // Validasi dengan repository
@@ -204,19 +219,16 @@ class TambahViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // .collect akan error di sini, ganti ke .asLiveData() atau .firstOrNull()
-                // Mari kita ubah sedikit logikanya agar lebih aman
-                val transactionFlow = transactionRepository.getTransactionById(transactionId)
-                transactionFlow.asLiveData().observeForever { transaction ->
+                // Mengambil data Flow dan mengobservasinya
+                transactionRepository.getTransactionById(transactionId).asLiveData().observeForever { transaction ->
                     if (transaction != null) {
                         _transactionId.value = transaction.id
-                        // --- [PERBAIKAN 6] Enum ke Enum, sekarang valid ---
                         _selectedType.value = transaction.type
-                        // ------------------------------------------------
                         _selectedCategoryId.value = transaction.categoryId
-                        _amount.value = transaction.amount.toString() // Sederhanakan
+                        _amount.value = transaction.amount.toString()
                         _date.value = transaction.date
                         _notes.value = transaction.notes
+                        // TODO: load imageUri
                     }
                     _isLoading.value = false
                 }
@@ -228,15 +240,39 @@ class TambahViewModel(
     }
 
     /**
-     * Reset form (untuk mode tambah baru)
+     * Reset form (untuk mode tambah baru).
+     *
+     * @param keepType Jika true, pertahankan tipe transaksi yang sedang aktif (untuk tombol Lanjut).
+     * @param keepCategory Jika true, pertahankan kategori yang sedang dipilih.
+     * @param setTodayDate Jika true, atur tanggal ke hari ini.
      */
-    fun resetForm() {
-        _transactionId.value = null
-        _selectedType.value = TransactionType.PENGELUARAN
-        _selectedCategoryId.value = null
+    fun resetForm(
+        keepType: Boolean = false,
+        keepCategory: Boolean = false,
+        setTodayDate: Boolean = true
+    ) {
+        _transactionId.value = null // Selalu reset ID (keluar dari mode edit)
+
+        // Reset Tipe
+        if (!keepType) {
+            _selectedType.value = TransactionType.PENGELUARAN
+        }
+
+        // Reset Kategori
+        if (!keepCategory) {
+            _selectedCategoryId.value = null
+        }
+
+        // Reset Nilai Input
         _amount.value = ""
-        _date.value = System.currentTimeMillis()
         _notes.value = ""
+        // TODO: reset _imageUri.value = null
+
+        // Reset Tanggal
+        if (setTodayDate) {
+            _date.value = System.currentTimeMillis()
+        }
+
         clearMessages()
     }
 

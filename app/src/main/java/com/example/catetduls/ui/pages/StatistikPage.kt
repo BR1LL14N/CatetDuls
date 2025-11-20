@@ -62,12 +62,12 @@ class StatistikPage : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Initialize ViewModel (Menggunakan Factory yang sudah Anda definisikan)
+
         val repository = requireContext().getTransactionRepository()
         val factory = StatistikViewModelFactory(repository)
         viewModel = ViewModelProvider(this, factory)[StatistikViewModel::class.java]
 
-        // Initialize Views
+
         initViews(view)
 
         // Setup Charts dan Chips

@@ -41,7 +41,7 @@ class TransactionAdapter(
         private val tvTransactionSource: TextView = itemView.findViewById(R.id.tv_transaction_source)
         private val tvTransactionId: TextView = itemView.findViewById(R.id.tv_transaction_id)
         private val tvAmount: TextView = itemView.findViewById(R.id.tv_amount)
-        private val tvStatus: TextView = itemView.findViewById(R.id.tv_status)
+
         private val tvDateTime: TextView = itemView.findViewById(R.id.tv_datetime)
 
         fun bind(
@@ -92,24 +92,7 @@ class TransactionAdapter(
             }
             tvAmount.setTextColor(amountColor)
 
-            // Set status badge
-            val status = getTransactionStatus(transaction)
-            tvStatus.text = status.name.lowercase()
 
-            when (status) {
-                TransactionStatus.CONFIRMED -> {
-                    tvStatus.setBackgroundResource(R.drawable.bg_badge_confirmed)
-                    tvStatus.setTextColor(ContextCompat.getColor(context, R.color.confirmed))
-                }
-                TransactionStatus.PENDING -> {
-                    tvStatus.setBackgroundResource(R.drawable.bg_badge_pending)
-                    tvStatus.setTextColor(ContextCompat.getColor(context, R.color.pending))
-                }
-                TransactionStatus.CANCELLED -> {
-                    tvStatus.setBackgroundResource(R.drawable.bg_badge_cancelled)
-                    tvStatus.setTextColor(ContextCompat.getColor(context, R.color.cancelled))
-                }
-            }
 
             // Set date time
             tvDateTime.text = formatDateTime(transaction.date)

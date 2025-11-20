@@ -21,7 +21,6 @@
         android:layout_height="wrap_content"
         android:padding="16dp">
 
-        <!-- Icon Container -->
         <FrameLayout
             android:id="@+id/icon_container"
             android:layout_width="48dp"
@@ -41,7 +40,6 @@
 
         </FrameLayout>
 
-        <!-- Transaction Info -->
         <LinearLayout
             android:id="@+id/transaction_info"
             android:layout_width="0dp"
@@ -54,7 +52,6 @@
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent">
 
-            <!-- Transaction Title -->
             <TextView
                 android:id="@+id/tv_transaction_title"
                 android:layout_width="wrap_content"
@@ -64,9 +61,8 @@
                 android:textColor="@color/text_primary"
                 android:maxLines="1"
                 android:ellipsize="end"
-                tools:text="Cash-in" />
+                tools:text="Belanja" />
 
-            <!-- Transaction Source -->
             <TextView
                 android:id="@+id/tv_transaction_source"
                 android:layout_width="wrap_content"
@@ -76,9 +72,8 @@
                 android:textColor="@color/text_secondary"
                 android:maxLines="1"
                 android:ellipsize="end"
-                tools:text="From ABC Bank ATM" />
+                tools:text="Catatan: Pembelian di minimarket" />
 
-            <!-- Transaction ID -->
             <TextView
                 android:id="@+id/tv_transaction_id"
                 android:layout_width="wrap_content"
@@ -86,11 +81,10 @@
                 android:layout_marginTop="4dp"
                 android:textSize="11sp"
                 android:textColor="@color/text_tertiary"
-                tools:text="Transaction ID 564925374920" />
+                tools:text="ID: 564925374920" />
 
         </LinearLayout>
 
-        <!-- Amount & Status Container -->
         <LinearLayout
             android:id="@+id/amount_container"
             android:layout_width="wrap_content"
@@ -101,7 +95,6 @@
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent">
 
-            <!-- Amount -->
             <TextView
                 android:id="@+id/tv_amount"
                 android:layout_width="wrap_content"
@@ -109,35 +102,17 @@
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="@color/text_primary"
-                tools:text="$ 100.00" />
+                tools:text="Rp 100.000" />
 
-            <!-- Status Badge -->
-            <TextView
-                android:id="@+id/tv_status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:paddingTop="2dp"
-                android:paddingBottom="2dp"
-                android:background="@drawable/bg_badge_confirmed"
-                android:textSize="10sp"
-                android:textStyle="bold"
-                android:textColor="@color/confirmed"
-                android:textAllCaps="false"
-                tools:text="confirmed" />
-
-            <!-- Date Time -->
             <TextView
                 android:id="@+id/tv_datetime"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textSize="11sp"
+                android:textSize="12sp"
                 android:textColor="@color/text_tertiary"
                 android:gravity="end"
-                tools:text="17 Sep 2023\n10:34 AM" />
+                tools:text="17 Sep, 10:34 AM" />
 
         </LinearLayout>
 

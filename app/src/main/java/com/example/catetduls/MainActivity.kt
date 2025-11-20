@@ -6,7 +6,7 @@ import androidx.fragment.app.Fragment
 import com.example.catetduls.ui.pages.*
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), NavigationCallback {
 
     private lateinit var bottomNav: BottomNavigationView
 
@@ -54,5 +54,9 @@ class MainActivity : AppCompatActivity() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, fragment)
             .commit()
+    }
+
+    override fun navigateTo(fragment: Fragment) {
+        loadFragment(fragment)
     }
 }

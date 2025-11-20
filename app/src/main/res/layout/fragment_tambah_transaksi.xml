@@ -5,6 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background"
+    android:fillViewport="true"
     tools:context=".ui.pages.TambahTransaksiPage">
 
     <LinearLayout
@@ -12,7 +13,6 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- Header dengan Gradient -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -40,15 +40,15 @@
 
         </LinearLayout>
 
-        <!-- Form Content -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="-20dp"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="20dp">
 
-            <!-- Card Form -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -62,7 +62,6 @@
                     android:orientation="vertical"
                     android:padding="24dp">
 
-                    <!-- Tipe Transaksi -->
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -79,7 +78,6 @@
                         android:layout_marginBottom="20dp"
                         android:orientation="horizontal">
 
-                        <!-- Card Pemasukan -->
                         <com.google.android.material.card.MaterialCardView
                             android:id="@+id/card_pemasukan"
                             android:layout_width="0dp"
@@ -98,17 +96,29 @@
                             <LinearLayout
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:gravity="center"
-                                android:orientation="vertical"
-                                android:padding="20dp">
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingStart="16dp"
+                                android:paddingTop="12dp"
+                                android:paddingEnd="16dp"
+                                android:paddingBottom="12dp">
 
                                 <TextView
                                     android:id="@+id/tv_icon_pemasukan"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
+                                    android:layout_marginEnd="8dp"
                                     android:text="↓"
                                     android:textColor="@color/success"
-                                    android:textSize="32sp" />
+                                    android:textSize="24sp" />
+
+                                <TextView
+                                    android:id="@+id/tv_label_pemasukan"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Pemasukan"
+                                    android:textColor="@color/success"
+                                    android:textSize="15sp" />
 
                                 <RadioButton
                                     android:id="@+id/radio_pemasukan"
@@ -116,20 +126,10 @@
                                     android:layout_height="wrap_content"
                                     android:visibility="gone" />
 
-                                <TextView
-                                    android:id="@+id/tv_label_pemasukan"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="8dp"
-                                    android:text="Pemasukan"
-                                    android:textColor="@color/success"
-                                    android:textSize="15sp" />
-
                             </LinearLayout>
 
                         </com.google.android.material.card.MaterialCardView>
 
-                        <!-- Card Pengeluaran -->
                         <com.google.android.material.card.MaterialCardView
                             android:id="@+id/card_pengeluaran"
                             android:layout_width="0dp"
@@ -148,17 +148,30 @@
                             <LinearLayout
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:gravity="center"
-                                android:orientation="vertical"
-                                android:padding="20dp">
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingStart="16dp"
+                                android:paddingTop="12dp"
+                                android:paddingEnd="16dp"
+                                android:paddingBottom="12dp">
 
                                 <TextView
                                     android:id="@+id/tv_icon_pengeluaran"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
+                                    android:layout_marginEnd="8dp"
                                     android:text="↑"
                                     android:textColor="@color/danger"
-                                    android:textSize="32sp"
+                                    android:textSize="24sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/tv_label_pengeluaran"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Pengeluaran"
+                                    android:textColor="@color/danger"
+                                    android:textSize="16sp"
                                     android:textStyle="bold" />
 
                                 <RadioButton
@@ -168,23 +181,12 @@
                                     android:checked="true"
                                     android:visibility="gone" />
 
-                                <TextView
-                                    android:id="@+id/tv_label_pengeluaran"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="8dp"
-                                    android:text="Pengeluaran"
-                                    android:textColor="@color/danger"
-                                    android:textSize="16sp"
-                                    android:textStyle="bold" />
-
                             </LinearLayout>
 
                         </com.google.android.material.card.MaterialCardView>
 
                     </RadioGroup>
 
-                    <!-- Kategori -->
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -213,7 +215,6 @@
 
                     </com.google.android.material.card.MaterialCardView>
 
-                    <!-- Jumlah -->
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -250,7 +251,6 @@
 
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- Tanggal -->
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -260,10 +260,14 @@
                         android:textStyle="bold" />
 
                     <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/card_select_date"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:layout_marginBottom="20dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground"
                         app:cardBackgroundColor="@color/surface_variant"
                         app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
@@ -284,22 +288,64 @@
                                 android:textSize="16sp"
                                 tools:text="12 November 2025" />
 
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btn_select_date"
-                                style="@style/Widget.Material3.Button.TextButton"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Pilih"
-                                android:textColor="@color/primary" />
+                            <ImageView
+                                android:id="@+id/img_calendar_icon"
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_marginStart="8dp"
+                                android:contentDescription="Calendar Icon"
+                                android:src="@drawable/ic_calendar_24"
+                                app:tint="@color/text_secondary" />
 
                         </LinearLayout>
 
                     </com.google.android.material.card.MaterialCardView>
 
-                    <!-- Catatan -->
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:text="Bukti Foto (Opsional)"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:orientation="vertical">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_add_photo"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="56dp"
+                            android:text="Tambah Foto"
+                            android:textSize="16sp"
+                            app:cornerRadius="12dp"
+                            app:icon="@drawable/ic_photo_24"
+                            app:iconGravity="textStart"
+                            app:iconTint="@color/primary"
+                            app:strokeColor="@color/border"
+                            app:strokeWidth="1dp" />
+
+                        <ImageView
+                            android:id="@+id/iv_proof_image"
+                            android:layout_width="match_parent"
+                            android:layout_height="150dp"
+                            android:layout_marginTop="16dp"
+                            android:background="@drawable/bg_image_placeholder"
+                            android:contentDescription="Bukti Foto"
+                            android:scaleType="centerCrop"
+                            android:visibility="gone"
+                            tools:src="@tools:sample/backgrounds/scenic"
+                            tools:visibility="visible" />
+
+                    </LinearLayout>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
                         android:text="Catatan (Opsional)"
                         android:textColor="@color/text_primary"
                         android:textSize="16sp"
@@ -333,7 +379,6 @@
 
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Progress Bar -->
             <ProgressBar
                 android:id="@+id/progress_bar"
                 style="?android:attr/progressBarStyleHorizontal"
@@ -344,7 +389,6 @@
                 android:visibility="gone"
                 tools:visibility="visible" />
 
-            <!-- Action Buttons -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -365,10 +409,27 @@
                     app:strokeWidth="2dp" />
 
                 <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_lanjut"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_marginStart="0dp"
+                    android:layout_marginEnd="12dp"
+                    android:layout_weight="1"
+                    android:backgroundTint="@color/primary_variant"
+                    android:text="Lanjut"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:visibility="gone"
+                    app:cornerRadius="14dp"
+                    tools:visibility="visible" />
+
+
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_simpan"
                     android:layout_width="0dp"
                     android:layout_height="56dp"
-                    android:layout_marginStart="12dp"
+                    android:layout_marginStart="0dp"
                     android:layout_weight="2"
                     android:backgroundTint="@color/primary"
                     android:text="Simpan"

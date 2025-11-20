@@ -11,9 +11,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.catetduls.R
-// --- [PERBAIKAN 1] Import Enum ---
 import com.example.catetduls.data.TransactionType
-// ---------------------------------
 import com.example.catetduls.data.getTransactionRepository
 import com.example.catetduls.viewmodel.TransaksiViewModel
 import com.example.catetduls.viewmodel.TransaksiViewModelFactory
@@ -26,6 +24,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
 import androidx.lifecycle.Lifecycle
 import com.google.android.material.snackbar.Snackbar
+import android.widget.ImageView // Import ImageView
+import android.widget.Toast
 
 class TransaksiPage : Fragment() {
 
@@ -45,6 +45,9 @@ class TransaksiPage : Fragment() {
     private lateinit var btnFilterBulanIni: MaterialButton
     private lateinit var btnClearFilter: MaterialButton
 
+    // View BARU
+    private lateinit var btnToCalendar: ImageView // Tombol Kalender di Header
+
     // TODO: Definisikan adapter Anda di sini
     // private lateinit var transactionAdapter: TransactionAdapter
 
@@ -59,21 +62,18 @@ class TransaksiPage : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Initialize ViewModel (Sudah Benar)
         val repository = requireContext().getTransactionRepository()
         val factory = TransaksiViewModelFactory(repository)
         viewModel = ViewModelProvider(this, factory)[TransaksiViewModel::class.java]
 
-        // Initialize Views
         initViews(view)
 
-        // Setup
         setupRecyclerView()
         setupChips()
         setupSearchView()
         setupQuickFilters()
+        setupHeaderButtons() // Setup Tombol Kalender
 
-        // Observe data
         observeData()
     }
 
@@ -87,26 +87,43 @@ class TransaksiPage : Fragment() {
         tvTotalPemasukan = view.findViewById(R.id.tv_total_pemasukan)
         tvTotalPengeluaran = view.findViewById(R.id.tv_total_pengeluaran)
 
-        // Perbaikan: Tambahkan null-check
         btnFilterHariIni = view.findViewById(R.id.btn_filter_hari_ini)
             ?: throw IllegalStateException("btn_filter_hari_ini not found in layout")
         btnFilterMingguIni = view.findViewById(R.id.btn_filter_minggu_ini)
             ?: throw IllegalStateException("btn_filter_minggu_ini not found in layout")
         btnFilterBulanIni = view.findViewById(R.id.btn_filter_bulan_ini)
             ?: throw IllegalStateException("btn_filter_bulan_ini not found in layout")
+
+        // btnClearFilter sekarang ada di dalam Summary Card
         btnClearFilter = view.findViewById(R.id.btn_clear_filter)
             ?: throw IllegalStateException("btn_clear_filter not found in layout")
+
+        // Inisialisasi Tombol Kalender
+        btnToCalendar = view.findViewById(R.id.btn_to_calendar)
+            ?: throw IllegalStateException("btn_to_calendar not found in layout")
     }
+
+    private fun setupHeaderButtons() {
+        btnToCalendar.setOnClickListener {
+
+            // Periksa apakah Activity mengimplementasikan NavigationCallback
+            if (activity is NavigationCallback) {
+                // Panggil navigateTo dan berikan instance CalendarPage
+                (activity as NavigationCallback).navigateTo(CalendarPage())
+            } else {
+                // Fallback jika interface tidak diimplementasikan
+                Toast.makeText(requireContext(), "Error: Navigasi Kalender tidak tersedia.", Toast.LENGTH_LONG).show()
+            }
+
+            // Hapus Toast lama karena navigasi sekarang berfungsi
+            // Toast.makeText(requireContext(), "Pindah ke Tampilan Kalender", Toast.LENGTH_SHORT).show()
+        }
+    }
+
 
     private fun setupRecyclerView() {
         rvTransactions.layoutManager = LinearLayoutManager(requireContext())
         // TODO: Inisialisasi dan set adapter Anda di sini
-        // transactionAdapter = TransactionAdapter { transaction ->
-        //    // Aksi klik item
-        // }
-        // rvTransactions.adapter = transactionAdapter
-
-        // TODO: Setup swipe to delete
     }
 
     private fun setupChips() {
@@ -114,7 +131,6 @@ class TransaksiPage : Fragment() {
             viewModel.setTypeFilter(null)
         }
 
-        // --- [PERBAIKAN 2] Gunakan Enum ---
         chipPemasukan.setOnClickListener {
             viewModel.setTypeFilter(TransactionType.PEMASUKAN)
         }
@@ -122,11 +138,9 @@ class TransaksiPage : Fragment() {
         chipPengeluaran.setOnClickListener {
             viewModel.setTypeFilter(TransactionType.PENGELUARAN)
         }
-        // --------------------------------
     }
 
     private fun setupSearchView() {
-        // ... (Tidak ada perubahan, logika ini sudah benar)
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
                 query?.let { viewModel.searchTransactions(it) }
@@ -143,7 +157,6 @@ class TransaksiPage : Fragment() {
     }
 
     private fun setupQuickFilters() {
-        // ... (Tidak ada perubahan, sudah benar)
         btnFilterHariIni.setOnClickListener {
             viewModel.filterToday()
         }
@@ -156,50 +169,37 @@ class TransaksiPage : Fragment() {
 
         btnClearFilter.setOnClickListener {
             viewModel.clearFilters()
-            searchView.setQuery("", false) // Ini akan memicu onQueryTextChange
-            // Hapus chipSemua.isChecked = true (biarkan observer yang mengaturnya)
+            searchView.setQuery("", false)
         }
     }
 
     private fun observeData() {
 
         // 1. OBSERVE UNTUK LIVE DATA
-        // =============================================
-
-        // Observe list transaksi
         viewModel.transactions.observe(viewLifecycleOwner) { transactions ->
             // TODO: Update RecyclerView adapter
-            // transactionAdapter.submitList(transactions)
         }
 
-        // Observe total pemasukan (Sudah Benar)
         viewModel.displayedTotalIncome.observe(viewLifecycleOwner) { total ->
             tvTotalPemasukan.text = viewModel.formatCurrency(total)
         }
 
-        // Observe total pengeluaran (Sudah Benar)
         viewModel.displayedTotalExpense.observe(viewLifecycleOwner) { total ->
             tvTotalPengeluaran.text = viewModel.formatCurrency(total)
         }
 
         // 2. OBSERVE UNTUK STATEFLOW
-        // ===============================================
-
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 
-                // Observe error messages (Sudah Benar)
                 launch {
                     viewModel.errorMessage.collect { error ->
                         error?.let {
                             Snackbar.make(requireView(), it, Snackbar.LENGTH_LONG).show()
-                            // viewModel.clearMessages() // Aktifkan jika ada
                         }
                     }
                 }
 
-                // --- [PERBAIKAN 3] Tambahkan Observer untuk Tipe Filter ---
-                // Ini akan menyinkronkan ChipGroup dengan ViewModel
                 launch {
                     viewModel.selectedType.collect { type ->
                         when (type) {
@@ -209,11 +209,10 @@ class TransaksiPage : Fragment() {
                         }
                     }
                 }
-                // ----------------------------------------------------
 
-                // Observe search query untuk menyinkronkan Search Bar
                 launch {
                     viewModel.searchQuery.collect { query ->
+                        // Ini akan mencegah loop tak terhingga jika ViewModel mereset query ke ""
                         if (query.isEmpty() && searchView.query.isNotEmpty()) {
                             searchView.setQuery("", false)
                         }

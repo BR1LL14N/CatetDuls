@@ -119,16 +119,26 @@ class PengaturanViewModel(
     suspend fun exportToCsv(): String? {
         return try {
             _isLoading.value = true
+
             val transactions = transactionRepository.getAllTransactions().first()
-            val csv = BackupHelper.transactionsToCsv(transactions)
+
+            val categories = categoryRepository.getAllCategoriesSync()
+
+
+            val csv = BackupHelper.transactionsToCsv(
+                transactions = transactions,
+                categories = categories
+            )
 
             _successMessage.value = "Data berhasil di-export ke CSV"
             _isLoading.value = false
-//            csv.toString()
+
             return csv
         } catch (e: Exception) {
             _errorMessage.value = "Gagal export CSV: ${e.message}"
             _isLoading.value = false
+
+            e.printStackTrace()
             null
         }
     }
@@ -213,7 +223,6 @@ class PengaturanViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Daftar kategori default (disalin dari AppDatabase.kt)
                 val defaultCategories = listOf(
                     Category(name = "Makanan & Minuman", icon = "🍔", type = TransactionType.PENGELUARAN, isDefault = true),
                     Category(name = "Transport", icon = "🚌", type = TransactionType.PENGELUARAN, isDefault = true),
@@ -230,13 +239,12 @@ class PengaturanViewModel(
                     Category(name = "Investasi", icon = "📈", type = TransactionType.PEMASUKAN, isDefault = true),
                     Category(name = "Hadiah", icon = "🎁", type = TransactionType.PEMASUKAN, isDefault = true),
                     Category(name = "Freelance", icon = "💻", type = TransactionType.PEMASUKAN, isDefault = true),
-                    // Logika "Semua" dihilangkan, diganti jadi 2
                     Category(name = "Lainnya (Pemasukan)", icon = "⚙️", type = TransactionType.PEMASUKAN, isDefault = true),
                     Category(name = "Lainnya (Pengeluaran)", icon = "⚙️", type = TransactionType.PENGELUARAN, isDefault = true)
                 )
 
-                // Panggil 'insertAll' dari repository Anda
-                categoryRepository.insertAll(defaultCategories) // Menggunakan insertAll
+
+                categoryRepository.insertAll(defaultCategories)
 
                 _successMessage.value = "Kategori berhasil direset"
                 _isLoading.value = false
@@ -275,9 +283,11 @@ class PengaturanViewModel(
     /**
      * Format date untuk backup filename
      */
-    fun getBackupFileName(): String {
+    fun getBackupFileName(extension: String = "json"): String {
         val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-        return "finnote_backup_${dateFormat.format(Date())}.json"
+        val timestamp = dateFormat.format(Date())
+        // Menggunakan extension yang diberikan
+        return "finnote_backup_$timestamp.$extension"
     }
 
     /**
@@ -286,7 +296,6 @@ class PengaturanViewModel(
     fun getAppVersion(): String {
         return try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            // PERBAIKAN: Tambahkan '?: "1.0.0"' untuk menangani jika versionName null
             packageInfo.versionName ?: "1.0.0"
         } catch (e: Exception) {
             "1.0.0"
@@ -349,7 +358,7 @@ object BackupHelper {
             transactions.add(
                 Transaction(
                     id = json.getInt("id"),
-                    // --- [PERBAIKAN 6] Convert String dari JSON ke Enum ---
+
                     type = TransactionType.valueOf(json.getString("type")),
                     // ---------------------------------------------------
                     amount = json.getDouble("amount"),
@@ -392,7 +401,7 @@ object BackupHelper {
                     id = json.getInt("id"),
                     name = json.getString("name"),
                     icon = json.getString("icon"),
-                    // --- [PERBAIKAN 7] Convert String dari JSON ke Enum ---
+
                     type = TransactionType.valueOf(json.getString("type")),
                     // ---------------------------------------------------
                     isDefault = json.getBoolean("isDefault")
@@ -402,23 +411,38 @@ object BackupHelper {
         return categories
     }
 
-    /**
-     * Convert transactions to CSV format
-     */
-    fun transactionsToCsv(transactions: List<Transaction>): String {
+    fun transactionsToCsv(
+        transactions: List<Transaction>,
+        categories: List<Category>
+    ): String {
         val csv = StringBuilder()
-        csv.append("ID,Tanggal,Tipe,Kategori ID,Jumlah,Catatan\n")
+        val fullDateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+        val exportDateString = fullDateFormat.format(Date())
+
+
+        val categoryNameMap: Map<Int, String> = categories.associate { it.id to it.name }
+
+
+        csv.append("Backup Data - $exportDateString\n")
+
+
+        csv.append("ID,Tanggal,Tipe,Kategori,Jumlah,Catatan\n")
 
         transactions.forEach { transaction ->
-            val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-            val date = dateFormat.format(Date(transaction.date))
+
+            val transactionDate = fullDateFormat.format(Date(transaction.date))
+
+            val categoryName = categoryNameMap[transaction.categoryId] ?: "Tidak Ditemukan"
+
+            val safeNotes = "\"${transaction.notes.replace("\"", "\"\"")}\""
 
             csv.append("${transaction.id},")
-            csv.append("$date,")
+            csv.append("$transactionDate,")
             csv.append("${transaction.type},")
-            csv.append("${transaction.categoryId},")
+            csv.append("$categoryName,")
             csv.append("${transaction.amount},")
-            csv.append("\"${transaction.notes.replace("\"", "\"\"")}\"\n")
+            csv.append(safeNotes)
+            csv.append("\n")
         }
 
         return csv.toString()
