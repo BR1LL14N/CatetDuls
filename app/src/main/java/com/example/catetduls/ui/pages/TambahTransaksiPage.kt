@@ -418,6 +418,11 @@ class TambahTransaksiPage : Fragment() {
         viewModel.categories.observe(viewLifecycleOwner) { categories: List<Category> ->
             categoriesList = categories
 
+            if (categories.isEmpty()) {
+                Toast.makeText(requireContext(), "Tidak ada kategori tersedia!", Toast.LENGTH_LONG).show()
+                return@observe
+            }
+
             val categoryNames = categories.map { "${it.icon} ${it.name}" }
             val adapter = ArrayAdapter(
                 requireContext(),
@@ -427,21 +432,38 @@ class TambahTransaksiPage : Fragment() {
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             spinnerKategori.adapter = adapter
 
-            val selectedId = viewModel.selectedCategoryId.value
-            val selectedIndex = categoriesList.indexOfFirst { it.id == selectedId }.coerceAtLeast(0)
-            spinnerKategori.setSelection(selectedIndex)
+            // Pilih kategori pertama jika belum ada yang dipilih
+            var selectedIndex = 0
+            val currentId = viewModel.selectedCategoryId.value
+            if (currentId != null) {
+                val existingIndex = categories.indexOfFirst { it.id == currentId }
+                if (existingIndex != -1) {
+                    selectedIndex = existingIndex
+                }
+            }
 
-            // Listener untuk set category ID
+            // Penting: Nonaktifkan listener sementara
+            spinnerKategori.onItemSelectedListener = null
+            spinnerKategori.setSelection(selectedIndex, false)
+
+            // Set listener baru
             spinnerKategori.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                    if (categoriesList.isNotEmpty() && position < categoriesList.size) {
-                        viewModel.setCategory(categoriesList[position].id)
+                    if (position < categories.size) {
+                        viewModel.setCategory(categories[position].id)
                         btnLanjut.visibility = View.GONE
                     }
                 }
                 override fun onNothingSelected(parent: AdapterView<*>?) {
-                    viewModel.setCategory(0)
+                    // Biarkan kosong
                 }
+            }
+
+            // 🔥 FORCE SET KATEGORI PERTAMA KE VIEWMODEL
+            // Ini menjamin _selectedCategoryId tidak null
+            if (viewModel.selectedCategoryId.value == null && categories.isNotEmpty()) {
+                viewModel.setCategory(categories[0].id)
+                spinnerKategori.setSelection(0, false)
             }
         }
     }

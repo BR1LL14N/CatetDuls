@@ -1,14 +1,14 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item
-        android:id="@+id/nav_dashboard"
-        android:icon="@drawable/ic_home"
-        android:title="Dashboard" />
-
-    <item
         android:id="@+id/nav_transaksi"
         android:icon="@drawable/ic_list"
         android:title="Transaksi" />
+
+    <item
+        android:id="@+id/nav_kalender"
+        android:icon="@drawable/ic_calendar_24"
+        android:title="Kalender" />
 
     <item
         android:id="@+id/nav_tambah"

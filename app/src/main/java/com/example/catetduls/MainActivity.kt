@@ -17,20 +17,19 @@ class MainActivity : AppCompatActivity(), NavigationCallback {
 
         bottomNav = findViewById(R.id.bottom_navigation)
 
-
         if (savedInstanceState == null) {
-            loadFragment(DashboardPage())
+            // Ganti dari DashboardPage() ke TransaksiPage()
+            loadFragment(TransaksiPage())
         }
-
 
         bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.nav_dashboard -> {
-                    loadFragment(DashboardPage())
-                    true
-                }
                 R.id.nav_transaksi -> {
                     loadFragment(TransaksiPage())
+                    true
+                }
+                R.id.nav_kalender -> {
+                    loadFragment(CalendarPage())
                     true
                 }
                 R.id.nav_tambah -> {

@@ -147,7 +147,11 @@ class PengaturanPage : Fragment() {
     private fun setupButtons() {
         // Kelola Kategori
         cardKelolaKategori.setOnClickListener {
-            Toast.makeText(requireContext(), "Kelola Kategori - Coming Soon", Toast.LENGTH_SHORT).show()
+            val kelolaFragment = KelolaKategoriPage()
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, kelolaFragment)
+                .addToBackStack(null)
+                .commit()
         }
 
         // Backup (Internal Backup) - Tetap menggunakan logika lama
