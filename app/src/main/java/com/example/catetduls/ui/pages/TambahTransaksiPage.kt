@@ -1,8 +1,10 @@
 package com.example.catetduls.ui.pages
 
 import android.app.DatePickerDialog
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -33,6 +35,7 @@ class TambahTransaksiPage : Fragment() {
 
     private lateinit var viewModel: TambahViewModel
 
+    // Views
     private lateinit var radioGroupType: RadioGroup
     private lateinit var radioPemasukan: RadioButton
     private lateinit var radioPengeluaran: RadioButton
@@ -51,13 +54,15 @@ class TambahTransaksiPage : Fragment() {
     private lateinit var btnReset: MaterialButton
     private lateinit var progressBar: ProgressBar
 
+    // Views BARU untuk Foto dan Lanjut
     private lateinit var btnAddPhoto: MaterialButton
     private lateinit var ivProofImage: ImageView
     private lateinit var btnLanjut: MaterialButton
 
     private var categoriesList: List<Category> = emptyList()
-    private var imageUri: Uri? = null
+    private var imageUri: Uri? = null // Menyimpan URI gambar
 
+    // Launcher untuk Galeri
     private val galleryLauncher: ActivityResultLauncher<String> =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
             uri?.let {
@@ -65,6 +70,7 @@ class TambahTransaksiPage : Fragment() {
             }
         }
 
+    // Launcher untuk Kamera
     private val cameraLauncher: ActivityResultLauncher<Uri> =
         registerForActivityResult(ActivityResultContracts.TakePicture()) { success: Boolean ->
             if (success) {
@@ -122,6 +128,7 @@ class TambahTransaksiPage : Fragment() {
         btnReset = view.findViewById(R.id.btn_reset)
         progressBar = view.findViewById(R.id.progress_bar)
 
+        // Views Baru
         btnAddPhoto = view.findViewById(R.id.btn_add_photo)
         ivProofImage = view.findViewById(R.id.iv_proof_image)
         btnLanjut = view.findViewById(R.id.btn_lanjut)
@@ -170,6 +177,7 @@ class TambahTransaksiPage : Fragment() {
                 imageFile
             )
 
+            // PERBAIKAN: Menggunakan let untuk menjamin non-null
             imageUri?.let { uri ->
                 cameraLauncher.launch(uri)
             }
@@ -257,57 +265,38 @@ class TambahTransaksiPage : Fragment() {
 
         val isPemasukanChecked = radioPemasukan.isChecked
 
-        val inactiveStrokeWidth = 1
-        val inactiveElevation = 2f
-        val inactiveTextSize = 15f
-
-        val activeStrokeWidth = 2
-        val activeElevation = 3f
-
         if (isPemasukanChecked) {
             cardPemasukan?.apply {
                 strokeColor = colorSuccess
-                strokeWidth = activeStrokeWidth
-                cardElevation = activeElevation
+                strokeWidth = 3
+                cardElevation = 4f
             }
-            tvLabelPemasukan?.apply {
-                setTypeface(null, android.graphics.Typeface.BOLD)
-                textSize = inactiveTextSize
-            }
+            tvLabelPemasukan?.setTypeface(null, android.graphics.Typeface.BOLD)
             tvIconPemasukan?.setTypeface(null, android.graphics.Typeface.BOLD)
 
             cardPengeluaran?.apply {
                 strokeColor = colorBorder
-                strokeWidth = inactiveStrokeWidth
-                cardElevation = inactiveElevation
+                strokeWidth = 1
+                cardElevation = 2f
             }
-            tvLabelPengeluaran?.apply {
-                setTypeface(null, android.graphics.Typeface.NORMAL)
-                textSize = inactiveTextSize
-            }
+            tvLabelPengeluaran?.setTypeface(null, android.graphics.Typeface.NORMAL)
             tvIconPengeluaran?.setTypeface(null, android.graphics.Typeface.NORMAL)
 
         } else {
             cardPengeluaran?.apply {
                 strokeColor = colorDanger
-                strokeWidth = activeStrokeWidth
-                cardElevation = activeElevation
+                strokeWidth = 3
+                cardElevation = 4f
             }
-            tvLabelPengeluaran?.apply {
-                setTypeface(null, android.graphics.Typeface.BOLD)
-                textSize = inactiveTextSize
-            }
+            tvLabelPengeluaran?.setTypeface(null, android.graphics.Typeface.BOLD)
             tvIconPengeluaran?.setTypeface(null, android.graphics.Typeface.BOLD)
 
             cardPemasukan?.apply {
                 strokeColor = colorBorder
-                strokeWidth = inactiveStrokeWidth
-                cardElevation = inactiveElevation
+                strokeWidth = 1
+                cardElevation = 2f
             }
-            tvLabelPemasukan?.apply {
-                setTypeface(null, android.graphics.Typeface.NORMAL)
-                textSize = inactiveTextSize
-            }
+            tvLabelPemasukan?.setTypeface(null, android.graphics.Typeface.NORMAL)
             tvIconPemasukan?.setTypeface(null, android.graphics.Typeface.NORMAL)
         }
     }
@@ -338,6 +327,7 @@ class TambahTransaksiPage : Fragment() {
             val amount = etAmount.text.toString()
             val notes = etNotes.text.toString()
 
+            // TODO: Simpan URI gambar ke ViewModel
             // viewModel.setImageUri(imageUri)
 
             viewModel.setAmount(amount)
@@ -351,6 +341,7 @@ class TambahTransaksiPage : Fragment() {
         }
 
         btnLanjut.setOnClickListener {
+            // Reset form, KEEP TYPE, dan set Tanggal Hari Ini
             viewModel.resetForm(keepType = true, keepCategory = false, setTodayDate = true)
 
             btnLanjut.visibility = View.GONE
@@ -369,18 +360,22 @@ class TambahTransaksiPage : Fragment() {
 
     private fun observeData() {
 
+        // 1. OBSERVE UNTUK STATEFLOW
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 
+                // Observe tanggal
                 launch {
                     viewModel.date.collect { timestamp ->
                         tvDate.text = viewModel.formatDate(timestamp)
                     }
                 }
 
+                // Observe amount & notes untuk reset
                 launch { viewModel.amount.collect { if (it.isEmpty() && etAmount.text.toString().isNotEmpty()) etAmount.text?.clear() } }
                 launch { viewModel.notes.collect { if (it.isEmpty() && etNotes.text.toString().isNotEmpty()) etNotes.text?.clear() } }
 
+                // Observe loading state
                 launch {
                     viewModel.isSaving.collect { isSaving ->
                         progressBar.visibility = if (isSaving) View.VISIBLE else View.GONE
@@ -390,11 +385,13 @@ class TambahTransaksiPage : Fragment() {
                     }
                 }
 
+                // Observe success message
                 launch {
                     viewModel.successMessage.collect { message ->
                         message?.let {
                             Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
 
+                            // Setelah Sukses: Reset form, tampilkan tombol Lanjut
                             viewModel.resetForm(keepType = true, keepCategory = false, setTodayDate = true)
 
                             btnLanjut.visibility = View.VISIBLE
@@ -405,6 +402,7 @@ class TambahTransaksiPage : Fragment() {
                     }
                 }
 
+                // Observe error message
                 launch {
                     viewModel.errorMessage.collect { error ->
                         error?.let {
@@ -416,8 +414,14 @@ class TambahTransaksiPage : Fragment() {
             }
         }
 
+        // 2. OBSERVE UNTUK LIVE DATA (Categories)
         viewModel.categories.observe(viewLifecycleOwner) { categories: List<Category> ->
             categoriesList = categories
+
+            if (categories.isEmpty()) {
+                Toast.makeText(requireContext(), "Tidak ada kategori tersedia!", Toast.LENGTH_LONG).show()
+                return@observe
+            }
 
             val categoryNames = categories.map { "${it.icon} ${it.name}" }
             val adapter = ArrayAdapter(
@@ -428,19 +432,30 @@ class TambahTransaksiPage : Fragment() {
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             spinnerKategori.adapter = adapter
 
-            val selectedId = viewModel.selectedCategoryId.value
-            val selectedIndex = categoriesList.indexOfFirst { it.id == selectedId }.coerceAtLeast(0)
-            spinnerKategori.setSelection(selectedIndex)
+            // Pilih kategori pertama jika belum ada yang dipilih
+            var selectedIndex = 0
+            val currentId = viewModel.selectedCategoryId.value
+            if (currentId != null) {
+                val existingIndex = categories.indexOfFirst { it.id == currentId }
+                if (existingIndex != -1) {
+                    selectedIndex = existingIndex
+                }
+            }
 
+            // Penting: Nonaktifkan listener sementara
+            spinnerKategori.onItemSelectedListener = null
+            spinnerKategori.setSelection(selectedIndex, false)
+
+            // Set listener baru
             spinnerKategori.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                    if (categoriesList.isNotEmpty() && position < categoriesList.size) {
-                        viewModel.setCategory(categoriesList[position].id)
+                    if (position < categories.size) {
+                        viewModel.setCategory(categories[position].id)
                         btnLanjut.visibility = View.GONE
                     }
                 }
                 override fun onNothingSelected(parent: AdapterView<*>?) {
-                    viewModel.setCategory(0)
+                    // Biarkan kosong
                 }
             }
         }

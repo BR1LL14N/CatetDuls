@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.google.ksp)
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.21"
     alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.parcelize)
 }
 
 android {
