@@ -1,10 +1,9 @@
 package com.example.catetduls.ui.pages
 
 import android.app.DatePickerDialog
-import android.content.Intent
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
-import android.provider.MediaStore
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -20,8 +19,10 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.example.catetduls.R
 import com.example.catetduls.data.Category
 import com.example.catetduls.data.TransactionType
+import com.example.catetduls.data.Wallet
 import com.example.catetduls.data.getCategoryRepository
 import com.example.catetduls.data.getTransactionRepository
+import com.example.catetduls.data.getWalletRepository
 import com.example.catetduls.viewmodel.TambahViewModel
 import com.example.catetduls.viewmodel.TambahViewModelFactory
 import com.google.android.material.button.MaterialButton
@@ -46,6 +47,7 @@ class TambahTransaksiPage : Fragment() {
     private lateinit var cardPemasukan: MaterialCardView
     private lateinit var cardPengeluaran: MaterialCardView
     private lateinit var spinnerKategori: Spinner
+    private lateinit var spinnerWallet: Spinner // ✅ Spinner Wallet
     private lateinit var etAmount: TextInputEditText
     private lateinit var tvDate: TextView
     private lateinit var cardSelectDate: MaterialCardView
@@ -60,6 +62,7 @@ class TambahTransaksiPage : Fragment() {
     private lateinit var btnLanjut: MaterialButton
 
     private var categoriesList: List<Category> = emptyList()
+    private var walletsList: List<Wallet> = emptyList() // ✅ List Dompet
     private var imageUri: Uri? = null // Menyimpan URI gambar
 
     // Launcher untuk Galeri
@@ -94,7 +97,29 @@ class TambahTransaksiPage : Fragment() {
 
         val transactionRepo = requireContext().getTransactionRepository()
         val categoryRepo = requireContext().getCategoryRepository()
-        val factory = TambahViewModelFactory(transactionRepo, categoryRepo)
+        val walletRepo = requireContext().getWalletRepository()
+
+        val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val activeWalletId: Int = try {
+            prefs.getInt("active_wallet_id", 1)
+        } catch (e: Exception) {
+            1
+        }
+
+        val activeBookId: Int = try {
+            prefs.getInt("active_book_id", 1)
+        } catch (e: Exception) {
+            1
+        }
+
+        // Perbarui Factory:
+        val factory = TambahViewModelFactory(
+            transactionRepo,
+            categoryRepo,
+            walletRepo,
+            activeWalletId,
+            activeBookId
+        )
         viewModel = ViewModelProvider(this, factory)[TambahViewModel::class.java]
 
         initViews(view)
@@ -103,6 +128,7 @@ class TambahTransaksiPage : Fragment() {
         setupDatePicker()
         setupPhotoPicker()
         setupButtons()
+        // setupWalletSpinner() // Dihapus karena listener dipasang di observeData()
 
         observeData()
     }
@@ -118,6 +144,7 @@ class TambahTransaksiPage : Fragment() {
         cardPemasukan = view.findViewById(R.id.card_pemasukan)
         cardPengeluaran = view.findViewById(R.id.card_pengeluaran)
         spinnerKategori = view.findViewById(R.id.spinner_kategori)
+        spinnerWallet = view.findViewById(R.id.spinner_wallet)
         etAmount = view.findViewById(R.id.et_amount)
         tvDate = view.findViewById(R.id.tv_date)
 
@@ -128,11 +155,25 @@ class TambahTransaksiPage : Fragment() {
         btnReset = view.findViewById(R.id.btn_reset)
         progressBar = view.findViewById(R.id.progress_bar)
 
-        // Views Baru
         btnAddPhoto = view.findViewById(R.id.btn_add_photo)
         ivProofImage = view.findViewById(R.id.iv_proof_image)
         btnLanjut = view.findViewById(R.id.btn_lanjut)
     }
+
+    private fun setupWalletSpinnerListener(wallets: List<Wallet>) {
+        spinnerWallet.onItemSelectedListener = null
+
+        spinnerWallet.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (position < wallets.size) {
+                    val selectedWalletId = wallets[position].id
+                    viewModel.setWallet(selectedWalletId)
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+    }
+
 
     private fun setupPhotoPicker() {
         btnAddPhoto.setOnClickListener {
@@ -177,7 +218,6 @@ class TambahTransaksiPage : Fragment() {
                 imageFile
             )
 
-            // PERBAIKAN: Menggunakan let untuk menjamin non-null
             imageUri?.let { uri ->
                 cameraLauncher.launch(uri)
             }
@@ -371,8 +411,17 @@ class TambahTransaksiPage : Fragment() {
                     }
                 }
 
+                launch {
+                    viewModel.amount.collect { amountString ->
+                        if (etAmount.text.toString() != amountString) {
+                            etAmount.setText(amountString)
+                            etAmount.setSelection(amountString.length)
+                        }
+                    }
+                }
+
                 // Observe amount & notes untuk reset
-                launch { viewModel.amount.collect { if (it.isEmpty() && etAmount.text.toString().isNotEmpty()) etAmount.text?.clear() } }
+//                launch { viewModel.amount.collect { if (it.isEmpty() && etAmount.text.toString().isNotEmpty()) etAmount.text?.clear() } }
                 launch { viewModel.notes.collect { if (it.isEmpty() && etNotes.text.toString().isNotEmpty()) etNotes.text?.clear() } }
 
                 // Observe loading state
@@ -445,7 +494,9 @@ class TambahTransaksiPage : Fragment() {
             // Penting: Nonaktifkan listener sementara
             spinnerKategori.onItemSelectedListener = null
             spinnerKategori.setSelection(selectedIndex, false)
-
+            if (categories.isNotEmpty() && selectedIndex >= 0) {
+                viewModel.setCategory(categories[selectedIndex].id)
+            }
             // Set listener baru
             spinnerKategori.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
@@ -458,6 +509,43 @@ class TambahTransaksiPage : Fragment() {
                     // Biarkan kosong
                 }
             }
+        }
+
+        // 3. OBSERVE UNTUK LIVE DATA (Wallets)
+        viewModel.wallets.observe(viewLifecycleOwner) { wallets: List<Wallet> ->
+            walletsList = wallets
+
+            if (wallets.isEmpty()) {
+                Toast.makeText(requireContext(), "Tidak ada dompet tersedia untuk Buku ini!", Toast.LENGTH_LONG).show()
+                return@observe
+            }
+
+            val walletNames = wallets.map { "${it.icon} ${it.name}" }
+            val adapter = ArrayAdapter(
+                requireContext(),
+                android.R.layout.simple_spinner_item,
+                walletNames
+            )
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            spinnerWallet.adapter = adapter
+
+            // Pilih dompet aktif default
+            var selectedIndex = 0
+            val currentId = viewModel.selectedWalletId.value
+            if (currentId > 0) {
+                val existingIndex = wallets.indexOfFirst { it.id == currentId }
+                if (existingIndex != -1) {
+                    selectedIndex = existingIndex
+                }
+            }
+
+            // Set pilihan default
+            spinnerWallet.setSelection(selectedIndex, false)
+            if (wallets.isNotEmpty() && selectedIndex >= 0) {
+                viewModel.setWallet(wallets[selectedIndex].id)
+            }
+            // Pasang listener di sini (setelah selection)
+            setupWalletSpinnerListener(walletsList)
         }
     }
 }

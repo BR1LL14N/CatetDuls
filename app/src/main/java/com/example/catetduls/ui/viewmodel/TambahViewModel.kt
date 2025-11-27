@@ -11,16 +11,13 @@ import kotlin.IllegalArgumentException
 
 /**
  * ViewModel untuk TambahTransaksiPage (Form Input/Edit)
- *
- * Mengelola:
- * - Input form transaksi
- * - Validasi data
- * - Simpan transaksi baru
- * - Update transaksi existing
  */
 class TambahViewModel(
     private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val walletRepository: WalletRepository, // ✅ TAMBAH: Wallet Repository
+    private val activeWalletId: Int,
+    private val activeBookId: Int
 ) : ViewModel() {
 
     // ========================================
@@ -42,14 +39,15 @@ class TambahViewModel(
 
     private val _transactionId = MutableStateFlow<Int?>(null)
     val transactionId: StateFlow<Int?> = _transactionId.asStateFlow()
-
+    private val _selectedWalletId = MutableStateFlow(activeWalletId)
+    val selectedWalletId: StateFlow<Int> = _selectedWalletId.asStateFlow()
     private val _selectedType = MutableStateFlow(TransactionType.PENGELUARAN) // Default: Pengeluaran
     val selectedType: StateFlow<TransactionType> = _selectedType.asStateFlow()
 
     private val _selectedCategoryId = MutableStateFlow<Int?>(null)
     val selectedCategoryId: StateFlow<Int?> = _selectedCategoryId.asStateFlow()
 
-    private val _amount = MutableStateFlow("")
+    private val _amount = MutableStateFlow("0")
     val amount: StateFlow<String> = _amount.asStateFlow()
 
     private val _date = MutableStateFlow(System.currentTimeMillis())
@@ -58,20 +56,22 @@ class TambahViewModel(
     private val _notes = MutableStateFlow("")
     val notes: StateFlow<String> = _notes.asStateFlow()
 
-    // TOD0: Tambahkan StateFlow untuk imageUri di sini jika Anda mengimplementasikan penyimpanan URI di database
-    // private val _imageUri = MutableStateFlow<Uri?>(null)
-    // val imageUri: StateFlow<Uri?> = _imageUri.asStateFlow()
-
     // ========================================
-    // Categories Data
+    // Data Observasi
     // ========================================
 
     /**
-     * List kategori sesuai tipe yang dipilih
+     * List kategori sesuai tipe yang dipilih (Difilter oleh Book ID)
      */
     val categories: LiveData<List<Category>> = _selectedType.asLiveData().switchMap { type ->
-        categoryRepository.getCategoriesByType(type).asLiveData()
+        categoryRepository.getCategoriesByBookIdAndType(activeBookId, type).asLiveData()
     }
+
+    /**
+     * List dompet berdasarkan buku aktif
+     */
+    val wallets: LiveData<List<Wallet>> = walletRepository.getWalletsByBook(activeBookId).asLiveData()
+
 
     // ========================================
     // Computed Properties
@@ -91,7 +91,8 @@ class TambahViewModel(
         val amountValue = _amount.value.replace(",", "").replace(".", "").toDoubleOrNull()
         return amountValue != null &&
                 amountValue > 0 &&
-                _selectedCategoryId.value != null
+                _selectedCategoryId.value != null &&
+                _selectedWalletId.value > 0 // ✅ PASTIKAN WALLET TERPILIH
     }
 
     // ========================================
@@ -105,6 +106,10 @@ class TambahViewModel(
         _selectedType.value = type
         // Reset kategori ketika tipe berubah
         _selectedCategoryId.value = null
+    }
+
+    fun setWallet(walletId: Int) {
+        _selectedWalletId.value = walletId
     }
 
     /**
@@ -137,11 +142,6 @@ class TambahViewModel(
         _notes.value = value
     }
 
-    // TOD0: Tambahkan setter untuk imageUri
-    // fun setImageUri(uri: Uri?) {
-    //     _imageUri.value = uri
-    // }
-
     /**
      * Parse amount string ke Double
      */
@@ -160,16 +160,16 @@ class TambahViewModel(
             try {
                 val amountValue = parseAmount()
                 val categoryId = _selectedCategoryId.value
+                val walletId = _selectedWalletId.value // Ambil ID Wallet
 
-                // Validasi (disini Anda bisa menambahkan validasi untuk imageUri jika diperlukan)
                 if (amountValue == null || amountValue <= 0) {
                     _errorMessage.value = "Jumlah harus lebih dari 0"
                     _isSaving.value = false
                     return@launch
                 }
 
-                if (categoryId == null) {
-                    _errorMessage.value = "Kategori harus dipilih"
+                if (categoryId == null || walletId <= 0) {
+                    _errorMessage.value = "Kategori dan Dompet harus dipilih"
                     _isSaving.value = false
                     return@launch
                 }
@@ -181,18 +181,9 @@ class TambahViewModel(
                     amount = amountValue,
                     categoryId = categoryId,
                     date = _date.value,
-                    notes = _notes.value
-                    // TODO: tambahkan imageUri di sini
-                    // imageUri = _imageUri.value.toString()
+                    notes = _notes.value,
+                    walletId = walletId // ✅ GUNAKAN WALLET ID
                 )
-
-                // Validasi dengan repository
-                val validation = transactionRepository.validateTransaction(transaction)
-                if (validation is ValidationResult.Error) {
-                    _errorMessage.value = validation.message
-                    _isSaving.value = false
-                    return@launch
-                }
 
                 // Simpan ke database
                 if (isEditMode()) {
@@ -219,16 +210,15 @@ class TambahViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Mengambil data Flow dan mengobservasinya
                 transactionRepository.getTransactionById(transactionId).asLiveData().observeForever { transaction ->
                     if (transaction != null) {
                         _transactionId.value = transaction.id
                         _selectedType.value = transaction.type
                         _selectedCategoryId.value = transaction.categoryId
+                        _selectedWalletId.value = transaction.walletId // ✅ LOAD WALLET ID
                         _amount.value = transaction.amount.toString()
                         _date.value = transaction.date
                         _notes.value = transaction.notes
-                        // TODO: load imageUri
                     }
                     _isLoading.value = false
                 }
@@ -241,10 +231,6 @@ class TambahViewModel(
 
     /**
      * Reset form (untuk mode tambah baru).
-     *
-     * @param keepType Jika true, pertahankan tipe transaksi yang sedang aktif (untuk tombol Lanjut).
-     * @param keepCategory Jika true, pertahankan kategori yang sedang dipilih.
-     * @param setTodayDate Jika true, atur tanggal ke hari ini.
      */
     fun resetForm(
         keepType: Boolean = false,
@@ -253,22 +239,20 @@ class TambahViewModel(
     ) {
         _transactionId.value = null // Selalu reset ID (keluar dari mode edit)
 
-        // Reset Tipe
         if (!keepType) {
             _selectedType.value = TransactionType.PENGELUARAN
         }
 
-        // Reset Kategori
         if (!keepCategory) {
             _selectedCategoryId.value = null
         }
 
-        // Reset Nilai Input
-        _amount.value = ""
-        _notes.value = ""
-        // TODO: reset _imageUri.value = null
 
-        // Reset Tanggal
+        _selectedWalletId.value = activeWalletId
+
+        _amount.value = "0"
+        _notes.value = ""
+
         if (setTodayDate) {
             _date.value = System.currentTimeMillis()
         }
@@ -325,12 +309,21 @@ class TambahViewModel(
  */
 class TambahViewModelFactory(
     private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val walletRepository: WalletRepository, // ✅ TAMBAH: Wallet Repository
+    private val activeWalletId: Int,
+    private val activeBookId: Int
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(TambahViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return TambahViewModel(transactionRepository, categoryRepository) as T
+            return TambahViewModel(
+                transactionRepository,
+                categoryRepository,
+                walletRepository, // ✅ PASS REPO BARU
+                activeWalletId,
+                activeBookId
+            ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

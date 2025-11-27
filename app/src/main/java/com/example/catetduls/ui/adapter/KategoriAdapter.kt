@@ -37,6 +37,8 @@ class KategoriAdapter(
         private val tvDefault: TextView = itemView.findViewById(R.id.tv_default)
         private val btnEdit: Button = itemView.findViewById(R.id.btn_edit)
 
+        // file: KategoriAdapter.kt (di dalam class ViewHolder)
+
         fun bind(category: Category) {
             tvIcon.text = category.icon
             tvName.text = category.name
@@ -44,12 +46,12 @@ class KategoriAdapter(
 
             if (category.isDefault) {
                 tvDefault.visibility = View.VISIBLE
-                btnEdit.visibility = View.GONE
             } else {
                 tvDefault.visibility = View.GONE
-                btnEdit.visibility = View.VISIBLE
-                btnEdit.setOnClickListener { onEdit(category) }
             }
+
+            btnEdit.visibility = View.VISIBLE
+            btnEdit.setOnClickListener { onEdit(category) }
         }
     }
 

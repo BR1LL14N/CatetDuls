@@ -5,7 +5,10 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-
+/**
+ * Entity untuk Transaksi
+ * Sekarang setiap transaksi terikat pada kategori dan dompet
+ */
 @Entity(
     tableName = "transactions",
     foreignKeys = [
@@ -14,10 +17,17 @@ import androidx.room.PrimaryKey
             parentColumns = ["id"],
             childColumns = ["categoryId"],
             onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = Wallet::class,
+            parentColumns = ["id"],
+            childColumns = ["walletId"],
+            onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [
         Index(value = ["categoryId"]),
+        Index(value = ["walletId"]),
         Index(value = ["date"]),
         Index(value = ["type"])
     ]
@@ -30,18 +40,21 @@ data class Transaction(
 
     val amount: Double,
 
-    val categoryId: Int,
+    val categoryId: Int, // Foreign key ke Category
+
+    val walletId: Int, // Foreign key ke Wallet
 
     val date: Long = System.currentTimeMillis(),
 
-    val notes: String = ""
+    val notes: String = "",
+
+    val createdAt: Long = System.currentTimeMillis()
 ) {
 
     fun isIncome(): Boolean = type == TransactionType.PEMASUKAN
     fun isExpense(): Boolean = type == TransactionType.PENGELUARAN
 
-
     fun isValid(): Boolean {
-        return amount > 0 && categoryId > 0
+        return amount > 0 && categoryId > 0 && walletId > 0
     }
 }

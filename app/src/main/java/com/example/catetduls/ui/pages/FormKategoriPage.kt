@@ -1,5 +1,6 @@
 package com.example.catetduls.ui.pages
 
+import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -41,7 +42,22 @@ class FormKategoriPage : Fragment() {
 
         val repo = requireContext().getCategoryRepository()
         val category = arguments?.getParcelable<Category>("category")
-        val factory = FormKategoriViewModelFactory(repo, category)
+        val bookIdFromArgs = arguments?.getInt("activeBookId")
+
+        val activeBookId: Int = try {
+            val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            val idResult = prefs.getInt("active_book_id", 1) // <-- Ganti 'id' menjadi 'idResult'
+
+
+            Log.d("FormKategoriPage", "activeBookId: $idResult")
+            idResult
+        } catch (e: Exception) {
+            Log.e("FormKategoriPage", "Gagal mendapatkan activeBookId", e)
+            1 // Fallback ke default 1
+        }
+
+
+        val factory = FormKategoriViewModelFactory(repo, category,null,activeBookId)
         viewModel = ViewModelProvider(this, factory)[FormKategoriViewModel::class.java]
 
         val etName = view.findViewById<TextInputEditText>(R.id.et_name)

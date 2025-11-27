@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 class FormKategoriViewModel(
     private val repository: CategoryRepository,
+    private val bookId: Int,
     private val existingCategory: Category? = null,
     private val defaultType: TransactionType? = null
 ) : ViewModel() {
@@ -43,6 +44,7 @@ class FormKategoriViewModel(
 
         val category = Category(
             id = existingCategory?.id ?: 0,
+            bookId = bookId,
             name = nameToUse.trim(),
             icon = iconToUse,
             type = type.value,
@@ -58,12 +60,14 @@ class FormKategoriViewModel(
 class FormKategoriViewModelFactory(
     private val repository: CategoryRepository,
     private val existingCategory: Category? = null,
-    private val defaultType: TransactionType? = null
+    private val defaultType: TransactionType? = null,
+    private val bookId: Int
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(FormKategoriViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return FormKategoriViewModel(repository, existingCategory, defaultType) as T
+
+            return FormKategoriViewModel(repository, bookId, existingCategory, defaultType) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

@@ -99,7 +99,14 @@ class PengaturanPage : Fragment() {
         // Initialize ViewModel
         val transactionRepo = requireContext().getTransactionRepository()
         val categoryRepo = requireContext().getCategoryRepository()
-        val factory = PengaturanViewModelFactory(transactionRepo, categoryRepo, requireContext())
+        val activeBookId: Int = try {
+            val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            // Mengambil ID buku aktif. Default ke 1 jika belum ada
+            prefs.getInt("active_book_id", 1)
+        } catch (e: Exception) {
+            1 // Fallback
+        }
+        val factory = PengaturanViewModelFactory(transactionRepo, categoryRepo, activeBookId ,requireContext())
         viewModel = ViewModelProvider(this, factory)[PengaturanViewModel::class.java]
 
         // Initialize Views

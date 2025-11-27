@@ -45,12 +45,29 @@ interface CategoryDao {
     suspend fun getAllCategoriesSync(): List<Category>
 
     /**
-     * Get kategori berdasarkan tipe
+     * Get semua kategori berdasarkan ID Buku
      */
+    @Query("SELECT * FROM categories WHERE bookId = :bookId ORDER BY name ASC")
+    fun getAllCategoriesByBook(bookId: Int): Flow<List<Category>>
 
-    @Query("SELECT DISTINCT name, * FROM categories WHERE type = :type GROUP BY name ORDER BY name ASC")
-    fun getCategoriesByType(type: TransactionType): Flow<List<Category>>
+    /**
+     * Search dan filter kategori berdasarkan ID Buku, Query, dan Tipe (Opsional)
+     */
+    @Query("""
+        SELECT * FROM categories 
+        WHERE bookId = :bookId 
+        AND (name LIKE :query OR icon LIKE :query)
+        AND (:type IS NULL OR type = :type)
+        ORDER BY name ASC
+    """)
+    fun searchCategories(bookId: Int, query: String, type: TransactionType?): Flow<List<Category>>
 
+    @Query("""
+        SELECT * FROM categories 
+        WHERE bookId = :bookId AND type = :type 
+        ORDER BY name ASC
+    """)
+    fun getCategoriesByBookIdAndType(bookId: Int, type: TransactionType): Flow<List<Category>> // <-- FUNGSI YANG DIPANGGIL VIEwMODEL
     /**
      * Get kategori berdasarkan ID
      */

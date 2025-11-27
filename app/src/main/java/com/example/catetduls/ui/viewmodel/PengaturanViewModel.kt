@@ -31,6 +31,7 @@ import java.util.*
 class PengaturanViewModel(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
+    private val activeBookId: Int,
     private val context: Context
 
 ) : ViewModel() {
@@ -224,23 +225,23 @@ class PengaturanViewModel(
             _isLoading.value = true
             try {
                 val defaultCategories = listOf(
-                    Category(name = "Makanan & Minuman", icon = "🍔", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(name = "Transport", icon = "🚌", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(name = "Belanja", icon = "🛒", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(name = "Hiburan", icon = "🎮", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(name = "Kesehatan", icon = "💊", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(name = "Pendidikan", icon = "📚", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(name = "Tagihan", icon = "💡", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(name = "Rumah Tangga", icon = "🏠", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(name = "Olahraga", icon = "⚽", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(name = "Kecantikan", icon = "💄", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(name = "Gaji", icon = "💼", type = TransactionType.PEMASUKAN, isDefault = true),
-                    Category(name = "Bonus", icon = "💰", type = TransactionType.PEMASUKAN, isDefault = true),
-                    Category(name = "Investasi", icon = "📈", type = TransactionType.PEMASUKAN, isDefault = true),
-                    Category(name = "Hadiah", icon = "🎁", type = TransactionType.PEMASUKAN, isDefault = true),
-                    Category(name = "Freelance", icon = "💻", type = TransactionType.PEMASUKAN, isDefault = true),
-                    Category(name = "Lainnya (Pemasukan)", icon = "⚙️", type = TransactionType.PEMASUKAN, isDefault = true),
-                    Category(name = "Lainnya (Pengeluaran)", icon = "⚙️", type = TransactionType.PENGELUARAN, isDefault = true)
+                    Category(bookId = activeBookId,name = "Makanan & Minuman", icon = "🍔", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Transport", icon = "🚌", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Belanja", icon = "🛒", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Hiburan", icon = "🎮", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Kesehatan", icon = "💊", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Pendidikan", icon = "📚", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Tagihan", icon = "💡", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Rumah Tangga", icon = "🏠", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Olahraga", icon = "⚽", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Kecantikan", icon = "💄", type = TransactionType.PENGELUARAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Gaji", icon = "💼", type = TransactionType.PEMASUKAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Bonus", icon = "💰", type = TransactionType.PEMASUKAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Investasi", icon = "📈", type = TransactionType.PEMASUKAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Hadiah", icon = "🎁", type = TransactionType.PEMASUKAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Freelance", icon = "💻", type = TransactionType.PEMASUKAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Lainnya (Pemasukan)", icon = "⚙️", type = TransactionType.PEMASUKAN, isDefault = true),
+                    Category(bookId = activeBookId,name = "Lainnya (Pengeluaran)", icon = "⚙️", type = TransactionType.PENGELUARAN, isDefault = true)
                 )
 
 
@@ -309,12 +310,13 @@ class PengaturanViewModel(
 class PengaturanViewModelFactory(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
+    private val activeBookId: Int,
     private val context: Context
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(PengaturanViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return PengaturanViewModel(transactionRepository, categoryRepository, context) as T
+            return PengaturanViewModel(transactionRepository, categoryRepository,activeBookId, context) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
@@ -358,7 +360,7 @@ object BackupHelper {
             transactions.add(
                 Transaction(
                     id = json.getInt("id"),
-
+                    walletId = json.getInt("walletId"),
                     type = TransactionType.valueOf(json.getString("type")),
                     // ---------------------------------------------------
                     amount = json.getDouble("amount"),
@@ -399,6 +401,7 @@ object BackupHelper {
             categories.add(
                 Category(
                     id = json.getInt("id"),
+                    bookId = json.getInt("bookId"),
                     name = json.getString("name"),
                     icon = json.getString("icon"),
 

@@ -200,7 +200,6 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:layout_marginBottom="20dp"
                         app:cardBackgroundColor="@color/surface_variant"
                         app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
@@ -210,6 +209,33 @@
                             android:layout_width="match_parent"
                             android:layout_height="56dp"
                             android:contentDescription="Pilih Kategori"
+                            android:paddingStart="16dp"
+                            android:paddingEnd="16dp" />
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:text="Dompet (Wallet)"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="20dp"
+                        app:cardBackgroundColor="@color/surface_variant"
+                        app:cardCornerRadius="12dp"
+                        app:cardElevation="0dp">
+
+                        <Spinner
+                            android:id="@+id/spinner_wallet" android:layout_width="match_parent"
+                            android:layout_height="56dp"
+                            android:contentDescription="Pilih Dompet"
                             android:paddingStart="16dp"
                             android:paddingEnd="16dp" />
 
@@ -243,7 +269,6 @@
                             android:id="@+id/et_amount"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:hint="0"
                             android:inputType="numberDecimal"
                             android:textColor="@color/text_primary"
                             android:textSize="24sp"
@@ -342,6 +367,7 @@
                             tools:visibility="visible" />
 
                     </LinearLayout>
+
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"

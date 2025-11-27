@@ -5,4 +5,11 @@
     <string name="nav_transaksi">Transaksi</string>
     <string name="nav_statistik">Statistik</string>
     <string name="nav_pengaturan">Pengaturan</string>
+
+    <string-array name="category_filter_options">
+        <item>Semua</item>
+        <item>PEMASUKAN</item>
+        <item>PENGELUARAN</item>
+    </string-array>
 </resources>
+
