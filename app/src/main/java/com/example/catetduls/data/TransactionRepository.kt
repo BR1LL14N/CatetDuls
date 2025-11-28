@@ -219,4 +219,11 @@ class TransactionRepository(
             else -> ValidationResult.Success
         }
     }
+    fun getTransactionsByTypeAndDateRange(
+        type: TransactionType,
+        startDate: Long,
+        endDate: Long
+    ): Flow<List<Transaction>> {
+        return transactionDao.getTransactionsByTypeAndDateRange(type, startDate, endDate)
+    }
 }

@@ -18,127 +18,155 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class TransactionAdapter(
-    private val onItemClick: (Transaction) -> Unit,
+    private val onItemClick: (com.example.catetduls.data.Transaction) -> Unit,
     private val getCategoryName: (Int) -> String = { "" },
-    private val getCategoryIcon: (Int) -> String = { "💰" }
-) : ListAdapter<Transaction, TransactionAdapter.TransactionViewHolder>(TransactionDiffCallback()) {
+    private val getCategoryIcon: (Int) -> String = { "💰" },
+    private val getWalletName: (Int) -> String = { "" } // TAMBAHAN: Untuk nama dompet (Tunai/Bank)
+) : ListAdapter<TransactionListItem, RecyclerView.ViewHolder>(TransactionDiffCallback()) {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TransactionViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_transaction, parent, false)
-        return TransactionViewHolder(view)
+    companion object {
+        private const val TYPE_HEADER = 0
+        private const val TYPE_ITEM = 1
     }
 
-    override fun onBindViewHolder(holder: TransactionViewHolder, position: Int) {
-        val transaction = getItem(position)
-        holder.bind(transaction, onItemClick, getCategoryName, getCategoryIcon)
+    override fun getItemViewType(position: Int): Int {
+        return when (getItem(position)) {
+            is TransactionListItem.DateHeader -> TYPE_HEADER
+            is TransactionListItem.TransactionItem -> TYPE_ITEM
+        }
     }
 
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        return if (viewType == TYPE_HEADER) {
+            // Inflate layout Header Tanggal
+            val view = LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_transaction_header, parent, false)
+            HeaderViewHolder(view)
+        } else {
+            // Inflate layout Item Transaksi
+            val view = LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_transaction, parent, false)
+            TransactionViewHolder(view)
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (val item = getItem(position)) {
+            is TransactionListItem.DateHeader -> (holder as HeaderViewHolder).bind(item)
+            is TransactionListItem.TransactionItem -> (holder as TransactionViewHolder).bind(
+                item.transaction,
+                onItemClick,
+                getCategoryName,
+                getCategoryIcon,
+                getWalletName
+            )
+        }
+    }
+
+    // ==========================================
+    // 1. VIEWHOLDER HEADER (TANGGAL & TOTAL)
+    // ==========================================
+    class HeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val tvDateDay: TextView = itemView.findViewById(R.id.tv_date_day)         // "19"
+        private val tvDateDayName: TextView = itemView.findViewById(R.id.tv_date_day_name) // "Rab"
+        private val tvDateMonthYear: TextView = itemView.findViewById(R.id.tv_date_month_year) // "11.2025"
+        private val tvDailyIncome: TextView = itemView.findViewById(R.id.tv_daily_income)
+        private val tvDailyExpense: TextView = itemView.findViewById(R.id.tv_daily_expense)
+
+        fun bind(header: TransactionListItem.DateHeader) {
+            val date = Date(header.dateTimestamp)
+            val localeID = Locale("id", "ID")
+
+            // Format Tanggal Sesuai Gambar
+            tvDateDay.text = SimpleDateFormat("dd", localeID).format(date)
+            tvDateDayName.text = SimpleDateFormat("EEE", localeID).format(date)
+            tvDateMonthYear.text = SimpleDateFormat("MM.yyyy", localeID).format(date)
+
+            // Format Uang
+            val formatter = NumberFormat.getCurrencyInstance(localeID)
+            formatter.maximumFractionDigits = 0
+
+            // Tampilkan Income harian jika ada
+            if (header.dailyIncome > 0) {
+                tvDailyIncome.text = formatter.format(header.dailyIncome).replace("Rp", "Rp ")
+                tvDailyIncome.visibility = View.VISIBLE
+            } else {
+                tvDailyIncome.visibility = View.GONE
+            }
+
+            // Tampilkan Expense harian jika ada
+            if (header.dailyExpense > 0) {
+                tvDailyExpense.text = formatter.format(header.dailyExpense).replace("Rp", "Rp ")
+                tvDailyExpense.visibility = View.VISIBLE
+            } else {
+                tvDailyExpense.visibility = View.GONE
+            }
+        }
+    }
+
+    // ==========================================
+    // 2. VIEWHOLDER ITEM (TRANSAKSI)
+    // ==========================================
     class TransactionViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val iconContainer: FrameLayout = itemView.findViewById(R.id.icon_container)
+        // ID harus sesuai dengan item_transaction.xml yang baru
         private val tvCategoryIcon: TextView = itemView.findViewById(R.id.tv_category_icon)
-        private val tvTransactionTitle: TextView = itemView.findViewById(R.id.tv_transaction_title)
-        private val tvTransactionSource: TextView = itemView.findViewById(R.id.tv_transaction_source)
-        private val tvTransactionId: TextView = itemView.findViewById(R.id.tv_transaction_id)
+        private val tvCategoryName: TextView = itemView.findViewById(R.id.tv_category_name)
+        private val tvNotes: TextView = itemView.findViewById(R.id.tv_transaction_notes)
+        private val tvWalletName: TextView = itemView.findViewById(R.id.tv_wallet_name)
         private val tvAmount: TextView = itemView.findViewById(R.id.tv_amount)
 
-        private val tvDateTime: TextView = itemView.findViewById(R.id.tv_datetime)
-
         fun bind(
-            transaction: Transaction,
-            onItemClick: (Transaction) -> Unit,
+            transaction: com.example.catetduls.data.Transaction,
+            onItemClick: (com.example.catetduls.data.Transaction) -> Unit,
             getCategoryName: (Int) -> String,
-            getCategoryIcon: (Int) -> String
+            getCategoryIcon: (Int) -> String,
+            getWalletName: (Int) -> String
         ) {
             val context = itemView.context
-            val categoryName = getCategoryName(transaction.categoryId)
-            val categoryIcon = getCategoryIcon(transaction.categoryId)
 
-            // Set category icon
-            tvCategoryIcon.text = categoryIcon
+            // 1. Set Icon & Nama Kategori
+            tvCategoryIcon.text = getCategoryIcon(transaction.categoryId)
+            tvCategoryName.text = getCategoryName(transaction.categoryId)
 
-            // Set icon container background based on transaction type
-            val iconBg = when (transaction.type) {
-                TransactionType.PEMASUKAN -> R.drawable.bg_icon_container_green
-                TransactionType.PENGELUARAN -> R.drawable.bg_icon_container_red
-            }
-            iconContainer.setBackgroundResource(iconBg)
-
-            // Set transaction title (category name)
-            tvTransactionTitle.text = categoryName
-
-            // Set transaction source/destination
-            val source = if (transaction.notes.isNotEmpty()) {
-                transaction.notes
+            // 2. Set Notes (Jika ada)
+            if (transaction.notes.isNotBlank()) {
+                tvNotes.text = transaction.notes
+                tvNotes.visibility = View.VISIBLE
             } else {
-                when (transaction.type) {
-                    TransactionType.PEMASUKAN -> "From $categoryName"
-                    TransactionType.PENGELUARAN -> "Purchase from $categoryName"
-                }
+                tvNotes.visibility = View.GONE
             }
-            tvTransactionSource.text = source
 
-            // Set transaction ID
-            tvTransactionId.text = "Transaction ID ${transaction.id}${System.currentTimeMillis()}"
+            // 3. Set Nama Dompet (Tunai/Bank)
+            tvWalletName.text = getWalletName(transaction.walletId)
 
-            // Set amount with currency format
-            val amount = formatCurrency(transaction.amount)
-            tvAmount.text = amount
+            // 4. Set Amount & Warna
+            val formatter = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+            formatter.maximumFractionDigits = 0
 
-            // Set amount color based on type
+            // Format: Rp 50.000
+            tvAmount.text = formatter.format(transaction.amount).replace("Rp", "Rp ")
+
+            // Warna: Pemasukan (Biru/Hijau), Pengeluaran (Merah/Oranye)
             val amountColor = when (transaction.type) {
                 TransactionType.PEMASUKAN -> ContextCompat.getColor(context, R.color.success)
-                TransactionType.PENGELUARAN -> ContextCompat.getColor(context, R.color.text_primary)
+                TransactionType.PENGELUARAN -> ContextCompat.getColor(context, R.color.danger) // Sesuaikan dengan warna merah di gambar
             }
             tvAmount.setTextColor(amountColor)
 
-
-
-            // Set date time
-            tvDateTime.text = formatDateTime(transaction.date)
-
-            // Set click listener
+            // Click Listener
             itemView.setOnClickListener { onItemClick(transaction) }
         }
-
-        private fun formatCurrency(amount: Double): String {
-            val format = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-            return format.format(amount).replace("Rp", "Rp ")
-        }
-
-        private fun formatDateTime(timestamp: Long): String {
-            val date = Date(timestamp)
-            val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-            val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
-            return "${dateFormat.format(date)}\n${timeFormat.format(date)}"
-        }
-
-        private fun getTransactionStatus(transaction: Transaction): TransactionStatus {
-            // Logic untuk menentukan status
-            // Untuk saat ini, semua transaksi dianggap confirmed
-            // Anda bisa menambahkan field status di Transaction entity
-            val daysDiff = (System.currentTimeMillis() - transaction.date) / (1000 * 60 * 60 * 24)
-
-            return when {
-                daysDiff < 1 -> TransactionStatus.PENDING
-                transaction.amount < 0 -> TransactionStatus.CANCELLED
-                else -> TransactionStatus.CONFIRMED
-            }
-        }
     }
 
-    enum class TransactionStatus {
-        CONFIRMED,
-        PENDING,
-        CANCELLED
-    }
-
-    class TransactionDiffCallback : DiffUtil.ItemCallback<Transaction>() {
-        override fun areItemsTheSame(oldItem: Transaction, newItem: Transaction): Boolean {
+    // ==========================================
+    // DIFF CALLBACK (UPDATED)
+    // ==========================================
+    class TransactionDiffCallback : DiffUtil.ItemCallback<TransactionListItem>() {
+        override fun areItemsTheSame(oldItem: TransactionListItem, newItem: TransactionListItem): Boolean {
             return oldItem.id == newItem.id
         }
 
-        override fun areContentsTheSame(oldItem: Transaction, newItem: Transaction): Boolean {
+        override fun areContentsTheSame(oldItem: TransactionListItem, newItem: TransactionListItem): Boolean {
             return oldItem == newItem
         }
     }

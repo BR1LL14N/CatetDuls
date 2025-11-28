@@ -184,10 +184,39 @@
                         tools:text="Top Pengeluaran: Makanan (Rp 1.200.000)" />
 
 
+                    <com.google.android.material.button.MaterialButtonToggleGroup
+                        android:id="@+id/toggle_chart_type"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:gravity="center"
+                        app:checkedButton="@id/btn_type_expense"
+                        app:selectionRequired="true"
+                        app:singleSelection="true">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_type_expense"
+                            style="?attr/materialButtonOutlinedStyle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Pengeluaran"
+                            android:textSize="12sp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_type_income"
+                            style="?attr/materialButtonOutlinedStyle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Pemasukan"
+                            android:textSize="12sp" />
+
+                    </com.google.android.material.button.MaterialButtonToggleGroup>
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Distribusi Pengeluaran (Pie Chart)"
+                        android:text="Distribusi Kategori (Pie Chart)"
                         android:textColor="@color/text_primary"
                         android:textSize="18sp"
                         android:textStyle="bold" />
@@ -197,7 +226,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="300dp"
                         android:layout_marginTop="8dp"
-                        android:layout_marginBottom="24dp"/>
+                        android:layout_marginBottom="24dp" />
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -211,7 +240,7 @@
                         android:id="@+id/bar_chart_monthly"
                         android:layout_width="match_parent"
                         android:layout_height="300dp"
-                        android:layout_marginTop="8dp"/>
+                        android:layout_marginTop="8dp" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

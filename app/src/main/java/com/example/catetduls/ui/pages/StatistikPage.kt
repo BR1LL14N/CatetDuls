@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.Lifecycle
 import com.example.catetduls.data.CategoryExpense
 import com.example.catetduls.data.MonthlyTotal // Import data class
+import com.example.catetduls.data.getCategoryRepository
 
 // Import MPAndroidChart
 import com.github.mikephil.charting.charts.PieChart
@@ -62,9 +63,11 @@ class StatistikPage : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        val transactionRepo = requireContext().getTransactionRepository()
+        val categoryRepo = requireContext().getCategoryRepository() // <--- Tambahkan ini
 
         val repository = requireContext().getTransactionRepository()
-        val factory = StatistikViewModelFactory(repository)
+        val factory = StatistikViewModelFactory(transactionRepo, categoryRepo) // <--- Kirim dua parameter
         viewModel = ViewModelProvider(this, factory)[StatistikViewModel::class.java]
 
 

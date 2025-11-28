@@ -4,6 +4,7 @@ import androidx.lifecycle.*
 import com.example.catetduls.data.Transaction
 import com.example.catetduls.data.TransactionRepository
 import com.example.catetduls.data.TransactionType
+import com.example.catetduls.ui.adapter.TransactionListItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -64,6 +65,38 @@ class TransaksiViewModel(
     private val _transactions = MutableLiveData<List<Transaction>>()
     val transactions: LiveData<List<Transaction>> = _transactions
 
+
+    val groupedTransactions: LiveData<List<TransactionListItem>> = _transactions.map { list ->
+        val result = mutableListOf<TransactionListItem>()
+
+        // 1. Kelompokkan berdasarkan Awal Hari (00:00:00)
+        val grouped = list.groupBy { trans ->
+            val cal = Calendar.getInstance()
+            cal.timeInMillis = trans.date
+            cal.set(Calendar.HOUR_OF_DAY, 0)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            cal.timeInMillis
+        }
+
+        // 2. Loop setiap grup tanggal
+        grouped.forEach { (dateTimestamp, dailyTransactions) ->
+            // Hitung total harian untuk Header
+            val income = dailyTransactions.filter { it.type == TransactionType.PEMASUKAN }.sumOf { it.amount }
+            val expense = dailyTransactions.filter { it.type == TransactionType.PENGELUARAN }.sumOf { it.amount }
+
+            // Masukkan Header dulu
+            result.add(TransactionListItem.DateHeader(dateTimestamp, income, expense))
+
+            // Lalu masukkan semua item transaksi di hari itu
+            dailyTransactions.forEach { trans ->
+                result.add(TransactionListItem.TransactionItem(trans))
+            }
+        }
+
+        result
+    }
     /**
      * Total dari transaksi yang sedang ditampilkan
      */

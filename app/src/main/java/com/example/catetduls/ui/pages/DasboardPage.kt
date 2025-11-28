@@ -87,15 +87,19 @@ class DashboardPage : Fragment() {
         val categoryRepository = requireContext().getCategoryRepository()
 
         viewLifecycleOwner.lifecycleScope.launch {
-            // Ambil data kategori
-            val categories = categoryRepository.getAllCategories().first()
+            // PERBAIKAN: Gunakan .collect(), bukan .first()
+            // Agar Dashboard selalu update real-time jika ada perubahan kategori
+            categoryRepository.getAllCategories().collect { categories ->
 
+                // 1. Update Map Kategori terbaru
+                categoryMap = categories.associateBy { it.id }
 
-            categoryMap = categories.associateBy { it.id }
-
-
-            viewModel.recentTransactions.value?.let {
-                transactionAdapter.submitList(it)
+                // 2. Refresh Adapter Transaksi
+                // Kita perlu memaksa adapter untuk me-refresh tampilan
+                // agar nama kategori yang baru (dari Map) segera muncul.
+                if (transactionAdapter.currentList.isNotEmpty()) {
+                    transactionAdapter.notifyDataSetChanged()
+                }
             }
         }
     }
@@ -138,8 +142,6 @@ class DashboardPage : Fragment() {
         // Observe total saldo
         viewModel.totalBalance.observe(viewLifecycleOwner) { balance ->
             tvTotalSaldo.text = viewModel.formatCurrency(balance)
-
-            // Set warna saldo
             val color = viewModel.getBalanceColor(balance)
             tvTotalSaldo.setTextColor(color)
         }
@@ -156,7 +158,14 @@ class DashboardPage : Fragment() {
 
         // Observe transaksi terakhir
         viewModel.recentTransactions.observe(viewLifecycleOwner) { transactions ->
-            transactionAdapter.submitList(transactions)
+
+            // PERBAIKAN: Konversi Transaction -> TransactionListItem
+            // Karena Dashboard hanya menampilkan list simpel, kita bungkus semua jadi TransactionItem
+            val listItems = transactions.map { transaction ->
+                com.example.catetduls.ui.adapter.TransactionListItem.TransactionItem(transaction)
+            }
+
+            transactionAdapter.submitList(listItems)
         }
     }
 }
