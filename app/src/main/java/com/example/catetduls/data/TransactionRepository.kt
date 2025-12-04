@@ -5,20 +5,14 @@ import java.util.*
 
 /**
  * Repository adalah perantara antara ViewModel dan DAO.
- * Ini adalah "best practice" arsitektur MVVM.
- * ViewModel HANYA boleh tahu tentang Repository, tidak boleh tahu tentang DAO.
- *
- * Repository bertanggung jawab untuk:
- * - Menyediakan abstraksi data dari berbagai sumber (database, API, dll)
- * - Melakukan operasi bisnis logic jika diperlukan
- * - Menyediakan data dalam bentuk yang siap digunakan oleh ViewModel
+ * Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
  */
 class TransactionRepository(
     private val transactionDao: TransactionDao
 ) {
 
     // ========================================
-    // CRUD Operations - Basic
+    // READ Operations
     // ========================================
 
     fun getAllTransactions(): Flow<List<Transaction>> =
@@ -27,22 +21,136 @@ class TransactionRepository(
     fun getTransactionById(id: Int): Flow<Transaction?> =
         transactionDao.getTransactionById(id)
 
+    // ========================================
+    // CREATE (Penandaan Sync: CREATE)
+    // ========================================
+
     suspend fun insertTransaction(transaction: Transaction) {
-        transactionDao.insertTransaction(transaction)
+        if (!transaction.isValid()) {
+            throw IllegalArgumentException("Transaksi tidak valid: Jumlah, kategori, atau dompet kosong.")
+        }
+
+        // Menentukan status sinkronisasi untuk CREATE
+        val transactionToInsert = transaction.copy(
+            isSynced = false,
+            isDeleted = false,
+            syncAction = "CREATE", // Aksi yang perlu dilakukan server
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis()
+        )
+        transactionDao.insertTransaction(transactionToInsert)
     }
+
+    suspend fun insertAll(transactions: List<Transaction>) {
+        val transactionsToInsert = transactions.map { transaction ->
+            if (!transaction.isValid()) {
+                throw IllegalArgumentException("Transaksi tidak valid: Jumlah, kategori, atau dompet kosong.")
+            }
+            transaction.copy(
+                isSynced = false,
+                isDeleted = false,
+                syncAction = "CREATE",
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
+            )
+        }
+        transactionDao.insertAll(transactionsToInsert)
+    }
+
+    // ========================================
+    // UPDATE (Penandaan Sync: UPDATE)
+    // ========================================
 
     suspend fun updateTransaction(transaction: Transaction) {
-        transactionDao.updateTransaction(transaction)
+        if (!transaction.isValid()) {
+            throw IllegalArgumentException("Transaksi tidak valid: Jumlah, kategori, atau dompet kosong.")
+        }
+
+        // Menentukan status sinkronisasi untuk UPDATE
+        val transactionToUpdate = transaction.copy(
+            isSynced = false,
+            isDeleted = false,
+            syncAction = "UPDATE", // Aksi yang perlu dilakukan server
+            updatedAt = System.currentTimeMillis()
+        )
+        transactionDao.updateTransaction(transactionToUpdate)
     }
 
+    // ========================================
+    // DELETE (Penandaan Sync: DELETE / Hapus Permanen)
+    // ========================================
+
+    /**
+     * Menandai transaksi sebagai terhapus (soft delete) untuk disinkronkan ke server.
+     * Jika transaksi belum pernah disinkronkan (server_id null), maka hapus permanen lokal.
+     */
     suspend fun deleteTransaction(transaction: Transaction) {
-        transactionDao.deleteTransaction(transaction)
+        if (transaction.serverId == null) {
+            // Jika belum pernah disinkronkan, hapus permanen dari lokal
+            transactionDao.deleteTransaction(transaction)
+        } else {
+            // Jika sudah ada di server, tandai sebagai deleted dan update
+            val transactionToDelete = transaction.copy(
+                isSynced = false,
+                isDeleted = true, // Tanda bahwa ini harus dihapus di server
+                syncAction = "DELETE",
+                updatedAt = System.currentTimeMillis()
+            )
+            transactionDao.updateTransaction(transactionToDelete)
+        }
+    }
+
+    /**
+     * Menghapus transaksi secara permanen berdasarkan ID (Dipanggil setelah sync DELETE berhasil)
+     */
+    suspend fun deleteByIdPermanently(transactionId: Int) {
+        transactionDao.deleteById(transactionId)
     }
 
     suspend fun deleteAllTransactions() {
+        // Jika menggunakan sync, ini harus dilakukan dengan hati-hati.
+        // Opsi 1: Menghapus semua yang belum sync, dan menandai yang sudah sync sebagai delete.
+        // Opsi 2: Hapus permanen lokal (untuk reset database).
+        // Kita gunakan versi DAO yang ada (Hard Delete All)
         transactionDao.deleteAllTransactions()
     }
 
+    // ========================================
+    // SYNC METHODS (Dipanggil oleh Sync Worker)
+    // ========================================
+
+    /**
+     * Mengambil semua transaksi yang perlu disinkronkan (CREATE, UPDATE, DELETE).
+     */
+    suspend fun getAllUnsyncedTransactions(): List<Transaction> {
+        return transactionDao.getAllUnsyncedTransactions()
+    }
+
+    /**
+     * Memperbarui status sinkronisasi setelah operasi server berhasil (CREATE/UPDATE).
+     */
+    suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long) {
+        transactionDao.updateSyncStatus(localId, serverId, lastSyncAt)
+    }
+
+    /**
+     * Menyimpan data transaksi yang diterima dari server (untuk operasi PULL/READ dari server)
+     */
+    suspend fun saveFromRemote(transaction: Transaction) {
+        transactionDao.insertTransaction(transaction.copy(
+            isSynced = true,
+            isDeleted = false,
+            syncAction = null,
+            lastSyncAt = System.currentTimeMillis()
+        ))
+    }
+
+    /**
+     * Membersihkan transaksi yang sudah berhasil di-sync delete ke server
+     */
+    suspend fun cleanupSyncedDeletes() {
+        transactionDao.cleanupSyncedDeletes()
+    }
 
     // ========================================
     // Dashboard - Ringkasan Keuangan
@@ -59,7 +167,6 @@ class TransactionRepository(
      */
     fun getTotalIncomeThisMonth(): Flow<Double?> {
         val (startOfMonth, endOfMonth) = getThisMonthDateRange()
-        // --- DIPERBAIKI ---
         return transactionDao.getTotalByTypeAndDateRange(
             TransactionType.PEMASUKAN,
             startOfMonth,
@@ -72,7 +179,6 @@ class TransactionRepository(
      */
     fun getTotalExpenseThisMonth(): Flow<Double?> {
         val (startOfMonth, endOfMonth) = getThisMonthDateRange()
-
         return transactionDao.getTotalByTypeAndDateRange(
             TransactionType.PENGELUARAN,
             startOfMonth,
@@ -80,17 +186,9 @@ class TransactionRepository(
         )
     }
 
-    suspend fun insertAll(transactions: List<Transaction>) {
-        transactionDao.insertAll(transactions)
-    }
-
     // ========================================
     // Halaman Transaksi - Filter & Search
     // ========================================
-
-    /**
-     * Filter transaksi berdasarkan jenis (Pemasukan/Pengeluaran)
-     */
 
     fun getTransactionsByType(type: TransactionType): Flow<List<Transaction>> =
         transactionDao.getTransactionsByType(type)
@@ -101,41 +199,61 @@ class TransactionRepository(
     fun getTransactionsByDateRange(startDate: Long, endDate: Long): Flow<List<Transaction>> =
         transactionDao.getTransactionsByDateRange(startDate, endDate)
 
-    /**
-     * Search transaksi berdasarkan catatan
-     * Catatan: Ini HANYA akan berfungsi jika DAO Anda adalah:
-     * @Query("... WHERE notes LIKE :query ...")
-     */
+    fun getTransactionsByCategoryAndDateRange(
+        categoryId: Int,
+        startDate: Long,
+        endDate: Long
+    ): Flow<List<Transaction>> {
+        return transactionDao.getTransactionsByCategoryAndDateRange(categoryId, startDate, endDate)
+    }
+
+    fun getTransactionsByTypeAndDateRange(
+        type: TransactionType,
+        startDate: Long,
+        endDate: Long
+    ): Flow<List<Transaction>> {
+        return transactionDao.getTransactionsByTypeAndDateRange(type, startDate, endDate)
+    }
+
     fun searchTransactions(query: String): Flow<List<Transaction>> {
-        // Menambahkan wildcard % di sini
         return transactionDao.searchTransactions("%$query%")
     }
 
     /**
      * Filter kombinasi: jenis + kategori + rentang tanggal
      */
-
     fun getFilteredTransactions(
-        type: TransactionType? = null, // <-- Diperbaiki
+        type: TransactionType? = null,
         categoryId: Int? = null,
         startDate: Long? = null,
         endDate: Long? = null
     ): Flow<List<Transaction>> {
         return when {
+
             type != null && categoryId != null && startDate != null && endDate != null -> {
                 transactionDao.getTransactionsByTypeAndCategoryAndDateRange(
                     type, categoryId, startDate, endDate
                 )
             }
+
             type != null && startDate != null && endDate != null -> {
                 transactionDao.getTransactionsByTypeAndDateRange(type, startDate, endDate)
             }
+
+            type == null && categoryId != null && startDate != null && endDate != null -> {
+                getTransactionsByCategoryAndDateRange(categoryId, startDate, endDate)
+            }
+
             type != null && categoryId != null -> {
                 transactionDao.getTransactionsByTypeAndCategory(type, categoryId)
             }
+
             type != null -> getTransactionsByType(type)
+
             categoryId != null -> getTransactionsByCategory(categoryId)
+
             startDate != null && endDate != null -> getTransactionsByDateRange(startDate, endDate)
+
             else -> getAllTransactions()
         }
     }
@@ -154,17 +272,13 @@ class TransactionRepository(
         transactionDao.getTopExpenseCategory()
 
     fun getTotalByTypeAndDateRange(
-        type: TransactionType, // <-- Diperbaiki
+        type: TransactionType,
         startDate: Long,
         endDate: Long
     ): Flow<Double?> =
         transactionDao.getTotalByTypeAndDateRange(type, startDate, endDate)
 
-
-
     fun getMonthlyDailySummary(startDate: Long, endDate: Long): Flow<List<DailySummary>> {
-        // ASUMSI: transactionDao memiliki fungsi getDailySummaries(startDate, endDate)
-        // yang mengembalikan List<DailySummary>
         return transactionDao.getDailySummaries(startDate, endDate)
     }
 
@@ -219,11 +333,7 @@ class TransactionRepository(
             else -> ValidationResult.Success
         }
     }
-    fun getTransactionsByTypeAndDateRange(
-        type: TransactionType,
-        startDate: Long,
-        endDate: Long
-    ): Flow<List<Transaction>> {
-        return transactionDao.getTransactionsByTypeAndDateRange(type, startDate, endDate)
-    }
 }
+
+// Catatan: Anda perlu memastikan `ValidationResult`, `DailySummary`,
+// `CategoryExpense`, dan `MonthlyTotal` didefinisikan di tempat lain dalam proyek Anda.

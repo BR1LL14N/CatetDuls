@@ -19,7 +19,8 @@ class MainActivity : AppCompatActivity(), NavigationCallback {
 
         if (savedInstanceState == null) {
             // Ganti dari DashboardPage() ke TransaksiPage()
-            loadFragment(TransaksiPage())
+            loadFragment(ApiTestFragment())
+//            loadFragment(TransaksiPage())
         }
 
         bottomNav.setOnItemSelectedListener { item ->
@@ -41,7 +42,9 @@ class MainActivity : AppCompatActivity(), NavigationCallback {
                     true
                 }
                 R.id.nav_pengaturan -> {
-                    loadFragment(PengaturanPage())
+                    loadFragment(ApiTestFragment())
+
+//                    loadFragment(PengaturanPage())
                     true
                 }
                 else -> false

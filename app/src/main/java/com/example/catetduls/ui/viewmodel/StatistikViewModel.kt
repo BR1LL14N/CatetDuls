@@ -11,7 +11,7 @@ import kotlin.math.abs
  * ViewModel untuk StatistikPage
  */
 class StatistikViewModel(
-    private val transactionRepository: TransactionRepository, // PERBAIKAN: Ganti nama 'repository' jadi 'transactionRepository'
+    private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository
 ) : ViewModel() {
 
@@ -45,44 +45,45 @@ class StatistikViewModel(
 
     /**
      * LOGIC BARU: Pie Chart Dinamis
+     * Menggabungkan 3 Flow: Periode, Tipe Chart, dan Semua Kategori.
      */
+
     val expenseByCategory: LiveData<List<CategoryExpense>> = combine(
         _selectedPeriod,
         _chartType,
         categoryRepository.getAllCategories()
-    ) { period, type, allCategories ->
-        // PERBAIKAN: Membungkus data menjadi Triple agar bisa didestrukturisasi nanti
+
+    ) { period: String, type: TransactionType, allCategories: List<Category> ->
+
         Triple(period, type, allCategories)
-    }.flatMapLatest { (period, type, allCategories) ->
-        // PERBAIKAN: Error "component1 ambiguous" hilang karena Triple sudah jelas
+    }
 
-        val (startDate, endDate) = getDateRange(period)
+        .flatMapLatest { triple: Triple<String, TransactionType, List<Category>> ->
+            val (period, type, allCategories) = triple
 
-        // Ambil transaksi mentah berdasarkan tipe dan tanggal
-        transactionRepository.getTransactionsByTypeAndDateRange(type, startDate, endDate)
-            .map { transactions ->
-                // 1. Grouping transaksi berdasarkan categoryId
-                val groupedMap = transactions.groupBy { it.categoryId }
+            val (startDate, endDate) = getDateRange(period)
 
-                // 2. Map ke object CategoryExpense
-                val resultList = groupedMap.map { (catId, transList) ->
-                    val totalAmount = transList.sumOf { it.amount }
+            transactionRepository.getTransactionsByTypeAndDateRange(type, startDate, endDate)
+                .map { transactions: List<Transaction> ->
 
-                    // Cari nama kategori dari list allCategories
-                    // PERBAIKAN: Menangani null safety dengan benar
-                    val catName = allCategories.find { it.id == catId }?.name ?: "Unknown"
+                    val groupedMap = transactions.groupBy { it.categoryId }
 
-                    CategoryExpense(
-                        categoryId = catId,
-                        categoryName = catName,
-                        total = totalAmount
-                    )
+                    val resultList = groupedMap.map { (catId, transList) ->
+                        val totalAmount = transList.sumOf { it.amount }
+
+                        val catName = allCategories.find { it.id == catId }?.name ?: "Unknown"
+
+                        CategoryExpense(
+                            categoryId = catId,
+                            categoryName = catName,
+                            total = totalAmount
+                        )
+                    }
+
+                    resultList.sortedByDescending { it.total }
                 }
-
-                // 3. Sort dari yang terbesarff
-                resultList.sortedByDescending { it.total }
-            }
-    }.asLiveData()
+        }
+        .asLiveData()
 
     /**
      * Kategori dengan pengeluaran terbesar
@@ -148,29 +149,30 @@ class StatistikViewModel(
 
         viewModelScope.launch {
             try {
-                // -------------------------------------------------------
-                // PERBAIKAN: Gunakan 'launch' terpisah untuk Pemasukan
-                // Agar tidak memblokir kode di bawahnya
-                // -------------------------------------------------------
+                // Menggunakan flow.collect untuk memperbarui StateFlow
+
+                // Pemasukan
                 launch {
                     transactionRepository.getTotalByTypeAndDateRange(TransactionType.PEMASUKAN, startDate, endDate)
                         .collect { income ->
                             _periodIncome.value = income ?: 0.0
-                            calculateBalance() // Hitung saldo setiap data berubah
+                            calculateBalance()
                         }
                 }
 
-                // -------------------------------------------------------
-                // PERBAIKAN: Gunakan 'launch' terpisah untuk Pengeluaran
-                // -------------------------------------------------------
+                // Pengeluaran
                 launch {
                     transactionRepository.getTotalByTypeAndDateRange(TransactionType.PENGELUARAN, startDate, endDate)
                         .collect { expense ->
                             _periodExpense.value = expense ?: 0.0
-                            calculateBalance() // Hitung saldo setiap data berubah
+                            calculateBalance()
                         }
                 }
 
+                // Catatan: isLoading=false harus diatur saat data pertama kali dimuat.
+                // Karena 'collect' adalah operasi berkelanjutan, kita tidak bisa menganggap
+                // data selesai dimuat di sini. Lebih baik menggunakan State khusus di UI.
+                // Namun, untuk sementara, kita biarkan di sini.
                 _isLoading.value = false
 
             } catch (e: Exception) {
@@ -285,8 +287,8 @@ class StatistikViewModel(
         val formattedBalance = String.format("%,.0f", abs(balance))
 
         return when {
-            balance > 0 -> "Anda surplus bulan ini: $formattedBalance"
-            balance < 0 -> "Anda defisit bulan ini: $formattedBalance"
+            balance > 0 -> "Anda surplus bulan ini: ${formatCurrency(balance)}"
+            balance < 0 -> "Anda defisit bulan ini: ${formatCurrency(abs(balance))}"
             else -> "Seimbang bulan ini."
         }
     }
@@ -304,16 +306,14 @@ data class CategoryExpenseWithPercentage(
 
 /**
  * Factory untuk StatistikViewModel
- * PERBAIKAN: Menambahkan parameter CategoryRepository agar sesuai dengan constructor ViewModel
  */
 class StatistikViewModelFactory(
     private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository // <--- TAMBAHAN PENTING
+    private val categoryRepository: CategoryRepository
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(StatistikViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            // PERBAIKAN: Mengirimkan kedua repository
             return StatistikViewModel(transactionRepository, categoryRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
