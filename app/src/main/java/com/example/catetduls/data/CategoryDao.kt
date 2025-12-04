@@ -6,41 +6,32 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface CategoryDao {
 
+    // ===================================
+    // CREATE
+    // ===================================
+
     /**
-     * Insert kategori baru
+     * Insert kategori baru atau mengganti jika ada konflik
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategory(category: Category)
 
     /**
-     * Insert multiple categories (untuk data awal)
+     * Insert multiple categories (untuk data awal atau saat sync pull)
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(categories: List<Category>)
 
-    /**
-     * Update kategori
-     */
-    @Update
-    suspend fun updateCategory(category: Category)
-
-    /**
-     * Delete kategori
-     */
-    @Delete
-    suspend fun deleteCategory(category: Category)
-
-    /**
-     * Delete berdasarkan ID
-     */
-    @Query("DELETE FROM categories WHERE id = :categoryId AND isDefault = 0")
-    suspend fun deleteCategoryById(categoryId: Int)
+    // ===================================
+    // READ
+    // ===================================
 
     /**
      * Get semua kategori
      */
     @Query("SELECT * FROM categories ORDER BY name ASC")
     fun getAllCategories(): Flow<List<Category>>
+
     @Query("SELECT * FROM categories")
     suspend fun getAllCategoriesSync(): List<Category>
 
@@ -67,7 +58,8 @@ interface CategoryDao {
         WHERE bookId = :bookId AND type = :type 
         ORDER BY name ASC
     """)
-    fun getCategoriesByBookIdAndType(bookId: Int, type: TransactionType): Flow<List<Category>> // <-- FUNGSI YANG DIPANGGIL VIEwMODEL
+    fun getCategoriesByBookIdAndType(bookId: Int, type: TransactionType): Flow<List<Category>>
+
     /**
      * Get kategori berdasarkan ID
      */
@@ -79,6 +71,70 @@ interface CategoryDao {
      */
     @Query("SELECT * FROM categories WHERE id = :id")
     suspend fun getCategoryByIdSync(id: Int): Category?
+
+    // ===================================
+    // UPDATE
+    // ===================================
+
+    /**
+     * Update kategori
+     */
+    @Update
+    suspend fun updateCategory(category: Category)
+
+    /**
+     * Menandai kategori sebagai belum tersinkronisasi
+     */
+    @Query("UPDATE categories SET is_synced = 0, sync_action = :action, updated_at = :updatedAt WHERE id = :id")
+    suspend fun markAsUnsynced(id: Int, action: String, updatedAt: Long)
+
+    // ===================================
+    // DELETE
+    // ===================================
+
+    /**
+     * Delete kategori (Dipanggil oleh Repo hanya jika belum pernah sync)
+     */
+    @Delete
+    suspend fun deleteCategory(category: Category)
+
+    /**
+     * Delete berdasarkan ID (Dipanggil oleh Repo setelah sync DELETE berhasil)
+     */
+    @Query("DELETE FROM categories WHERE id = :categoryId AND isDefault = 0")
+    suspend fun deleteCategoryById(categoryId: Int)
+
+    // ===================================
+    // SYNC OPERATIONS
+    // ===================================
+
+    /**
+     * Mengambil semua kategori yang perlu disinkronkan ke server.
+     * Termasuk yang baru dibuat/diubah (is_synced = 0) dan yang ditandai untuk dihapus (is_deleted = 1).
+     */
+    @Query("SELECT * FROM categories WHERE is_synced = 0 OR is_deleted = 1")
+    suspend fun getUnsyncedCategories(): List<Category>
+
+    /**
+     * Memperbarui status sinkronisasi setelah server merespons (sukses CREATE/UPDATE).
+     */
+    @Query("""
+        UPDATE categories 
+        SET server_id = :serverId, 
+            is_synced = 1, 
+            last_sync_at = :lastSyncAt,
+            sync_action = NULL
+        WHERE id = :localId
+    """)
+    suspend fun updateSyncStatus(
+        localId: Int,
+        serverId: String,
+        lastSyncAt: Long
+    )
+
+    // ===================================
+    // UTILITY/STATS
+    // ===================================
 
     /**
      * Cek apakah nama kategori sudah ada
@@ -104,4 +160,3 @@ interface CategoryDao {
     """)
     fun getCategoriesWithTransactionCount(): Flow<List<CategoryWithCount>>
 }
-

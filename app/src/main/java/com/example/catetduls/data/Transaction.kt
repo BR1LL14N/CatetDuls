@@ -1,5 +1,7 @@
 package com.example.catetduls.data
 
+import android.os.Parcelable
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -34,22 +36,41 @@ import androidx.room.PrimaryKey
 )
 data class Transaction(
     @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
+    override val id: Int = 0,
 
     val type: TransactionType,
 
     val amount: Double,
 
-    val categoryId: Int, // Foreign key ke Category
+    val categoryId: Int,
 
-    val walletId: Int, // Foreign key ke Wallet
+    val walletId: Int,
 
     val date: Long = System.currentTimeMillis(),
 
     val notes: String = "",
 
-    val createdAt: Long = System.currentTimeMillis()
-) {
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis(),
+
+    @ColumnInfo(name = "updated_at")
+    override val updatedAt: Long = System.currentTimeMillis(),
+
+    @ColumnInfo(name = "server_id")
+    override val serverId: String? = null,
+
+    @ColumnInfo(name = "is_synced")
+    override val isSynced: Boolean = false,
+
+    @ColumnInfo(name = "is_deleted")
+    override val isDeleted: Boolean = false,
+
+    @ColumnInfo(name = "last_sync_at")
+    override val lastSyncAt: Long? = null,
+
+    @ColumnInfo(name = "sync_action")
+    override val syncAction: String? = null
+) :  SyncableEntity {
 
     fun isIncome(): Boolean = type == TransactionType.PEMASUKAN
     fun isExpense(): Boolean = type == TransactionType.PENGELUARAN

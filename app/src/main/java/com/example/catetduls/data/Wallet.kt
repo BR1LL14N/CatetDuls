@@ -5,13 +5,14 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import android.os.Parcelable
+import androidx.room.ColumnInfo
 import kotlinx.parcelize.Parcelize
 
 enum class WalletType {
-    CASH,      // Tunai
-    BANK,      // Bank
-    E_WALLET,  // E-Wallet (GoPay, OVO, dll)
-    INVESTMENT // Investasi
+    CASH,
+    BANK,
+    E_WALLET,
+    INVESTMENT
 }
 
 /**
@@ -36,9 +37,9 @@ enum class WalletType {
 )
 data class Wallet(
     @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
+    override val id: Int = 0,
 
-    val bookId: Int, // Foreign key ke Book
+    val bookId: Int,
 
     val name: String,
 
@@ -48,18 +49,35 @@ data class Wallet(
 
     val color: String = "#2196F3",
 
-    val initialBalance: Double = 0.0, // Saldo awal
+    val initialBalance: Double = 0.0,
 
-    val currentBalance: Double = 0.0, // Saldo saat ini (dihitung dari transaksi)
+    val currentBalance: Double = 0.0,
 
     val description: String = "",
 
     val isActive: Boolean = true,
 
+    @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
 
-    val updatedAt: Long = System.currentTimeMillis()
-) : Parcelable {
+    @ColumnInfo(name = "updated_at")
+    override val updatedAt: Long = System.currentTimeMillis(),
+
+    @ColumnInfo(name = "server_id")
+    override val serverId: String? = null,
+
+    @ColumnInfo(name = "is_synced")
+    override val isSynced: Boolean = false,
+
+    @ColumnInfo(name = "is_deleted")
+    override val isDeleted: Boolean = false,
+
+    @ColumnInfo(name = "last_sync_at")
+    override val lastSyncAt: Long? = null,
+
+    @ColumnInfo(name = "sync_action")
+    override val syncAction: String? = null
+) : Parcelable, SyncableEntity {
 
     fun isValid(): Boolean {
         return name.isNotBlank() && bookId > 0

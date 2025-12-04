@@ -5,6 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import android.os.Parcelable
+import androidx.room.ColumnInfo
 import kotlinx.parcelize.Parcelize
 
 enum class TransactionType {
@@ -34,7 +35,7 @@ enum class TransactionType {
 )
 data class Category(
     @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
+    override val id: Int = 0,
 
     val bookId: Int,
 
@@ -44,10 +45,30 @@ data class Category(
 
     val type: TransactionType,
 
-    val isDefault: Boolean = false, // Kategori bawaan per buku
+    val isDefault: Boolean = false,
 
-    val createdAt: Long = System.currentTimeMillis()
-): Parcelable {
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis(),
+
+    @ColumnInfo(name = "updated_at")
+    override val updatedAt: Long = System.currentTimeMillis(),
+
+    @ColumnInfo(name = "server_id")
+    override val serverId: String? = null,
+
+    @ColumnInfo(name = "is_synced")
+    override val isSynced: Boolean = false,
+
+    @ColumnInfo(name = "is_deleted")
+    override val isDeleted: Boolean = false,
+
+    @ColumnInfo(name = "last_sync_at")
+    override val lastSyncAt: Long? = null,
+
+    @ColumnInfo(name = "sync_action")
+    override val syncAction: String? = null
+
+): Parcelable, SyncableEntity {
 
     fun isValid(): Boolean {
         return name.isNotBlank() && bookId > 0

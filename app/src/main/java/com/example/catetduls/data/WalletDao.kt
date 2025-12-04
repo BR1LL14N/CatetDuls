@@ -14,10 +14,10 @@ interface WalletDao {
     suspend fun insertAll(wallets: List<Wallet>)
 
     // READ
-    @Query("SELECT * FROM wallets WHERE bookId = :bookId ORDER BY createdAt DESC")
+    @Query("SELECT * FROM wallets WHERE bookId = :bookId ORDER BY created_at DESC")
     fun getWalletsByBook(bookId: Int): Flow<List<Wallet>>
 
-    @Query("SELECT * FROM wallets WHERE bookId = :bookId AND isActive = 1 ORDER BY createdAt DESC")
+    @Query("SELECT * FROM wallets WHERE bookId = :bookId AND isActive = 1 ORDER BY created_at DESC")
     fun getActiveWalletsByBook(bookId: Int): Flow<List<Wallet>>
 
     @Query("SELECT * FROM wallets WHERE id = :walletId")
@@ -36,7 +36,7 @@ interface WalletDao {
     @Update
     suspend fun update(wallet: Wallet)
 
-    @Query("UPDATE wallets SET currentBalance = :balance, updatedAt = :timestamp WHERE id = :walletId")
+    @Query("UPDATE wallets SET currentBalance = :balance, updated_at = :timestamp WHERE id = :walletId")
     suspend fun updateBalance(walletId: Int, balance: Double, timestamp: Long = System.currentTimeMillis())
 
     // DELETE
@@ -58,7 +58,7 @@ interface WalletDao {
         LEFT JOIN transactions t ON w.id = t.walletId
         WHERE w.bookId = :bookId
         GROUP BY w.id
-        ORDER BY w.createdAt DESC
+        ORDER BY w.created_at DESC
     """)
     fun getWalletsWithStats(bookId: Int): Flow<List<WalletWithStats>>
 
@@ -68,6 +68,25 @@ interface WalletDao {
         WHERE bookId = :bookId AND isActive = 1
     """)
     fun getTotalBalance(bookId: Int): Flow<Double?>
+
+    @Query("SELECT * FROM wallets WHERE is_synced = 0 AND is_deleted = 0")
+    suspend fun getUnsyncedWallets(): List<Wallet>
+
+    @Query("SELECT * FROM wallets WHERE server_id = :serverId LIMIT 1")
+    suspend fun getByServerId(serverId: String): Wallet?
+
+    @Query("""
+        UPDATE wallets 
+        SET server_id = :serverId, 
+            is_synced = 1, 
+            last_sync_at = :lastSyncAt,
+            sync_action = NULL
+        WHERE id = :localId
+    """)
+    suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long)
+
+    @Query("UPDATE wallets SET is_synced = 0, sync_action = :action, updated_at = :updatedAt WHERE id = :id")
+    suspend fun markAsUnsynced(id: Int, action: String, updatedAt: Long)
 }
 
 // Data class untuk wallet dengan statistik

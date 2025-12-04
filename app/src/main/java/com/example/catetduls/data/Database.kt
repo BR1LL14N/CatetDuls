@@ -5,7 +5,9 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.catetduls.di.NetworkModule.apiService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -24,7 +26,8 @@ import kotlinx.coroutines.launch
         Book::class,
         Wallet::class,
         Category::class,
-        Transaction::class
+        Transaction::class,
+        User::class
     ],
     version = 2,
     exportSchema = false
@@ -37,9 +40,78 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun transactionDao(): TransactionDao
 
+    abstract fun userDao(): UserDao
+
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        /**
+         * ============================================================
+         * MIGRATION DARI VERSION 2 KE 3
+         * Menambahkan kolom untuk sync functionality dan timestamps
+         * ============================================================
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                val currentTime = System.currentTimeMillis()
+
+                // ========================================
+                // USER TABLE
+                // ========================================
+                database.execSQL("ALTER TABLE users ADD COLUMN created_at INTEGER NOT NULL DEFAULT $currentTime")
+                database.execSQL("ALTER TABLE users ADD COLUMN updated_at INTEGER NOT NULL DEFAULT $currentTime")
+                database.execSQL("ALTER TABLE users ADD COLUMN server_id TEXT")
+                database.execSQL("ALTER TABLE users ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE users ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE users ADD COLUMN last_sync_at INTEGER")
+                database.execSQL("ALTER TABLE users ADD COLUMN sync_action TEXT")
+
+                // ========================================
+                // BOOKS TABLE
+                // ========================================
+                database.execSQL("ALTER TABLE books ADD COLUMN created_at INTEGER NOT NULL DEFAULT $currentTime")
+                database.execSQL("ALTER TABLE books ADD COLUMN updated_at INTEGER NOT NULL DEFAULT $currentTime")
+                database.execSQL("ALTER TABLE books ADD COLUMN server_id TEXT")
+                database.execSQL("ALTER TABLE books ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE books ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE books ADD COLUMN last_sync_at INTEGER")
+                database.execSQL("ALTER TABLE books ADD COLUMN sync_action TEXT")
+
+                // ========================================
+                // WALLETS TABLE
+                // ========================================
+                database.execSQL("ALTER TABLE wallets ADD COLUMN created_at INTEGER NOT NULL DEFAULT $currentTime")
+                database.execSQL("ALTER TABLE wallets ADD COLUMN updated_at INTEGER NOT NULL DEFAULT $currentTime")
+                database.execSQL("ALTER TABLE wallets ADD COLUMN server_id TEXT")
+                database.execSQL("ALTER TABLE wallets ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE wallets ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE wallets ADD COLUMN last_sync_at INTEGER")
+                database.execSQL("ALTER TABLE wallets ADD COLUMN sync_action TEXT")
+
+                // ========================================
+                // CATEGORIES TABLE
+                // ========================================
+                database.execSQL("ALTER TABLE categories ADD COLUMN created_at INTEGER NOT NULL DEFAULT $currentTime")
+                database.execSQL("ALTER TABLE categories ADD COLUMN updated_at INTEGER NOT NULL DEFAULT $currentTime")
+                database.execSQL("ALTER TABLE categories ADD COLUMN server_id TEXT")
+                database.execSQL("ALTER TABLE categories ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE categories ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE categories ADD COLUMN last_sync_at INTEGER")
+                database.execSQL("ALTER TABLE categories ADD COLUMN sync_action TEXT")
+
+                // ========================================
+                // TRANSACTIONS TABLE
+                // ========================================
+                database.execSQL("ALTER TABLE transactions ADD COLUMN created_at INTEGER NOT NULL DEFAULT $currentTime")
+                database.execSQL("ALTER TABLE transactions ADD COLUMN updated_at INTEGER NOT NULL DEFAULT $currentTime")
+                database.execSQL("ALTER TABLE transactions ADD COLUMN server_id TEXT")
+                database.execSQL("ALTER TABLE transactions ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE transactions ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE transactions ADD COLUMN last_sync_at INTEGER")
+                database.execSQL("ALTER TABLE transactions ADD COLUMN sync_action TEXT")
+            }
+        }
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -48,8 +120,10 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "finnote_database"
                 )
+                    .addMigrations(MIGRATION_2_3)  // ← TAMBAHKAN INI
                     .addCallback(DatabaseCallback(context))
-                    .fallbackToDestructiveMigration() // Untuk development
+                    // COMMENT UNTUK PRODUCTION:
+                     .fallbackToDestructiveMigration()
                     .build()
 
                 INSTANCE = instance
@@ -304,4 +378,9 @@ fun Context.getCategoryRepository(): CategoryRepository {
 fun Context.getTransactionRepository(): TransactionRepository {
     val database = AppDatabase.getDatabase(this)
     return TransactionRepository(database.transactionDao())
+}
+
+fun Context.getUserRepository(): UserRepository {
+    val database = AppDatabase.getDatabase(this)
+    return UserRepository(database.userDao(), apiService)
 }
