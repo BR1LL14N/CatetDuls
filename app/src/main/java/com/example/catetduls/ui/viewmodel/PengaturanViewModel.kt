@@ -31,6 +31,7 @@ import java.util.*
 class PengaturanViewModel(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
+    private val walletRepository: WalletRepository,
     private val activeBookId: Int,
     private val context: Context
 
@@ -121,24 +122,23 @@ class PengaturanViewModel(
         return try {
             _isLoading.value = true
 
+            // Ambil data secara synchronous (gunakan first())
             val transactions = transactionRepository.getAllTransactions().first()
-
-            val categories = categoryRepository.getAllCategoriesSync()
-
+            val categories = categoryRepository.getAllCategories().first()
+            val wallets = walletRepository.getWalletsByBook(activeBookId).first() // <--- Ambil Wallet
 
             val csv = BackupHelper.transactionsToCsv(
                 transactions = transactions,
-                categories = categories
+                categories = categories,
+                wallets = wallets // <--- Pass Wallet
             )
 
             _successMessage.value = "Data berhasil di-export ke CSV"
             _isLoading.value = false
-
-            return csv
+            csv
         } catch (e: Exception) {
             _errorMessage.value = "Gagal export CSV: ${e.message}"
             _isLoading.value = false
-
             e.printStackTrace()
             null
         }
@@ -310,13 +310,20 @@ class PengaturanViewModel(
 class PengaturanViewModelFactory(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
+    private val walletRepository: WalletRepository,
     private val activeBookId: Int,
     private val context: Context
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(PengaturanViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return PengaturanViewModel(transactionRepository, categoryRepository,activeBookId, context) as T
+            return PengaturanViewModel(
+                transactionRepository,
+                categoryRepository,
+                walletRepository,
+                activeBookId,
+                context
+            ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
@@ -416,33 +423,35 @@ object BackupHelper {
 
     fun transactionsToCsv(
         transactions: List<Transaction>,
-        categories: List<Category>
+        categories: List<Category>,
+        wallets: List<Wallet> // <--- TAMBAHAN: List Wallet
     ): String {
         val csv = StringBuilder()
         val fullDateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
         val exportDateString = fullDateFormat.format(Date())
 
-
+        // Buat Map untuk Lookup Cepat
         val categoryNameMap: Map<Int, String> = categories.associate { it.id to it.name }
-
+        val walletNameMap: Map<Int, String> = wallets.associate { it.id to it.name } // <--- Map Wallet
 
         csv.append("Backup Data - $exportDateString\n")
-
-
-        csv.append("ID,Tanggal,Tipe,Kategori,Jumlah,Catatan\n")
+        // Header diperbarui (Gunakan Nama Dompet)
+        csv.append("ID,Tanggal,Tipe,Kategori,Dompet,Jumlah,Catatan\n")
 
         transactions.forEach { transaction ->
-
             val transactionDate = fullDateFormat.format(Date(transaction.date))
 
-            val categoryName = categoryNameMap[transaction.categoryId] ?: "Tidak Ditemukan"
+            // Lookup Nama
+            val categoryName = categoryNameMap[transaction.categoryId] ?: "Kategori Terhapus"
+            val walletName = walletNameMap[transaction.walletId] ?: "Dompet Terhapus" // <--- Lookup Wallet
 
-            val safeNotes = "\"${transaction.notes.replace("\"", "\"\"")}\""
+            val safeNotes = "\"${transaction.notes.replace("\"", "\"\"")}\"" // Escape quote
 
             csv.append("${transaction.id},")
             csv.append("$transactionDate,")
             csv.append("${transaction.type},")
-            csv.append("$categoryName,")
+            csv.append("\"$categoryName\",") // Pakai quote biar aman jika ada koma
+            csv.append("\"$walletName\",")   // Pakai quote
             csv.append("${transaction.amount},")
             csv.append(safeNotes)
             csv.append("\n")

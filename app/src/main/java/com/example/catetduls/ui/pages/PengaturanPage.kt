@@ -16,6 +16,7 @@ import androidx.lifecycle.lifecycleScope
 import com.example.catetduls.R
 import com.example.catetduls.data.getCategoryRepository
 import com.example.catetduls.data.getTransactionRepository
+import com.example.catetduls.data.getWalletRepository
 import com.example.catetduls.viewmodel.PengaturanViewModel
 import com.example.catetduls.viewmodel.PengaturanViewModelFactory
 import com.google.android.material.button.MaterialButton
@@ -42,6 +43,7 @@ class PengaturanPage : Fragment() {
     // Views
     // private lateinit var switchDarkMode: SwitchCompat <-- DIHAPUS
     private lateinit var cardKelolaKategori: MaterialCardView
+    private lateinit var cardKelolaWallet: MaterialCardView
     private lateinit var btnBackup: MaterialButton
     private lateinit var btnRestore: MaterialButton
     private lateinit var btnExportCsv: MaterialButton
@@ -96,17 +98,27 @@ class PengaturanPage : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Initialize ViewModel
+        // Initialize Repositories
         val transactionRepo = requireContext().getTransactionRepository()
         val categoryRepo = requireContext().getCategoryRepository()
+        val walletRepo = requireContext().getWalletRepository() // <--- AMBIL WALLET REPO
+
         val activeBookId: Int = try {
             val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-            // Mengambil ID buku aktif. Default ke 1 jika belum ada
             prefs.getInt("active_book_id", 1)
         } catch (e: Exception) {
-            1 // Fallback
+            1
         }
-        val factory = PengaturanViewModelFactory(transactionRepo, categoryRepo, activeBookId ,requireContext())
+
+        // Initialize Factory dengan parameter yang LENGKAP
+        val factory = PengaturanViewModelFactory(
+            transactionRepo,
+            categoryRepo,
+            walletRepo, // <--- TAMBAHKAN DI SINI
+            activeBookId,
+            requireContext()
+        )
+
         viewModel = ViewModelProvider(this, factory)[PengaturanViewModel::class.java]
 
         // Initialize Views
@@ -126,6 +138,7 @@ class PengaturanPage : Fragment() {
     private fun initViews(view: View) {
         // switchDarkMode = view.findViewById(R.id.switch_dark_mode) <-- DIHAPUS
         cardKelolaKategori = view.findViewById(R.id.card_kelola_kategori)
+        cardKelolaWallet = view.findViewById(R.id.card_kelola_wallet)
         btnBackup = view.findViewById(R.id.btn_backup)
         btnRestore = view.findViewById(R.id.btn_restore)
         btnExportCsv = view.findViewById(R.id.btn_export_csv)
@@ -155,6 +168,14 @@ class PengaturanPage : Fragment() {
         // Kelola Kategori
         cardKelolaKategori.setOnClickListener {
             val kelolaFragment = KelolaKategoriPage()
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, kelolaFragment)
+                .addToBackStack(null)
+                .commit()
+        }
+
+        cardKelolaWallet.setOnClickListener {
+            val kelolaFragment = KelolaWalletPage()
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, kelolaFragment)
                 .addToBackStack(null)
