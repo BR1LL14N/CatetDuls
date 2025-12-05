@@ -14,7 +14,7 @@ object NetworkModule {
     // Jika masih di tahap testing lokal, gunakan IP address komputer Anda, bukan "localhost".
     // Contoh: "http://192.168.1.5:8080/"
     private const val AUTH_TOKEN = "3|WiiMtSVSRNKUGKeU7yeRueciH2WnjkhjGI01V1UD1842c190"
-    private const val BASE_URL = "http://10.0.2.2:8000/api"
+    private const val BASE_URL = "http://10.0.2.2:8000/api/"
     private const val TIMEOUT_SECONDS = 30L
 
     // ===========================================
