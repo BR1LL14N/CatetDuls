@@ -8,7 +8,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
 import androidx.compose.material3.MaterialTheme
 import com.example.catetduls.R
-import com.example.catetduls.ui.page.ApiTestPage
+import com.example.catetduls.ui.pages.ApiTestPage
 
 
 class ApiTestFragment : Fragment() {

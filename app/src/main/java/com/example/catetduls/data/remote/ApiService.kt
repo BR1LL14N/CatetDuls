@@ -3,6 +3,7 @@ package com.example.catetduls.data.remote
 import retrofit2.Response
 import retrofit2.http.*
 import com.example.catetduls.data.*
+import okhttp3.RequestBody
 import okhttp3.ResponseBody
 
 //data class ApiResponse<T>(
@@ -13,9 +14,45 @@ import okhttp3.ResponseBody
 
 
 interface ApiService {
+    // ===================================
+    // TEST ENDPOINTS
+    // ===================================
 
-    @GET
-    suspend fun dynamicGet(@Url fullUrl: String): Response<ResponseBody>
+    @GET("{endpoint}")
+    suspend fun dynamicGet(
+        @Path("endpoint", encoded = true) endpoint: String,
+        @HeaderMap headers: Map<String, String> = emptyMap()
+    ): Response<ResponseBody>
+
+    @POST("{endpoint}")
+    suspend fun dynamicPost(
+        @Path("endpoint", encoded = true) endpoint: String,
+        @Body body: RequestBody,
+        @HeaderMap headers: Map<String, String> = emptyMap()
+    ): Response<ResponseBody>
+
+
+    @PUT("{endpoint}")
+    suspend fun dynamicPut(
+        @Path("endpoint", encoded = true) endpoint: String,
+        @Body body: RequestBody,
+        @HeaderMap headers: Map<String, String> = emptyMap()
+    ): Response<ResponseBody>
+
+    @DELETE("{endpoint}")
+    suspend fun dynamicDelete(
+        @Path("endpoint", encoded = true) endpoint: String,
+        @HeaderMap headers: Map<String, String> = emptyMap()
+    ): Response<ResponseBody>
+
+    @GET("ping")
+    suspend fun testPing(): Response<ResponseBody>
+
+    @GET("categories")
+    suspend fun testGetCategories(): Response<ResponseBody>
+
+    @GET("books")
+    suspend fun testGetBooks(): Response<ResponseBody>
 
     // ===================================
     // AUTH ENDPOINTS
@@ -122,9 +159,6 @@ interface ApiService {
     suspend fun getCategories(
         @Query("updatedSince") lastSyncAt: Long? = null
     ): Response<List<Category>>
-
-    @GET("pub-categories")
-    suspend fun testGetCategories(): Response<ApiResponse<List<Category>>>
 
     @GET("categories")
     suspend fun getUpdatedCategories(
