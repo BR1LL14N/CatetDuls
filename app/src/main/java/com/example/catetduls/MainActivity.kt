@@ -42,9 +42,9 @@ class MainActivity : AppCompatActivity(), NavigationCallback {
                     true
                 }
                 R.id.nav_pengaturan -> {
-                    loadFragment(ApiTestFragment())
+//                    loadFragment(ApiTestFragment())
 
-//                    loadFragment(PengaturanPage())
+                    loadFragment(PengaturanPage())
                     true
                 }
                 else -> false
