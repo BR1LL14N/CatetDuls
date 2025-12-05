@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.*
 import kotlin.IllegalArgumentException
+import java.io.File
 
 /**
  * ViewModel untuk TambahTransaksiPage (Form Input/Edit)
@@ -32,6 +33,9 @@ class TambahViewModel(
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
     private val _successMessage = MutableStateFlow<String?>(null)
     val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
+
+    private val _imagePath = MutableStateFlow<String?>(null)
+    val imagePath: StateFlow<String?> = _imagePath.asStateFlow()
 
     // ========================================
     // Form Data
@@ -142,6 +146,11 @@ class TambahViewModel(
         _notes.value = value
     }
 
+
+    fun setImagePath(path: String?) {
+        _imagePath.value = path
+    }
+
     /**
      * Parse amount string ke Double
      */
@@ -182,7 +191,8 @@ class TambahViewModel(
                     categoryId = categoryId,
                     date = _date.value,
                     notes = _notes.value,
-                    walletId = walletId // ✅ GUNAKAN WALLET ID
+                    walletId = walletId,
+                    imagePath = _imagePath.value
                 )
 
                 // Simpan ke database
@@ -215,10 +225,22 @@ class TambahViewModel(
                         _transactionId.value = transaction.id
                         _selectedType.value = transaction.type
                         _selectedCategoryId.value = transaction.categoryId
-                        _selectedWalletId.value = transaction.walletId // ✅ LOAD WALLET ID
-                        _amount.value = transaction.amount.toString()
+                        _selectedWalletId.value = transaction.walletId
+                        _amount.value = java.math.BigDecimal(transaction.amount).toPlainString().replace(".00", "").replace(".0", "")
                         _date.value = transaction.date
                         _notes.value = transaction.notes
+                        _imagePath.value = transaction.imagePath  // ✅ TAMBAHKAN INI!
+
+                        // ✅ DEBUG LOG
+                        android.util.Log.d("TambahViewModel", "=== LOAD IMAGE DEBUG ===")
+                        android.util.Log.d("TambahViewModel", "Transaction ID: ${transaction.id}")
+                        android.util.Log.d("TambahViewModel", "Image Path: ${transaction.imagePath}")
+
+                        if (transaction.imagePath != null) {
+                            val file = java.io.File(transaction.imagePath)
+                            android.util.Log.d("TambahViewModel", "File exists: ${file.exists()}")
+                            android.util.Log.d("TambahViewModel", "File size: ${file.length()} bytes")
+                        }
                     }
                     _isLoading.value = false
                 }
@@ -237,7 +259,7 @@ class TambahViewModel(
         keepCategory: Boolean = false,
         setTodayDate: Boolean = true
     ) {
-        _transactionId.value = null // Selalu reset ID (keluar dari mode edit)
+        _transactionId.value = null
 
         if (!keepType) {
             _selectedType.value = TransactionType.PENGELUARAN
@@ -247,17 +269,34 @@ class TambahViewModel(
             _selectedCategoryId.value = null
         }
 
-
         _selectedWalletId.value = activeWalletId
-
         _amount.value = "0"
         _notes.value = ""
+        _imagePath.value = null  // ✅ RESET IMAGE PATH
 
         if (setTodayDate) {
             _date.value = System.currentTimeMillis()
         }
 
         clearMessages()
+    }
+
+    fun clearImage() {
+        val oldPath = _imagePath.value
+        _imagePath.value = null
+
+        // Optional: Hapus file jika ingin cleanup langsung
+        if (oldPath != null) {
+            try {
+                val file = java.io.File(oldPath)
+                if (file.exists()) {
+                    file.delete()
+                    android.util.Log.d("TambahViewModel", "Image file deleted: $oldPath")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TambahViewModel", "Error deleting image: ${e.message}")
+            }
+        }
     }
 
     /**

@@ -59,6 +59,9 @@ class MainActivity : AppCompatActivity(), NavigationCallback {
     }
 
     override fun navigateTo(fragment: Fragment) {
-        loadFragment(fragment)
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, fragment)
+            .addToBackStack(null) // <--- TAMBAHAN PENTING
+            .commit()
     }
 }

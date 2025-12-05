@@ -16,6 +16,7 @@ import com.example.catetduls.data.TransactionType
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.Locale
 
 class TransactionAdapter(
     private val onItemClick: (com.example.catetduls.data.Transaction) -> Unit,
@@ -115,6 +116,9 @@ class TransactionAdapter(
         private val tvWalletName: TextView = itemView.findViewById(R.id.tv_wallet_name)
         private val tvAmount: TextView = itemView.findViewById(R.id.tv_amount)
 
+        private val cardImage: View = itemView.findViewById(R.id.card_image_preview) // Pembungkus CardView
+        private val ivThumb: android.widget.ImageView = itemView.findViewById(R.id.iv_transaction_thumb) // ImageView di dalamnya
+
         fun bind(
             transaction: com.example.catetduls.data.Transaction,
             onItemClick: (com.example.catetduls.data.Transaction) -> Unit,
@@ -144,7 +148,7 @@ class TransactionAdapter(
             formatter.maximumFractionDigits = 0
 
             // Format: Rp 50.000
-            tvAmount.text = formatter.format(transaction.amount).replace("Rp", "Rp ")
+            tvAmount.text = CurrencyUtils.toRupiah(transaction.amount)
 
             // Warna: Pemasukan (Biru/Hijau), Pengeluaran (Merah/Oranye)
             val amountColor = when (transaction.type) {
@@ -168,6 +172,15 @@ class TransactionAdapter(
 
         override fun areContentsTheSame(oldItem: TransactionListItem, newItem: TransactionListItem): Boolean {
             return oldItem == newItem
+        }
+    }
+
+    object CurrencyUtils {
+        fun toRupiah(amount: Double): String {
+            val format = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+            // Hapus ".00" di belakang koma jika tidak diinginkan
+            format.maximumFractionDigits = 0
+            return format.format(amount).replace("Rp", "Rp ")
         }
     }
 }
