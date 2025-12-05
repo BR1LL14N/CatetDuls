@@ -17,6 +17,7 @@ navigationCompose = "2.7.7"
 room = "2.8.3"
 ksp = "2.2.21-2.0.4"
 hilt = "2.52"
+protoliteWellKnownTypes = "18.0.1"
 
 
 
@@ -46,6 +47,7 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler-proces
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }
 hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hilt" }
+protolite-well-known-types = { group = "com.google.firebase", name = "protolite-well-known-types", version.ref = "protoliteWellKnownTypes" }
 
 
 
