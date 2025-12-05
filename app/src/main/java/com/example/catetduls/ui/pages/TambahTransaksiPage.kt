@@ -30,6 +30,7 @@ import com.google.android.material.card.MaterialCardView
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.*
 
 class TambahTransaksiPage : Fragment() {
@@ -61,6 +62,8 @@ class TambahTransaksiPage : Fragment() {
     private lateinit var ivProofImage: ImageView
     private lateinit var btnLanjut: MaterialButton
 
+    private lateinit var tvHeaderTitle: TextView
+
     private var categoriesList: List<Category> = emptyList()
     private var walletsList: List<Wallet> = emptyList() // ✅ List Dompet
     private var imageUri: Uri? = null // Menyimpan URI gambar
@@ -83,6 +86,15 @@ class TambahTransaksiPage : Fragment() {
             }
         }
 
+    private val requestCameraPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+            if (isGranted) {
+                // Izin diberikan, langsung buka kamera
+                startCameraProcess()
+            } else {
+                Toast.makeText(requireContext(), "Izin kamera diperlukan untuk mengambil foto", Toast.LENGTH_SHORT).show()
+            }
+        }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -124,13 +136,101 @@ class TambahTransaksiPage : Fragment() {
 
         initViews(view)
 
+        val transactionId = arguments?.getInt("ARG_TRANSACTION_ID", -1) ?: -1
+
+        if (transactionId != -1) {
+            // MODE EDIT
+            // 1. Ubah Judul Halaman
+            val tvTitle = view.findViewById<TextView>(R.id.tv_header_title) // Pastikan ID ini ada di XML header
+            tvTitle?.text = "Edit Transaksi"
+            btnSimpan.text = "Update Transaksi"
+
+            // 2. Load Data dari Database ke ViewModel
+            viewModel.loadTransaction(transactionId)
+        }
+
         setupRadioGroup()
         setupDatePicker()
         setupPhotoPicker()
         setupButtons()
         // setupWalletSpinner() // Dihapus karena listener dipasang di observeData()
 
+
+
         observeData()
+    }
+
+    companion object {
+        fun newInstance(transactionId: Int? = null): TambahTransaksiPage {
+            val fragment = TambahTransaksiPage()
+            if (transactionId != null) {
+                val args = Bundle()
+                args.putInt("ARG_TRANSACTION_ID", transactionId)
+                fragment.arguments = args
+            }
+            return fragment
+        }
+    }
+
+    /**
+     * Langkah 1: Cek apakah izin sudah diberikan
+     */
+    private fun checkCameraPermissionAndLaunch() {
+        when {
+            ContextCompat.checkSelfPermission(
+                requireContext(),
+                android.Manifest.permission.CAMERA
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED -> {
+                // Izin sudah ada -> Buka Kamera
+                startCameraProcess()
+            }
+            shouldShowRequestPermissionRationale(android.Manifest.permission.CAMERA) -> {
+                // User pernah menolak, beri penjelasan (Opsional, bisa langsung minta lagi)
+                Toast.makeText(requireContext(), "Aplikasi butuh akses kamera untuk memotret bukti transaksi.", Toast.LENGTH_LONG).show()
+                requestCameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+            }
+            else -> {
+                // Belum pernah minta -> Minta Izin
+                requestCameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+            }
+        }
+    }
+
+    /**
+     * Langkah 2: Persiapkan File Uri dan Luncurkan Intent Kamera
+     */
+    private fun startCameraProcess() {
+        try {
+            val context = requireContext()
+
+            // 1. Buat file temporary di cache untuk menampung hasil foto
+            // File ini hanya sementara sebelum nanti disalin ke internal storage saat tombol Simpan ditekan
+            val photoFile = java.io.File.createTempFile(
+                "IMG_TEMP_",  /* prefix */
+                ".jpg",       /* suffix */
+                context.cacheDir /* directory */
+            )
+
+            // 2. Dapatkan URI menggunakan FileProvider (WAJIB COCOK DENGAN MANIFEST)
+            // Authority: com.example.catetduls.fileprovider (sesuaikan dengan package name Anda)
+            val authority = "${context.packageName}.fileprovider"
+
+            // Simpan ke variabel lokal 'uri' (tipe: Uri, bukan Uri?)
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                authority,
+                photoFile
+            )
+
+            imageUri = uri
+
+            // 3. Luncurkan Kamera
+            cameraLauncher.launch(uri)
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(requireContext(), "Gagal membuka kamera: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun initViews(view: View) {
@@ -198,7 +298,7 @@ class TambahTransaksiPage : Fragment() {
             .setTitle("Pilih Sumber Foto")
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> launchCamera()
+                    0 -> checkCameraPermissionAndLaunch()
                     1 -> galleryLauncher.launch("image/*")
                 }
             }
@@ -254,6 +354,7 @@ class TambahTransaksiPage : Fragment() {
         ivProofImage.setImageResource(0)
         btnAddPhoto.setText("Tambah Foto")
         btnAddPhoto.setIconResource(R.drawable.ic_photo_24)
+        viewModel.setImagePath(null)
     }
 
     private fun setupRadioGroup() {
@@ -367,13 +468,55 @@ class TambahTransaksiPage : Fragment() {
             val amount = etAmount.text.toString()
             val notes = etNotes.text.toString()
 
-            // TODO: Simpan URI gambar ke ViewModel
-            // viewModel.setImageUri(imageUri)
+            android.util.Log.d("DEBUG_FOTO", "=== SAVE BUTTON CLICKED ===")
+            android.util.Log.d("DEBUG_FOTO", "Current imageUri: $imageUri")
+            android.util.Log.d("DEBUG_FOTO", "Current ViewModel imagePath: ${viewModel.imagePath.value}")
 
+            // ✅ LOGIKA BARU YANG LEBIH SEDERHANA
+            if (imageUri != null) {
+                val currentPath = viewModel.imagePath.value
+
+                // Cek apakah ini foto BARU atau foto LAMA
+                if (currentPath != null) {
+                    // Kasus A: Foto lama masih ada (mode edit, tidak ganti foto)
+                    val file = java.io.File(currentPath)
+                    if (file.exists()) {
+                        android.util.Log.d("DEBUG_FOTO", "Using existing photo from: $currentPath")
+                        // Tidak perlu set lagi, ViewModel sudah punya path-nya
+                    } else {
+                        // File hilang? Save foto baru
+                        android.util.Log.d("DEBUG_FOTO", "Old file missing, saving new photo")
+                        val newPath = saveImageToInternalStorage(imageUri!!)
+                        viewModel.setImagePath(newPath)
+                    }
+                } else {
+                    // Kasus B: Foto baru (dari gallery/camera)
+                    android.util.Log.d("DEBUG_FOTO", "New photo detected, saving to internal storage")
+                    val newPath = saveImageToInternalStorage(imageUri!!)
+
+                    if (newPath != null) {
+                        android.util.Log.d("DEBUG_FOTO", "✅ Photo saved to: $newPath")
+                        viewModel.setImagePath(newPath)
+                    } else {
+                        android.util.Log.e("DEBUG_FOTO", "❌ Failed to save photo!")
+                        viewModel.setImagePath(null)
+                        Toast.makeText(requireContext(), "Gagal menyimpan foto", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                // Kasus C: Tidak ada foto
+                android.util.Log.d("DEBUG_FOTO", "No photo selected")
+                viewModel.setImagePath(null)
+            }
+
+            // Set data lain
             viewModel.setAmount(amount)
             viewModel.setNotes(notes)
 
+            // Validasi & Simpan
             if (viewModel.isFormValid()) {
+                android.util.Log.d("DEBUG_FOTO", "Form valid, saving transaction...")
+                android.util.Log.d("DEBUG_FOTO", "Final imagePath: ${viewModel.imagePath.value}")
                 viewModel.saveTransaction()
             } else {
                 Toast.makeText(requireContext(), "Form belum lengkap", Toast.LENGTH_SHORT).show()
@@ -413,9 +556,25 @@ class TambahTransaksiPage : Fragment() {
 
                 launch {
                     viewModel.amount.collect { amountString ->
+                        // HINDARI LOOP UPDATE: Hanya update jika beda dengan yang diketik
                         if (etAmount.text.toString() != amountString) {
-                            etAmount.setText(amountString)
-                            etAmount.setSelection(amountString.length)
+
+                            // --- PERBAIKAN LOGIKA FORMATTING ---
+                            // Jika amountString berisi notasi ilmiah (E9), kita konversi dulu ke Long/BigDecimal
+                            val cleanString = if (amountString.contains("E")) {
+                                try {
+                                    val doubleVal = amountString.toDouble()
+                                    // Ubah ke format string biasa (tanpa koma/titik ribuan dulu agar EditText bisa baca)
+                                    java.math.BigDecimal(doubleVal).toPlainString().replace(".0", "")
+                                } catch (e: Exception) {
+                                    amountString
+                                }
+                            } else {
+                                amountString
+                            }
+
+                            etAmount.setText(cleanString)
+                            etAmount.setSelection(cleanString.length) // Cursor di akhir
                         }
                     }
                 }
@@ -457,6 +616,42 @@ class TambahTransaksiPage : Fragment() {
                         error?.let {
                             Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
                             viewModel.clearMessages()
+                        }
+                    }
+                }
+
+                launch {
+                    viewModel.imagePath.collect { path ->
+                        android.util.Log.d("DEBUG_FOTO", "=== IMAGE PATH CHANGED ===")
+                        android.util.Log.d("DEBUG_FOTO", "New path from ViewModel: $path")
+
+                        if (path != null) {
+                            val file = java.io.File(path)
+                            android.util.Log.d("DEBUG_FOTO", "File exists: ${file.exists()}")
+                            android.util.Log.d("DEBUG_FOTO", "File size: ${file.length()} bytes")
+
+                            if (file.exists()) {
+                                // ✅ PERBAIKAN: Set imageUri dari file path
+                                val uri = Uri.fromFile(file)
+                                imageUri = uri
+
+                                // Tampilkan gambar
+                                ivProofImage.setImageURI(uri)
+                                ivProofImage.visibility = View.VISIBLE
+                                btnAddPhoto.setText("Hapus Foto")
+                                btnAddPhoto.setIconResource(R.drawable.ic_baseline_close_24)
+
+                                android.util.Log.d("DEBUG_FOTO", "✅ Image displayed successfully!")
+                            } else {
+                                android.util.Log.e("DEBUG_FOTO", "❌ File not found at path: $path")
+                                resetImageProof()
+                            }
+                        } else {
+                            // Path null = tidak ada gambar
+                            android.util.Log.d("DEBUG_FOTO", "Path is null, resetting image")
+                            if (imageUri == null) {
+                                resetImageProof()
+                            }
                         }
                     }
                 }
@@ -546,6 +741,61 @@ class TambahTransaksiPage : Fragment() {
             }
             // Pasang listener di sini (setelah selection)
             setupWalletSpinnerListener(walletsList)
+        }
+    }
+
+    private fun saveImageToInternalStorage(uri: Uri): String? {
+        android.util.Log.d("DEBUG_FOTO", "=== SAVING IMAGE ===")
+        android.util.Log.d("DEBUG_FOTO", "Source URI: $uri")
+
+        return try {
+            val context = requireContext()
+
+            // 1. Buka InputStream
+            val inputStream = context.contentResolver.openInputStream(uri)
+            if (inputStream == null) {
+                android.util.Log.e("DEBUG_FOTO", "❌ Cannot open InputStream")
+                return null
+            }
+
+            // 2. Buat folder tujuan
+            val directory = java.io.File(context.filesDir, "transaction_images")
+            if (!directory.exists()) {
+                val created = directory.mkdirs()
+                android.util.Log.d("DEBUG_FOTO", "Directory created: $created")
+            }
+
+            // 3. Generate nama file unique
+            val fileName = "IMG_${System.currentTimeMillis()}_${java.util.UUID.randomUUID()}.jpg"
+            val file = java.io.File(directory, fileName)
+
+            android.util.Log.d("DEBUG_FOTO", "Target file: ${file.absolutePath}")
+
+            // 4. Copy stream
+            val outputStream = java.io.FileOutputStream(file)
+            val bytesCopied = inputStream.copyTo(outputStream)
+
+            inputStream.close()
+            outputStream.close()
+
+            // 5. Verify
+            if (file.exists() && file.length() > 0) {
+                android.util.Log.d("DEBUG_FOTO", "✅ SUCCESS!")
+                android.util.Log.d("DEBUG_FOTO", "   Path: ${file.absolutePath}")
+                android.util.Log.d("DEBUG_FOTO", "   Size: ${file.length()} bytes")
+                android.util.Log.d("DEBUG_FOTO", "   Copied: $bytesCopied bytes")
+
+                file.absolutePath
+            } else {
+                android.util.Log.e("DEBUG_FOTO", "❌ File saved but invalid")
+                null
+            }
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            android.util.Log.e("DEBUG_FOTO", "❌ EXCEPTION: ${e.message}")
+            Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            null
         }
     }
 }
