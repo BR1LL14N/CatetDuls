@@ -29,6 +29,7 @@ data class CategoryStats(
 data class CategoryExpense(
     val categoryId: Int,
     val categoryName: String,
+    val icon: String = "🏷️",
     val total: Double
 )
 

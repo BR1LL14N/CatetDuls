@@ -303,6 +303,7 @@ interface TransactionDao {
         SELECT 
             t.categoryId,
             c.name as categoryName,
+            c.icon,
             SUM(t.amount) as total
         FROM transactions t
         INNER JOIN categories c ON t.categoryId = c.id
@@ -332,6 +333,7 @@ interface TransactionDao {
         SELECT 
             t.categoryId,
             c.name as categoryName,
+            c.icon,
             SUM(t.amount) as total
         FROM transactions t
         INNER JOIN categories c ON t.categoryId = c.id

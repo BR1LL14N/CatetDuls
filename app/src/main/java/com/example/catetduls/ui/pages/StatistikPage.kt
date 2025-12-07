@@ -1,61 +1,61 @@
 package com.example.catetduls.ui.pages
 
-import android.graphics.Color // Import untuk warna chart
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.ImageView
+import android.widget.Spinner
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.asLiveData
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.catetduls.R
+import com.example.catetduls.data.CategoryExpense
+import com.example.catetduls.data.TransactionType
+import com.example.catetduls.data.getCategoryRepository
 import com.example.catetduls.data.getTransactionRepository
 import com.example.catetduls.viewmodel.StatistikViewModel
 import com.example.catetduls.viewmodel.StatistikViewModelFactory
-import com.google.android.material.chip.Chip
-import com.google.android.material.chip.ChipGroup
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.launch
-import androidx.lifecycle.Lifecycle
-import com.example.catetduls.data.CategoryExpense
-import com.example.catetduls.data.MonthlyTotal // Import data class
-import com.example.catetduls.data.getCategoryRepository
-
-// Import MPAndroidChart
 import com.github.mikephil.charting.charts.PieChart
-import com.github.mikephil.charting.charts.BarChart
-import com.github.mikephil.charting.data.*
-import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
+import com.github.mikephil.charting.data.PieData
+import com.github.mikephil.charting.data.PieDataSet
+import com.github.mikephil.charting.data.PieEntry
 import com.github.mikephil.charting.formatter.PercentFormatter
-import com.github.mikephil.charting.components.Legend
-import com.github.mikephil.charting.components.XAxis
+import com.google.android.material.tabs.TabLayout
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import com.example.catetduls.ui.adapter.CategoryStatAdapter
 
-/**
- * StatistikPage - Halaman grafik dan analisis
- */
 class StatistikPage : Fragment() {
 
     private lateinit var viewModel: StatistikViewModel
+    private lateinit var categoryAdapter: CategoryStatAdapter
 
     // Views
-    private lateinit var chipGroup: ChipGroup
-    private lateinit var chipHariIni: Chip
-    private lateinit var chipMingguIni: Chip
-    private lateinit var chipBulanIni: Chip
-    private lateinit var chipTahunIni: Chip
-    private lateinit var tvPeriodIncome: TextView
-    private lateinit var tvPeriodExpense: TextView
-    private lateinit var tvPeriodBalance: TextView
-    private lateinit var tvTopCategory: TextView
-    private lateinit var tvSummary: TextView
-    private lateinit var pieChartExpense: PieChart // <-- Pie Chart View
-    private lateinit var barChartMonthly: BarChart // <-- Bar Chart View
+    private lateinit var spinnerPeriod: Spinner
+    private lateinit var tabLayout: TabLayout
+    private lateinit var pieChart: PieChart
+    private lateinit var rvCategoryDetails: RecyclerView
+    private lateinit var tvCurrentMonth: TextView
+    private lateinit var btnPrevMonth: ImageView
+    private lateinit var btnNextMonth: ImageView
+
+    // Warna Chart & List (Pastikan urutan sama dengan di Adapter)
+    private val chartColors = listOf(
+        "#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0",
+        "#9966FF", "#FF9F40", "#33FFCC", "#C9CBCF"
+    )
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View? {
         return inflater.inflate(R.layout.fragment_statistik, container, false)
     }
@@ -63,255 +63,210 @@ class StatistikPage : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // 1. Init ViewModel
         val transactionRepo = requireContext().getTransactionRepository()
-        val categoryRepo = requireContext().getCategoryRepository() // <--- Tambahkan ini
-
-        val repository = requireContext().getTransactionRepository()
-        val factory = StatistikViewModelFactory(transactionRepo, categoryRepo) // <--- Kirim dua parameter
+        val categoryRepo = requireContext().getCategoryRepository()
+        val factory = StatistikViewModelFactory(transactionRepo, categoryRepo)
         viewModel = ViewModelProvider(this, factory)[StatistikViewModel::class.java]
 
-
+        // 2. Init Views
         initViews(view)
 
-        // Setup Charts dan Chips
-        setupChips()
-        setupPieChart()
-        setupBarChart()
+        // 3. Setup Components
+        setupSpinner()
+        setupTabLayout()
+        setupChart()
+        setupRecyclerView()
+        setupHeaderDate() // Set teks bulan saat ini
 
-        // Observe data
+        // 4. Observe Data
         observeData()
     }
 
     private fun initViews(view: View) {
-        chipGroup = view.findViewById(R.id.chip_group_period)
-        chipHariIni = view.findViewById(R.id.chip_hari_ini)
-        chipMingguIni = view.findViewById(R.id.chip_minggu_ini)
-        chipBulanIni = view.findViewById(R.id.chip_bulan_ini)
-        chipTahunIni = view.findViewById(R.id.chip_tahun_ini)
-        tvPeriodIncome = view.findViewById(R.id.tv_period_income)
-        tvPeriodExpense = view.findViewById(R.id.tv_period_expense)
-        tvPeriodBalance = view.findViewById(R.id.tv_period_balance)
-        tvTopCategory = view.findViewById(R.id.tv_top_category)
-        tvSummary = view.findViewById(R.id.tv_summary)
-        pieChartExpense = view.findViewById(R.id.pie_chart_expense) // <-- Hubungkan Pie Chart
-        barChartMonthly = view.findViewById(R.id.bar_chart_monthly) // <-- Hubungkan Bar Chart
+        spinnerPeriod = view.findViewById(R.id.spinner_period)
+        tabLayout = view.findViewById(R.id.tab_layout_type)
+        pieChart = view.findViewById(R.id.pie_chart)
+        rvCategoryDetails = view.findViewById(R.id.rv_category_details)
+
+        tvCurrentMonth = view.findViewById(R.id.tv_current_month)
+        btnPrevMonth = view.findViewById(R.id.btn_prev_month)
+        btnNextMonth = view.findViewById(R.id.btn_next_month)
     }
 
-    private fun setupChips() {
-        chipHariIni.setOnClickListener { viewModel.setPeriod("Hari Ini") }
-        chipMingguIni.setOnClickListener { viewModel.setPeriod("Minggu Ini") }
-        chipBulanIni.setOnClickListener { viewModel.setPeriod("Bulan Ini") }
-        chipTahunIni.setOnClickListener { viewModel.setPeriod("Tahun Ini") }
+    private fun setupHeaderDate() {
+        // Menampilkan Bulan & Tahun saat ini (Hanya visual header)
+        val calendar = Calendar.getInstance()
+        val format = SimpleDateFormat("MMM yyyy", Locale("id", "ID"))
+        tvCurrentMonth.text = format.format(calendar.time)
 
-        // Set default
-        chipBulanIni.isChecked = true
+        // TODO: Jika ingin fitur navigasi bulan (< >) berfungsi mengubah data,
+        // ViewModel harus diupdate untuk mendukung pergeseran bulan (addMonth).
+        // Untuk saat ini, kita biarkan statis sesuai periode "Bulan Ini" di ViewModel.
+        btnPrevMonth.alpha = 0.3f // Dimmed agar user tahu belum aktif
+        btnNextMonth.alpha = 0.3f
     }
 
-    // ========================================
-    // PIE CHART LOGIC
-    // ========================================
-    private fun setupPieChart() {
-        pieChartExpense.apply {
-            setUsePercentValues(true)
-            description.isEnabled = false
-            setExtraOffsets(5f, 10f, 5f, 5f)
-            isDrawHoleEnabled = true
-            setHoleColor(Color.TRANSPARENT)
-            transparentCircleRadius = 58f
+    private fun setupSpinner() {
+        // Opsi Periode
+        val periods = listOf("Harian", "Mingguan", "Bulanan", "Tahunan")
 
-            legend.apply {
-                verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
-                horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
-                orientation = Legend.LegendOrientation.HORIZONTAL
-                setDrawInside(false)
-                xEntrySpace = 7f
-                yEntrySpace = 0f
-                yOffset = 5f
+        val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, periods)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerPeriod.adapter = adapter
+
+        // Set default ke "Bulanan" (index 2)
+        spinnerPeriod.setSelection(2)
+
+        spinnerPeriod.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val selected = periods[position]
+                // Mapping string UI ke string yang dimengerti ViewModel
+                val periodKey = when(selected) {
+                    "Harian" -> "Hari Ini"
+                    "Mingguan" -> "Minggu Ini"
+                    "Bulanan" -> "Bulan Ini"
+                    "Tahunan" -> "Tahun Ini"
+                    else -> "Bulan Ini"
+                }
+                viewModel.setPeriod(periodKey)
             }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
     }
 
-    private fun updatePieChart(categories: List<CategoryExpense>) {
+    private fun setupTabLayout() {
+        // Tab 0: Pendapatan, Tab 1: Pengeluaran (Default)
+        val tabPengeluaran = tabLayout.getTabAt(1)
+        tabPengeluaran?.select()
+
+        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab?) {
+                when (tab?.position) {
+                    0 -> viewModel.setChartType(TransactionType.PEMASUKAN)
+                    1 -> viewModel.setChartType(TransactionType.PENGELUARAN)
+                }
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab?) {}
+            override fun onTabReselected(tab: TabLayout.Tab?) {}
+        })
+    }
+
+    private fun setupRecyclerView() {
+        categoryAdapter = CategoryStatAdapter { categoryExpense ->
+            val detailFragment = DetailStatistikPage.newInstance(categoryExpense.categoryId)
+
+            parentFragmentManager.beginTransaction()
+                .setCustomAnimations(
+                    android.R.anim.slide_in_left,
+                    android.R.anim.slide_out_right
+                )
+                .replace(R.id.fragment_container, detailFragment)
+                .addToBackStack(null)
+                .commit()
+        }
+
+        // 2. BAGIAN PENTING YANG HILANG: Pasang ke RecyclerView UI
+        rvCategoryDetails.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = categoryAdapter // <--- INI WAJIB ADA
+            isNestedScrollingEnabled = false // Agar scrolling lancar di dalam ScrollView
+        }
+    }
+
+    private fun setupChart() {
+        pieChart.apply {
+            description.isEnabled = false
+            legend.isEnabled = false // Legenda kita buat sendiri di RecyclerView
+
+            // Konfigurasi Donut Chart
+            isDrawHoleEnabled = false
+            // --- KONFIGURASI LABEL & ROTASI ---
+            setUsePercentValues(true) // Gunakan nilai persen
+            setEntryLabelColor(Color.BLACK)
+            setEntryLabelTextSize(11f)
+
+            // Offset ekstra agar label di luar tidak terpotong layar
+            setExtraOffsets(45f, 20f, 45f, 20f)
+            animateY(1000)
+        }
+    }
+
+    private fun observeData() {
+        // Observe Data Utama (Chart & List)
+        viewModel.categoryStats.observe(viewLifecycleOwner) { categories ->
+
+            // 1. Update Chart
+            updateChartData(categories)
+
+            // 2. Update RecyclerView
+            categoryAdapter.submitList(categories)
+
+            // 3. Update Center Text (Total di tengah Donut)
+            val total = categories.sumOf { it.total }
+            pieChart.centerText = "Total\n${viewModel.formatCurrency(total)}"
+            pieChart.setCenterTextSize(14f)
+            pieChart.setCenterTextColor(ContextCompat.getColor(requireContext(), R.color.text_primary))
+        }
+
+        // Observe Header Total (Opsional, untuk update judul Tab)
+        viewModel.periodIncome.asLiveData().observe(viewLifecycleOwner) { income ->
+            tabLayout.getTabAt(0)?.text = "Pendapatan\n${viewModel.formatCurrency(income)}"
+        }
+
+        viewModel.periodExpense.asLiveData().observe(viewLifecycleOwner) { expense ->
+            tabLayout.getTabAt(1)?.text = "Pengeluaran\n${viewModel.formatCurrency(expense)}"
+        }
+    }
+
+    private fun updateChartData(categories: List<CategoryExpense>) {
         if (categories.isEmpty()) {
-            pieChartExpense.data = null
-            pieChartExpense.setNoDataText("Belum ada data pengeluaran untuk periode ini.")
-            pieChartExpense.invalidate()
+            pieChart.data = null
+            pieChart.setNoDataText("Belum ada data")
+            pieChart.invalidate()
             return
         }
 
-        val entries = categories.map { category ->
-            PieEntry(category.total.toFloat(), category.categoryName)
+        val totalAmount = categories.sumOf { it.total }
+
+        val entries = categories.map {
+            val percent = (it.total / totalAmount) * 100
+            // Format Label: "Ikon Nama" (Baris 1)
+            // Persen akan otomatis dihandle formatter
+            PieEntry(it.total.toFloat(), "${it.icon} ${it.categoryName}")
         }
 
-        val dataSet = PieDataSet(entries, "Kategori Pengeluaran").apply {
+        val dataSet = PieDataSet(entries, "").apply {
             sliceSpace = 2f
             selectionShift = 5f
+            colors = chartColors.map { Color.parseColor(it) }
 
-            val colors = ArrayList<Int>()
-            for (i in categories.indices) {
-                colors.add(viewModel.getCategoryColor(i))
-            }
-            this.colors = colors
+            // --- KONFIGURASI VALUE LINES (GARIS PETUNJUK) ---
+
+            // 1. Posisi Label di Luar Chart
+            yValuePosition = PieDataSet.ValuePosition.OUTSIDE_SLICE
+            xValuePosition = PieDataSet.ValuePosition.OUTSIDE_SLICE
+
+            // 2. Gaya Garis
+            valueLinePart1OffsetPercentage = 99f // Jarak awal garis dari pusat
+            valueLinePart1Length = 1.1f // Panjang garis bagian dalam
+            valueLinePart2Length = 0.2f // Panjang garis bagian luar (horizontal)
+            valueLineColor = Color.DKGRAY // Warna garis
+            valueLineWidth = 1.3f
+
+            // 3. Warna Teks Label
+            valueTextColor = Color.BLACK
+            valueTextSize = 11f
         }
 
         val data = PieData(dataSet).apply {
-            setValueFormatter(PercentFormatter(pieChartExpense))
-            setValueTextSize(11f)
-            setValueTextColor(Color.BLACK)
+            // Formatter untuk menampilkan "XX.X %"
+            setValueFormatter(PercentFormatter(pieChart))
         }
 
-        pieChartExpense.data = data
-        pieChartExpense.highlightValues(null)
-        pieChartExpense.animateY(1000)
-        pieChartExpense.invalidate()
-    }
-
-    // ========================================
-    // BAR CHART LOGIC
-    // ========================================
-    private fun setupBarChart() {
-        barChartMonthly.apply {
-            description.isEnabled = false
-            setPinchZoom(false)
-            setDrawGridBackground(false)
-            setDrawValueAboveBar(true)
-
-            // X-Axis (Bulan)
-            xAxis.apply {
-                granularity = 1f
-                isGranularityEnabled = true
-                setDrawGridLines(false)
-                position = XAxis.XAxisPosition.BOTTOM
-                labelCount = 12
-            }
-
-            // Y-Axis Kiri
-            axisLeft.apply {
-                setDrawGridLines(true)
-                axisMinimum = 0f
-            }
-
-            // Y-Axis Kanan (dinonaktifkan)
-            axisRight.isEnabled = false
-
-            legend.apply {
-                verticalAlignment = Legend.LegendVerticalAlignment.TOP
-                horizontalAlignment = Legend.LegendHorizontalAlignment.RIGHT
-                orientation = Legend.LegendOrientation.HORIZONTAL
-                setDrawInside(false)
-            }
-        }
-    }
-
-    private fun updateBarChart(monthlyData: List<MonthlyTotal>) {
-        // Data transaksi seringkali tidak lengkap (tidak ada data untuk bulan yang kosong)
-        // Kita perlu menyiapkan data untuk 12 bulan
-
-        val incomeEntries = ArrayList<BarEntry>()
-        val expenseEntries = ArrayList<BarEntry>()
-        val monthLabels = ArrayList<String>()
-
-        for (i in 1..12) {
-            monthLabels.add(viewModel.getMonthName(i))
-            val data = monthlyData.find { it.month == i }
-
-            // Masukkan data untuk 12 bulan. Jika bulan kosong, nilai 0.0
-            incomeEntries.add(BarEntry(i.toFloat(), (data?.income ?: 0.0).toFloat()))
-            expenseEntries.add(BarEntry(i.toFloat(), (data?.expense ?: 0.0).toFloat()))
-        }
-
-        if (incomeEntries.all { it.y == 0f } && expenseEntries.all { it.y == 0f }) {
-            barChartMonthly.data = null
-            barChartMonthly.setNoDataText("Belum ada data transaksi tahun ini.")
-            barChartMonthly.invalidate()
-            return
-        }
-
-        // 1. Buat BarDataSet
-        val incomeSet = BarDataSet(incomeEntries, "Pemasukan").apply {
-            color = Color.parseColor("#4CAF50")
-            valueTextSize = 10f
-        }
-        val expenseSet = BarDataSet(expenseEntries, "Pengeluaran").apply {
-            color = Color.parseColor("#F44336")
-            valueTextSize = 10f
-        }
-
-        val data = BarData(incomeSet, expenseSet)
-
-        // 2. Kelompokkan bar (Grouping)
-        val groupSpace = 0.3f
-        val barSpace = 0.025f
-        val barWidth = 0.325f // Total = 1.0 (0.325 * 2 + 0.025 * 2 + 0.3)
-        data.barWidth = barWidth
-
-        // 3. Masukkan data ke chart dan atur X-Axis
-        barChartMonthly.data = data
-        barChartMonthly.xAxis.valueFormatter = IndexAxisValueFormatter(monthLabels)
-        barChartMonthly.xAxis.axisMinimum = 1f - data.barWidth / 2f
-        barChartMonthly.xAxis.axisMaximum = 12f + data.barWidth / 2f
-
-        // Mulai grouping dari posisi 1f (bulan 1)
-        barChartMonthly.groupBars(1f, groupSpace, barSpace)
-        barChartMonthly.animateY(1000)
-        barChartMonthly.invalidate()
-    }
-
-
-    // ========================================
-    // OBSERVATION
-    // ========================================
-    private fun observeData() {
-
-        // 1. OBSERVE UNTUK STATEFLOW (Ringkasan Periode)
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    viewModel.periodIncome.collect { income: Double? ->
-                        tvPeriodIncome.text = "Pemasukan: ${viewModel.formatCurrency(income)}"
-                    }
-                }
-                launch {
-                    viewModel.periodExpense.collect { expense: Double? ->
-                        tvPeriodExpense.text = "Pengeluaran: ${viewModel.formatCurrency(expense)}"
-                    }
-                }
-                launch {
-                    viewModel.periodBalance.collect { balance: Double? ->
-                        tvPeriodBalance.text = viewModel.formatCurrency(balance)
-
-                        val color = if (balance != null && balance >= 0) {
-                            Color.parseColor("#4CAF50") // Hijau
-                        } else {
-                            Color.parseColor("#F44336") // Merah
-                        }
-                        tvPeriodBalance.setTextColor(color)
-
-                        tvSummary.text = viewModel.getPeriodSummaryText()
-                    }
-                }
-            }
-        }
-
-        // 2. OBSERVE UNTUK LIVE DATA (Charts & Top Kategori)
-
-        // Observe top kategori
-        viewModel.topExpenseCategory.observe(viewLifecycleOwner) { category ->
-            if (category != null) {
-                tvTopCategory.text = "Top Pengeluaran: ${category.categoryName} (${viewModel.formatCurrency(category.total)})"
-            } else {
-                tvTopCategory.text = "Belum ada data"
-            }
-        }
-
-        // Observe data untuk Pie Chart
-        viewModel.expenseByCategory.observe(viewLifecycleOwner) { categories ->
-            updatePieChart(categories) // <-- UPDATE PIE CHART
-        }
-
-        // Observe data untuk Bar Chart
-        viewModel.monthlyTotals.observe(viewLifecycleOwner) { monthlyData ->
-            updateBarChart(monthlyData) // <-- UPDATE BAR CHART
-        }
+        pieChart.data = data
+        pieChart.highlightValues(null) // Hapus highlight saat init
+        pieChart.invalidate() // Refresh chart
+//        pieChart.animateY(800)
     }
 }

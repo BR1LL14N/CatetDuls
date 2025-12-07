@@ -29,13 +29,15 @@ class StatistikViewModel(
     // Filter State
     // ========================================
 
+    // Periode Filter (Hari Ini, Minggu Ini, Bulan Ini, Tahun Ini)
     private val _selectedPeriod = MutableStateFlow("Bulan Ini")
     val selectedPeriod: StateFlow<String> = _selectedPeriod.asStateFlow()
 
+    // Tahun Filter (Khusus untuk grafik bulanan/tahunan jika dikembangkan nanti)
     private val _selectedYear = MutableStateFlow(Calendar.getInstance().get(Calendar.YEAR))
     val selectedYear: StateFlow<Int> = _selectedYear.asStateFlow()
 
-    // State untuk Tipe Chart (Default: Pengeluaran)
+    // Tipe Chart (Pemasukan / Pengeluaran)
     private val _chartType = MutableStateFlow(TransactionType.PENGELUARAN)
     val chartType: StateFlow<TransactionType> = _chartType.asStateFlow()
 
@@ -44,63 +46,56 @@ class StatistikViewModel(
     // ========================================
 
     /**
-     * LOGIC BARU: Pie Chart Dinamis
-     * Menggabungkan 3 Flow: Periode, Tipe Chart, dan Semua Kategori.
+     * Data Utama untuk Pie Chart & List Detail.
+     * Menggabungkan filter Periode, Tipe Transaksi, dan Data Kategori.
      */
-
-    val expenseByCategory: LiveData<List<CategoryExpense>> = combine(
+    val categoryStats: LiveData<List<CategoryExpense>> = combine(
         _selectedPeriod,
         _chartType,
         categoryRepository.getAllCategories()
-
-    ) { period: String, type: TransactionType, allCategories: List<Category> ->
-
+    ) { period, type, allCategories ->
         Triple(period, type, allCategories)
-    }
+    }.flatMapLatest { (period, type, allCategories) ->
 
-        .flatMapLatest { triple: Triple<String, TransactionType, List<Category>> ->
-            val (period, type, allCategories) = triple
+        val (startDate, endDate) = getDateRange(period)
 
-            val (startDate, endDate) = getDateRange(period)
+        // Ambil transaksi mentah berdasarkan tipe dan tanggal
+        transactionRepository.getTransactionsByTypeAndDateRange(type, startDate, endDate)
+            .map { transactions ->
+                // 1. Grouping transaksi berdasarkan categoryId
+                val groupedMap = transactions.groupBy { it.categoryId }
 
-            transactionRepository.getTransactionsByTypeAndDateRange(type, startDate, endDate)
-                .map { transactions: List<Transaction> ->
+                // 2. Map ke object CategoryExpense (termasuk Ikon)
+                val resultList = groupedMap.map { (catId, transList) ->
+                    val totalAmount = transList.sumOf { it.amount }
 
-                    val groupedMap = transactions.groupBy { it.categoryId }
+                    // Cari detail kategori untuk nama & ikon
+                    val category = allCategories.find { it.id == catId }
+                    val catName = category?.name ?: "Lainnya"
+                    val catIcon = category?.icon ?: "🏷️" // Default icon jika null
 
-                    val resultList = groupedMap.map { (catId, transList) ->
-                        val totalAmount = transList.sumOf { it.amount }
-
-                        val catName = allCategories.find { it.id == catId }?.name ?: "Unknown"
-
-                        CategoryExpense(
-                            categoryId = catId,
-                            categoryName = catName,
-                            total = totalAmount
-                        )
-                    }
-
-                    resultList.sortedByDescending { it.total }
+                    CategoryExpense(
+                        categoryId = catId,
+                        categoryName = catName,
+                        icon = catIcon, // Field ini penting untuk UI baru
+                        total = totalAmount
+                    )
                 }
-        }
-        .asLiveData()
+
+                // 3. Sort dari nominal terbesar
+                resultList.sortedByDescending { it.total }
+            }
+    }.asLiveData()
 
     /**
-     * Kategori dengan pengeluaran terbesar
+     * Kategori Terbesar (Otomatis diambil dari item pertama list di atas)
      */
-    val topExpenseCategory: LiveData<CategoryExpense?> = expenseByCategory.map { list ->
+    val topExpenseCategory: LiveData<CategoryExpense?> = categoryStats.map { list ->
         list.firstOrNull()
     }
 
-    /**
-     * Total pemasukan & pengeluaran per bulan (untuk Bar Chart)
-     */
-    val monthlyTotals: LiveData<List<MonthlyTotal>> = _selectedYear.asLiveData().switchMap { year ->
-        transactionRepository.getMonthlyTotals(year).asLiveData()
-    }
-
     // ========================================
-    // Period Totals
+    // Period Totals (Header Data)
     // ========================================
 
     private val _periodIncome = MutableStateFlow<Double?>(null)
@@ -113,28 +108,21 @@ class StatistikViewModel(
     val periodBalance: StateFlow<Double?> = _periodBalance.asStateFlow()
 
     // ========================================
-    // Initialization
+    // Initialization & Actions
     // ========================================
 
     init {
         loadPeriodData()
     }
 
-    // ========================================
-    // Actions
-    // ========================================
-
-    /**
-     * Action Baru: Set Tipe Chart
-     */
     fun setChartType(type: TransactionType) {
         _chartType.value = type
-        loadPeriodData()
+        // Tidak perlu loadPeriodData() manual karena Flow akan otomatis bereaksi
     }
 
     fun setPeriod(period: String) {
         _selectedPeriod.value = period
-        loadPeriodData()
+        loadPeriodData() // Refresh data header
     }
 
     fun setYear(year: Int) {
@@ -142,16 +130,12 @@ class StatistikViewModel(
     }
 
     private fun loadPeriodData() {
-        // Ambil range tanggal dulu
         val (startDate, endDate) = getDateRange(_selectedPeriod.value)
-
         _isLoading.value = true
 
         viewModelScope.launch {
             try {
-                // Menggunakan flow.collect untuk memperbarui StateFlow
-
-                // Pemasukan
+                // Launch paralel untuk Pemasukan & Pengeluaran agar tidak saling tunggu
                 launch {
                     transactionRepository.getTotalByTypeAndDateRange(TransactionType.PEMASUKAN, startDate, endDate)
                         .collect { income ->
@@ -160,7 +144,6 @@ class StatistikViewModel(
                         }
                 }
 
-                // Pengeluaran
                 launch {
                     transactionRepository.getTotalByTypeAndDateRange(TransactionType.PENGELUARAN, startDate, endDate)
                         .collect { expense ->
@@ -169,12 +152,8 @@ class StatistikViewModel(
                         }
                 }
 
-                // Catatan: isLoading=false harus diatur saat data pertama kali dimuat.
-                // Karena 'collect' adalah operasi berkelanjutan, kita tidak bisa menganggap
-                // data selesai dimuat di sini. Lebih baik menggunakan State khusus di UI.
-                // Namun, untuk sementara, kita biarkan di sini.
+                // Loading false bisa diatur di sini atau menggunakan logic terpisah
                 _isLoading.value = false
-
             } catch (e: Exception) {
                 _isLoading.value = false
                 _errorMessage.value = "Gagal memuat statistik: ${e.message}"
@@ -182,19 +161,10 @@ class StatistikViewModel(
         }
     }
 
-    // Helper kecil untuk menghitung saldo (agar tidak duplikat kode)
     private fun calculateBalance() {
         val income = _periodIncome.value ?: 0.0
         val expense = _periodExpense.value ?: 0.0
         _periodBalance.value = income - expense
-    }
-
-    fun refreshStatistics() {
-        loadPeriodData()
-    }
-
-    fun clearError() {
-        _errorMessage.value = null
     }
 
     // ========================================
@@ -203,20 +173,19 @@ class StatistikViewModel(
 
     private fun getDateRange(period: String): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
-        // Reset ke waktu sekarang agar kalkulasi akurat
-        calendar.timeInMillis = System.currentTimeMillis()
+        calendar.timeInMillis = System.currentTimeMillis() // Reset ke Now
 
         return when (period) {
-            "Hari Ini" -> {
+            "Harian", "Hari Ini" -> {
                 calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0); calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
                 val start = calendar.timeInMillis
                 calendar.set(Calendar.HOUR_OF_DAY, 23); calendar.set(Calendar.MINUTE, 59); calendar.set(Calendar.SECOND, 59); calendar.set(Calendar.MILLISECOND, 999)
                 val end = calendar.timeInMillis
                 Pair(start, end)
             }
-            "Minggu Ini" -> transactionRepository.getThisWeekDateRange()
-            "Bulan Ini" -> transactionRepository.getThisMonthDateRange()
-            "Tahun Ini" -> {
+            "Mingguan", "Minggu Ini" -> transactionRepository.getThisWeekDateRange()
+            "Bulanan", "Bulan Ini" -> transactionRepository.getThisMonthDateRange()
+            "Tahunan", "Tahun Ini" -> {
                 val currentYear = calendar.get(Calendar.YEAR)
                 calendar.set(Calendar.YEAR, currentYear)
                 calendar.set(Calendar.MONTH, Calendar.JANUARY); calendar.set(Calendar.DAY_OF_MONTH, 1)
@@ -238,71 +207,20 @@ class StatistikViewModel(
         return "Rp ${String.format("%,.0f", amount)}"
     }
 
-    fun calculatePercentage(part: Double, total: Double): Float {
-        if (total == 0.0) return 0f
-        return ((part / total) * 100).toFloat()
-    }
-
-    fun getMonthName(monthNumber: Int): String {
-        val months = arrayOf(
-            "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-            "Jul", "Agu", "Sep", "Okt", "Nov", "Des"
-        )
-        return if (monthNumber in 1..12) months[monthNumber - 1] else ""
-    }
-
     fun getCategoryColor(index: Int): Int {
         val colors = listOf(
-            android.graphics.Color.parseColor("#FF6384"),
-            android.graphics.Color.parseColor("#36A2EB"),
-            android.graphics.Color.parseColor("#FFCE56"),
-            android.graphics.Color.parseColor("#4BC0C0"),
-            android.graphics.Color.parseColor("#9966FF"),
-            android.graphics.Color.parseColor("#FF9F40"),
-            android.graphics.Color.parseColor("#33FFCC"),
-            android.graphics.Color.parseColor("#C9CBCF")
+            android.graphics.Color.parseColor("#FF6384"), // Pink
+            android.graphics.Color.parseColor("#36A2EB"), // Biru
+            android.graphics.Color.parseColor("#FFCE56"), // Kuning
+            android.graphics.Color.parseColor("#4BC0C0"), // Teal
+            android.graphics.Color.parseColor("#9966FF"), // Ungu
+            android.graphics.Color.parseColor("#FF9F40"), // Oranye
+            android.graphics.Color.parseColor("#33FFCC"), // Hijau Muda
+            android.graphics.Color.parseColor("#C9CBCF")  // Abu-abu
         )
         return colors[index % colors.size]
     }
-
-    // Fungsi Data Class Helper (opsional, jika tidak dipakai bisa dihapus)
-    fun getPieChartData(): LiveData<List<CategoryExpenseWithPercentage>> {
-        return expenseByCategory.map { categories ->
-            val total = categories.sumOf { it.total }
-            categories.map { category ->
-                CategoryExpenseWithPercentage(
-                    categoryId = category.categoryId,
-                    categoryName = category.categoryName,
-                    total = category.total,
-                    percentage = calculatePercentage(category.total, total)
-                )
-            }
-        }
-    }
-
-    fun getPeriodSummaryText(): String {
-        val income = _periodIncome.value ?: 0.0
-        val expense = _periodExpense.value ?: 0.0
-        val balance = income - expense
-        val formattedBalance = String.format("%,.0f", abs(balance))
-
-        return when {
-            balance > 0 -> "Anda surplus bulan ini: ${formatCurrency(balance)}"
-            balance < 0 -> "Anda defisit bulan ini: ${formatCurrency(abs(balance))}"
-            else -> "Seimbang bulan ini."
-        }
-    }
 }
-
-/**
- * Data class untuk Pie Chart dengan persentase
- */
-data class CategoryExpenseWithPercentage(
-    val categoryId: Int,
-    val categoryName: String,
-    val total: Double,
-    val percentage: Float
-)
 
 /**
  * Factory untuk StatistikViewModel
