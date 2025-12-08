@@ -182,7 +182,8 @@ class TambahViewModel(
                     categoryId = categoryId,
                     date = _date.value,
                     notes = _notes.value,
-                    walletId = walletId // ✅ GUNAKAN WALLET ID
+                    walletId = walletId,
+                    lastSyncAt = 0L
                 )
 
                 // Simpan ke database

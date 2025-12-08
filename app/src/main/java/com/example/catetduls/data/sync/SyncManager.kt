@@ -1,6 +1,7 @@
 package com.example.catetduls.data.sync
 
 import android.content.Context
+import android.util.Log
 import androidx.work.*
 import java.util.concurrent.TimeUnit
 
@@ -15,8 +16,9 @@ object SyncManager {
         val constraints = Constraints.Builder()
             // Hanya jalan jika ada koneksi internet
             .setRequiredNetworkType(NetworkType.CONNECTED)
-            // Hanya jalan jika perangkat sedang idle (tidak aktif)
-            .setRequiresDeviceIdle(true)
+            // !!! PERBAIKAN: setRequiresDeviceIdle(true) DIHAPUS UNTUK DEBUGGING !!!
+            // Jika ingin diaktifkan kembali saat production, uncomment baris di bawah:
+            // .setRequiresDeviceIdle(true)
             .build()
 
         // Jadwalkan setiap 6 jam
@@ -29,14 +31,13 @@ object SyncManager {
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             SYNC_WORK_NAME,
-            // Jika ada pekerjaan yang sudah dijadwalkan dengan nama yang sama, KEEP (pertahankan yang lama)
             ExistingPeriodicWorkPolicy.KEEP,
             syncRequest
         )
     }
 
     /**
-     * Memaksa sinkronisasi segera (misalnya saat pengguna mengklik tombol Sync)
+     * Memaksa sinkronisasi segera (mengklik tombol Sync)
      */
     fun forceOneTimeSync(context: Context) {
         val constraints = Constraints.Builder()
@@ -49,10 +50,11 @@ object SyncManager {
             .build()
 
         WorkManager.getInstance(context).enqueueUniqueWork(
-            // Gunakan REPLACE agar bisa langsung menggantikan pekerjaan sebelumnya
             "ForceOneTimeSync",
             ExistingWorkPolicy.REPLACE,
             syncRequest
         )
+
+        Log.d("SyncManager", "Forcing one-time sync...")
     }
 }

@@ -48,7 +48,8 @@ class FormKategoriViewModel(
             name = nameToUse.trim(),
             icon = iconToUse,
             type = type.value,
-            isDefault = _isDefault
+            isDefault = _isDefault,
+            lastSyncAt = 0L
         )
 
         repository.insertCategory(category)

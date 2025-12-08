@@ -14,14 +14,14 @@ object NetworkModule {
     private const val AUTH_TOKEN = "1|xzi277UzdQLZjdDmKn6lXEs54mgZphtDEyPf2sAB4d8a87de"
 
 
-    private const val BASE_URL = "http://10.0.2.2:8000/api/"  // TAMBAH SLASH DI AKHIR!
+    private const val BASE_URL = "http://10.0.2.2:8000/api/"
 
     private const val TIMEOUT_SECONDS = 30L
 
     fun provideOkHttpClient(): OkHttpClient {
 
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            setLevel(HttpLoggingInterceptor.Level.BODY)  // PENTING: Ubah jadi BODY
+            setLevel(HttpLoggingInterceptor.Level.BODY)
         }
 
 
@@ -30,8 +30,8 @@ object NetworkModule {
 
             val newRequest = originalRequest.newBuilder()
                 .addHeader("Authorization", "Bearer $AUTH_TOKEN")
-                .addHeader("Accept", "application/json")  // PENTING: Tambahkan ini
-                .addHeader("Content-Type", "application/json")  // PENTING: Tambahkan ini
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
                 .build()
 
             val response = chain.proceed(newRequest)
