@@ -159,4 +159,7 @@ interface CategoryDao {
         ORDER BY transactionCount DESC
     """)
     fun getCategoriesWithTransactionCount(): Flow<List<CategoryWithCount>>
+
+    @Query("SELECT id FROM categories WHERE type = :type AND bookId = :bookId LIMIT 1")
+    suspend fun getCategoryIdByType(type: TransactionType, bookId: Int): Int?
 }

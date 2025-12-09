@@ -37,6 +37,10 @@ class WalletRepository(private val walletDao: WalletDao) {
     fun getTotalBalance(bookId: Int): Flow<Double?> =
         walletDao.getTotalBalance(bookId)
 
+    suspend fun getSingleWalletById(walletId: Int): Wallet? {
+        return walletDao.getSingleWalletById(walletId)
+    }
+
     // ===================================
     // CREATE
     // ===================================

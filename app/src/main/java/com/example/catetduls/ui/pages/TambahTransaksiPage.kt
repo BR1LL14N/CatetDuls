@@ -25,13 +25,12 @@ import com.example.catetduls.data.getTransactionRepository
 import com.example.catetduls.data.getWalletRepository
 import com.example.catetduls.viewmodel.TambahViewModel
 import com.example.catetduls.viewmodel.TambahViewModelFactory
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.textfield.TextInputEditText
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import java.io.File
 import java.util.*
+import java.io.File
 
 class TambahTransaksiPage : Fragment() {
 
@@ -41,23 +40,38 @@ class TambahTransaksiPage : Fragment() {
     private lateinit var radioGroupType: RadioGroup
     private lateinit var radioPemasukan: RadioButton
     private lateinit var radioPengeluaran: RadioButton
+    private lateinit var radioTransfer: RadioButton
     private lateinit var tvLabelPemasukan: TextView
     private lateinit var tvLabelPengeluaran: TextView
+    private lateinit var tvLabelTransfer: TextView
     private lateinit var tvIconPemasukan: TextView
     private lateinit var tvIconPengeluaran: TextView
+    private lateinit var tvIconTransfer: TextView
     private lateinit var cardPemasukan: MaterialCardView
     private lateinit var cardPengeluaran: MaterialCardView
+    private lateinit var cardTransfer: MaterialCardView
+
+    // Views Kategori
+    private lateinit var tvLabelKategori: TextView
+    private lateinit var cardKategori: MaterialCardView
     private lateinit var spinnerKategori: Spinner
-    private lateinit var spinnerWallet: Spinner // ✅ Spinner Wallet
-    private lateinit var etAmount: TextInputEditText
+
+    // Views Dompet
+    private lateinit var tvLabelWalletSource: TextView
+    private lateinit var spinnerWallet: Spinner // Dompet Sumber
+    private lateinit var tvLabelWalletTarget: TextView
+    private lateinit var cardWalletTarget: MaterialCardView
+    private lateinit var spinnerWalletTarget: Spinner // Dompet Tujuan
+
+    private lateinit var etAmount: EditText
     private lateinit var tvDate: TextView
     private lateinit var cardSelectDate: MaterialCardView
-    private lateinit var etNotes: TextInputEditText
+    private lateinit var etNotes: com.google.android.material.textfield.TextInputEditText
     private lateinit var btnSimpan: MaterialButton
     private lateinit var btnReset: MaterialButton
     private lateinit var progressBar: ProgressBar
 
-    // Views BARU untuk Foto dan Lanjut
+    // Photo Views
     private lateinit var btnAddPhoto: MaterialButton
     private lateinit var ivProofImage: ImageView
     private lateinit var btnLanjut: MaterialButton
@@ -65,8 +79,16 @@ class TambahTransaksiPage : Fragment() {
     private lateinit var tvHeaderTitle: TextView
 
     private var categoriesList: List<Category> = emptyList()
-    private var walletsList: List<Wallet> = emptyList() // ✅ List Dompet
-    private var imageUri: Uri? = null // Menyimpan URI gambar
+    private var walletsList: List<Wallet> = emptyList()
+    private var imageUri: Uri? = null
+
+    // Calculator State
+    private var calculatorDialog: BottomSheetDialog? = null
+    private var currentInput = ""
+    private var operator = ""
+    private var firstValue = ""
+    private var isNewInput = true
+    private var isCalculated = false
 
     // Launcher untuk Galeri
     private val galleryLauncher: ActivityResultLauncher<String> =
@@ -82,6 +104,11 @@ class TambahTransaksiPage : Fragment() {
             if (success) {
                 imageUri?.let { setImageProof(it) }
             } else {
+                // Jika pengambilan gambar gagal atau dibatalkan, reset imageUri jika itu adalah temp uri
+                if (imageUri?.scheme == "content" && imageUri?.authority?.endsWith(".fileprovider") == true) {
+                    // Hapus file sementara jika ada
+                    try { requireContext().contentResolver.delete(imageUri!!, null, null) } catch (_: Exception) {}
+                }
                 imageUri = null
             }
         }
@@ -89,7 +116,6 @@ class TambahTransaksiPage : Fragment() {
     private val requestCameraPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
-                // Izin diberikan, langsung buka kamera
                 startCameraProcess()
             } else {
                 Toast.makeText(requireContext(), "Izin kamera diperlukan untuk mengambil foto", Toast.LENGTH_SHORT).show()
@@ -124,7 +150,6 @@ class TambahTransaksiPage : Fragment() {
             1
         }
 
-        // Perbarui Factory:
         val factory = TambahViewModelFactory(
             transactionRepo,
             categoryRepo,
@@ -139,23 +164,33 @@ class TambahTransaksiPage : Fragment() {
         val transactionId = arguments?.getInt("ARG_TRANSACTION_ID", -1) ?: -1
 
         if (transactionId != -1) {
-            // MODE EDIT
-            // 1. Ubah Judul Halaman
-            val tvTitle = view.findViewById<TextView>(R.id.tv_header_title) // Pastikan ID ini ada di XML header
-            tvTitle?.text = "Edit Transaksi"
+            tvHeaderTitle.text = "Edit Transaksi"
             btnSimpan.text = "Update Transaksi"
 
-            // 2. Load Data dari Database ke ViewModel
+            // Nonaktifkan pengeditan transfer
+            if (viewModel.selectedType.value == TransactionType.TRANSFER) {
+                Toast.makeText(requireContext(), "Edit Transfer tidak didukung. Hapus dan buat baru.", Toast.LENGTH_LONG).show()
+                btnSimpan.isEnabled = false
+            }
+
             viewModel.loadTransaction(transactionId)
+        } else {
+            tvHeaderTitle.text = "Tambah Transaksi"
+            btnSimpan.text = "Simpan Transaksi"
         }
 
         setupRadioGroup()
         setupDatePicker()
         setupPhotoPicker()
+        setupAmountInput()
         setupButtons()
-        // setupWalletSpinner() // Dihapus karena listener dipasang di observeData()
 
-
+        // Inisialisasi awal UI berdasarkan ViewModel state
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.selectedType.collect {
+                updateCardSelection()
+            }
+        }
 
         observeData()
     }
@@ -163,7 +198,7 @@ class TambahTransaksiPage : Fragment() {
     companion object {
         fun newInstance(transactionId: Int? = null): TambahTransaksiPage {
             val fragment = TambahTransaksiPage()
-            if (transactionId != null) {
+            if (transactionId != null && transactionId != -1) {
                 val args = Bundle()
                 args.putInt("ARG_TRANSACTION_ID", transactionId)
                 fragment.arguments = args
@@ -172,50 +207,35 @@ class TambahTransaksiPage : Fragment() {
         }
     }
 
-    /**
-     * Langkah 1: Cek apakah izin sudah diberikan
-     */
     private fun checkCameraPermissionAndLaunch() {
         when {
             ContextCompat.checkSelfPermission(
                 requireContext(),
                 android.Manifest.permission.CAMERA
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED -> {
-                // Izin sudah ada -> Buka Kamera
                 startCameraProcess()
             }
             shouldShowRequestPermissionRationale(android.Manifest.permission.CAMERA) -> {
-                // User pernah menolak, beri penjelasan (Opsional, bisa langsung minta lagi)
                 Toast.makeText(requireContext(), "Aplikasi butuh akses kamera untuk memotret bukti transaksi.", Toast.LENGTH_LONG).show()
                 requestCameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
             }
             else -> {
-                // Belum pernah minta -> Minta Izin
                 requestCameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
             }
         }
     }
 
-    /**
-     * Langkah 2: Persiapkan File Uri dan Luncurkan Intent Kamera
-     */
     private fun startCameraProcess() {
         try {
             val context = requireContext()
-
-            // 1. Buat file temporary di cache untuk menampung hasil foto
-            // File ini hanya sementara sebelum nanti disalin ke internal storage saat tombol Simpan ditekan
-            val photoFile = java.io.File.createTempFile(
-                "IMG_TEMP_",  /* prefix */
-                ".jpg",       /* suffix */
-                context.cacheDir /* directory */
+            // Menggunakan File.createTempFile untuk memastikan file sementara
+            val photoFile = File.createTempFile(
+                "IMG_TEMP_",
+                ".jpg",
+                context.cacheDir
             )
 
-            // 2. Dapatkan URI menggunakan FileProvider (WAJIB COCOK DENGAN MANIFEST)
-            // Authority: com.example.catetduls.fileprovider (sesuaikan dengan package name Anda)
             val authority = "${context.packageName}.fileprovider"
-
-            // Simpan ke variabel lokal 'uri' (tipe: Uri, bukan Uri?)
             val uri = androidx.core.content.FileProvider.getUriForFile(
                 context,
                 authority,
@@ -223,8 +243,6 @@ class TambahTransaksiPage : Fragment() {
             )
 
             imageUri = uri
-
-            // 3. Luncurkan Kamera
             cameraLauncher.launch(uri)
 
         } catch (e: Exception) {
@@ -234,22 +252,39 @@ class TambahTransaksiPage : Fragment() {
     }
 
     private fun initViews(view: View) {
+        // Inisialisasi View
         radioGroupType = view.findViewById(R.id.radio_group_type)
         radioPemasukan = view.findViewById(R.id.radio_pemasukan)
         radioPengeluaran = view.findViewById(R.id.radio_pengeluaran)
+        radioTransfer = view.findViewById(R.id.radio_transfer)
+
         tvLabelPemasukan = view.findViewById(R.id.tv_label_pemasukan)
         tvLabelPengeluaran = view.findViewById(R.id.tv_label_pengeluaran)
+        tvLabelTransfer = view.findViewById(R.id.tv_label_transfer)
+
         tvIconPemasukan = view.findViewById(R.id.tv_icon_pemasukan)
         tvIconPengeluaran = view.findViewById(R.id.tv_icon_pengeluaran)
+        tvIconTransfer = view.findViewById(R.id.tv_icon_transfer)
+
         cardPemasukan = view.findViewById(R.id.card_pemasukan)
         cardPengeluaran = view.findViewById(R.id.card_pengeluaran)
+        cardTransfer = view.findViewById(R.id.card_transfer)
+
+        // Kategori Views
+        tvLabelKategori = view.findViewById(R.id.tv_label_kategori)
+        cardKategori = view.findViewById(R.id.card_kategori)
         spinnerKategori = view.findViewById(R.id.spinner_kategori)
-        spinnerWallet = view.findViewById(R.id.spinner_wallet)
+
+        // Dompet Views
+        tvLabelWalletSource = view.findViewById(R.id.tv_label_wallet_source)
+        spinnerWallet = view.findViewById(R.id.spinner_wallet) // SUMBER
+        tvLabelWalletTarget = view.findViewById(R.id.tv_label_wallet_target)
+        cardWalletTarget = view.findViewById(R.id.card_wallet_target)
+        spinnerWalletTarget = view.findViewById(R.id.spinner_wallet_target) // TUJUAN
+
         etAmount = view.findViewById(R.id.et_amount)
         tvDate = view.findViewById(R.id.tv_date)
-
         cardSelectDate = view.findViewById(R.id.card_select_date)
-
         etNotes = view.findViewById(R.id.et_notes)
         btnSimpan = view.findViewById(R.id.btn_simpan)
         btnReset = view.findViewById(R.id.btn_reset)
@@ -258,7 +293,206 @@ class TambahTransaksiPage : Fragment() {
         btnAddPhoto = view.findViewById(R.id.btn_add_photo)
         ivProofImage = view.findViewById(R.id.iv_proof_image)
         btnLanjut = view.findViewById(R.id.btn_lanjut)
+
+        tvHeaderTitle = view.findViewById(R.id.tv_header_title)
     }
+
+    private fun setupAmountInput() {
+        // Menonaktifkan keyboard saat diklik, dan memunculkan kalkulator
+        etAmount.apply {
+            keyListener = null
+            isFocusable = false
+            isFocusableInTouchMode = false
+            setOnClickListener { showCalculatorDialog() }
+        }
+    }
+
+    private fun showCalculatorDialog() {
+        // Ambil nilai yang sudah ada dari ViewModel/EditText, bersihkan dari pemisah
+        val cleanAmount = viewModel.amount.value.replace(Regex("[^0-9]"), "")
+
+        // Reset state kalkulator
+        currentInput = if (cleanAmount.isNotEmpty() && cleanAmount.toLongOrNull() != 0L) cleanAmount else "0"
+        operator = ""
+        firstValue = ""
+        isNewInput = true
+        isCalculated = false
+
+        val dialogView = layoutInflater.inflate(R.layout.dialog_calculator, null)
+        calculatorDialog = BottomSheetDialog(requireContext())
+        calculatorDialog?.setContentView(dialogView)
+
+        val tvDisplay = dialogView.findViewById<TextView>(R.id.tv_calculator_display)
+        val btnClose = dialogView.findViewById<ImageButton>(R.id.btn_close_calculator)
+        val btnDone = dialogView.findViewById<MaterialButton>(R.id.btn_done_calculator)
+
+        tvDisplay.text = formatAmount(currentInput)
+
+        // Number buttons
+        val numberButtons = mapOf(
+            R.id.calc_btn_0 to "0", R.id.calc_btn_1 to "1", R.id.calc_btn_2 to "2",
+            R.id.calc_btn_3 to "3", R.id.calc_btn_4 to "4", R.id.calc_btn_5 to "5",
+            R.id.calc_btn_6 to "6", R.id.calc_btn_7 to "7", R.id.calc_btn_8 to "8",
+            R.id.calc_btn_9 to "9"
+        )
+
+        numberButtons.forEach { (id, number) ->
+            dialogView.findViewById<MaterialButton>(id)?.setOnClickListener {
+                handleNumberClick(number, tvDisplay)
+            }
+        }
+
+        // Operator buttons
+        dialogView.findViewById<MaterialButton>(R.id.calc_btn_add)?.setOnClickListener {
+            handleOperatorClick("+", tvDisplay)
+        }
+        dialogView.findViewById<MaterialButton>(R.id.calc_btn_subtract)?.setOnClickListener {
+            handleOperatorClick("-", tvDisplay)
+        }
+        dialogView.findViewById<MaterialButton>(R.id.calc_btn_multiply)?.setOnClickListener {
+            handleOperatorClick("×", tvDisplay)
+        }
+        dialogView.findViewById<MaterialButton>(R.id.calc_btn_divide)?.setOnClickListener {
+            handleOperatorClick("÷", tvDisplay)
+        }
+
+        // Backspace button
+        dialogView.findViewById<MaterialButton>(R.id.calc_btn_backspace)?.setOnClickListener {
+            handleBackspace(tvDisplay)
+        }
+
+        // Clear button (C)
+        dialogView.findViewById<MaterialButton>(R.id.calc_btn_clear)?.setOnClickListener {
+            currentInput = "0"
+            operator = ""
+            firstValue = ""
+            isNewInput = true
+            isCalculated = false
+            tvDisplay.text = formatAmount(currentInput)
+        }
+
+        // Close button
+        btnClose?.setOnClickListener {
+            calculatorDialog?.dismiss()
+        }
+
+        // Done button (Selesai)
+        btnDone?.setOnClickListener {
+            // Hitung hasil jika ada operasi yang tertunda
+            if (operator.isNotEmpty() && firstValue.isNotEmpty() && !isNewInput) {
+                calculateResult()
+            }
+
+            val finalAmount = currentInput.toLongOrNull()?.toString() ?: "0"
+            etAmount.setText(formatAmount(finalAmount)) // Tampilkan dalam format (misal: 1.000.000)
+            viewModel.setAmount(finalAmount) // Simpan nilai bersih ke ViewModel
+            calculatorDialog?.dismiss()
+        }
+
+        calculatorDialog?.setOnDismissListener {
+            // Hilangkan focus dari etAmount agar tidak memicu dialog lagi saat fragment resumed
+            etAmount.clearFocus()
+        }
+
+        calculatorDialog?.show()
+    }
+
+    private fun handleNumberClick(number: String, display: TextView) {
+        if (isCalculated) {
+            currentInput = "0"
+            operator = ""
+            firstValue = ""
+            isCalculated = false
+            isNewInput = true
+        }
+
+        if (isNewInput) {
+            // Handle kasus 0 di awal
+            currentInput = if (number == "0" && currentInput == "0") "0" else number
+            isNewInput = false
+        } else {
+            // Batasi input agar tidak terlalu panjang (misal: max 15 digit)
+            if (currentInput.length < 15) {
+                if (currentInput == "0") {
+                    currentInput = number
+                } else {
+                    currentInput += number
+                }
+            }
+        }
+
+        val displayValue = if (firstValue.isNotEmpty() && operator.isNotEmpty()) {
+            "${formatAmount(firstValue)} $operator ${formatAmount(currentInput)}"
+        } else {
+            formatAmount(currentInput)
+        }
+        display.text = displayValue
+    }
+
+    private fun handleOperatorClick(op: String, display: TextView) {
+        if (operator.isNotEmpty() && firstValue.isNotEmpty() && !isNewInput) {
+            // Hitung hasil sebelum operator baru
+            calculateResult()
+        }
+
+        firstValue = currentInput
+        operator = op
+        isNewInput = true
+        isCalculated = false
+
+        display.text = "${formatAmount(firstValue)} $op"
+    }
+
+    private fun handleBackspace(display: TextView) {
+        if (isCalculated) return // Tidak bisa backspace setelah perhitungan final
+
+        if (currentInput.length > 1) {
+            currentInput = currentInput.dropLast(1)
+        } else {
+            currentInput = "0"
+            isNewInput = true // Memastikan bisa mengetik angka lain setelah kembali ke 0
+        }
+
+        val displayValue = if (firstValue.isNotEmpty() && operator.isNotEmpty() && !isNewInput) {
+            "${formatAmount(firstValue)} $operator ${formatAmount(currentInput)}"
+        } else if (firstValue.isNotEmpty() && operator.isNotEmpty() && isNewInput) {
+            "${formatAmount(firstValue)} $operator"
+        } else {
+            formatAmount(currentInput)
+        }
+        display.text = displayValue
+    }
+
+    private fun calculateResult(display: TextView? = null) {
+        if (firstValue.isEmpty() || operator.isEmpty() || currentInput.isEmpty()) return
+
+        val first = firstValue.toLongOrNull() ?: 0L
+        val second = currentInput.toLongOrNull() ?: 0L
+
+        val result: Long = when (operator) {
+            "+" -> first + second
+            "-" -> first - second
+            "×" -> first * second
+            "÷" -> if (second != 0L) first / second else 0L
+            else -> second
+        }
+
+        currentInput = result.toString()
+        operator = ""
+        firstValue = ""
+        isNewInput = true
+        isCalculated = true
+
+        display?.text = formatAmount(currentInput)
+    }
+
+    private fun formatAmount(amount: String): String {
+        val number = amount.toLongOrNull() ?: return "0"
+        // Menggunakan Locale Indonesia untuk format titik sebagai pemisah ribuan
+        return String.format(Locale("in", "ID"), "%,d", number).replace(',', '.')
+    }
+
+    // --- SETUP LISTENERS ---
 
     private fun setupWalletSpinnerListener(wallets: List<Wallet>) {
         spinnerWallet.onItemSelectedListener = null
@@ -274,6 +508,20 @@ class TambahTransaksiPage : Fragment() {
         }
     }
 
+    private fun setupTargetWalletSpinnerListener(wallets: List<Wallet>) {
+        spinnerWalletTarget.onItemSelectedListener = null
+
+        spinnerWalletTarget.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (position < wallets.size) {
+                    val selectedWalletId = wallets[position].id
+                    viewModel.setTargetWallet(selectedWalletId)
+                    btnLanjut.visibility = View.GONE
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+    }
 
     private fun setupPhotoPicker() {
         btnAddPhoto.setOnClickListener {
@@ -289,6 +537,7 @@ class TambahTransaksiPage : Fragment() {
                 showClearImageDialog()
             }
         }
+        // Pastikan reset dipanggil untuk tampilan awal
         resetImageProof()
     }
 
@@ -304,28 +553,6 @@ class TambahTransaksiPage : Fragment() {
             }
             .setNegativeButton("Batal", null)
             .show()
-    }
-
-    private fun launchCamera() {
-        val context = requireContext()
-        val filesDir = context.getExternalFilesDir(null)
-        val imageFile = java.io.File(filesDir, "temp_photo_${System.currentTimeMillis()}.jpg")
-
-        try {
-            imageUri = androidx.core.content.FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                imageFile
-            )
-
-            imageUri?.let { uri ->
-                cameraLauncher.launch(uri)
-            }
-
-        } catch (e: IllegalArgumentException) {
-            Toast.makeText(context, "Error: FileProvider belum dikonfigurasi.", Toast.LENGTH_LONG).show()
-            e.printStackTrace()
-        }
     }
 
     private fun showClearImageDialog() {
@@ -344,104 +571,150 @@ class TambahTransaksiPage : Fragment() {
         imageUri = uri
         ivProofImage.setImageURI(uri)
         ivProofImage.visibility = View.VISIBLE
+        // Menggunakan String literal
         btnAddPhoto.setText("Hapus Foto")
         btnAddPhoto.setIconResource(R.drawable.ic_baseline_close_24)
+        // Note: viewModel.setImagePath akan di-set saat btnSimpan diklik
     }
 
     private fun resetImageProof() {
         imageUri = null
         ivProofImage.visibility = View.GONE
         ivProofImage.setImageResource(0)
+        // Menggunakan String literal
         btnAddPhoto.setText("Tambah Foto")
         btnAddPhoto.setIconResource(R.drawable.ic_photo_24)
         viewModel.setImagePath(null)
     }
 
     private fun setupRadioGroup() {
-        val cardPemasukan = view?.findViewById<MaterialCardView>(R.id.card_pemasukan)
-        val cardPengeluaran = view?.findViewById<MaterialCardView>(R.id.card_pengeluaran)
-
         val typeClickListener = View.OnClickListener { v ->
-            val type = if (v.id == R.id.card_pemasukan) TransactionType.PEMASUKAN else TransactionType.PENGELUARAN
+            val type = when (v.id) {
+                R.id.card_pemasukan -> TransactionType.PEMASUKAN
+                R.id.card_transfer -> TransactionType.TRANSFER
+                R.id.card_pengeluaran -> TransactionType.PENGELUARAN
+                else -> viewModel.selectedType.value // Mempertahankan nilai saat ini jika id tidak dikenal
+            }
+
+            // Set radio button berdasarkan klik card
+            when (type) {
+                TransactionType.PEMASUKAN -> radioPemasukan.isChecked = true
+                TransactionType.PENGELUARAN -> radioPengeluaran.isChecked = true
+                TransactionType.TRANSFER -> radioTransfer.isChecked = true
+            }
+
             viewModel.setType(type)
             updateCardSelection()
             btnLanjut.visibility = View.GONE
         }
-        cardPemasukan?.setOnClickListener(typeClickListener)
-        cardPengeluaran?.setOnClickListener(typeClickListener)
+
+        cardPemasukan.setOnClickListener(typeClickListener)
+        cardPengeluaran.setOnClickListener(typeClickListener)
+        cardTransfer.setOnClickListener(typeClickListener)
 
         radioGroupType.setOnCheckedChangeListener { _, checkedId ->
-            val type = if (checkedId == R.id.radio_pemasukan) TransactionType.PEMASUKAN else TransactionType.PENGELUARAN
+            val type = when (checkedId) {
+                R.id.radio_pemasukan -> TransactionType.PEMASUKAN
+                R.id.radio_transfer -> TransactionType.TRANSFER
+                R.id.radio_pengeluaran -> TransactionType.PENGELUARAN
+                else -> TransactionType.PENGELUARAN // Default
+            }
             viewModel.setType(type)
             updateCardSelection()
             btnLanjut.visibility = View.GONE
         }
 
+        // Observasi untuk memastikan radio button dan card diperbarui jika ViewModel berubah
         viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.selectedType.collect { type ->
-                if (type == TransactionType.PEMASUKAN) {
-                    radioPemasukan.isChecked = true
-                    radioPengeluaran.isChecked = false
-                } else {
-                    radioPengeluaran.isChecked = true
-                    radioPemasukan.isChecked = false
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.selectedType.collect { type ->
+                    val checkedId = when (type) {
+                        TransactionType.PEMASUKAN -> R.id.radio_pemasukan
+                        TransactionType.TRANSFER -> R.id.radio_transfer
+                        TransactionType.PENGELUARAN -> R.id.radio_pengeluaran
+                    }
+                    if (radioGroupType.checkedRadioButtonId != checkedId) {
+                        // Mencegah loop tak terbatas dengan hanya mengatur jika berbeda
+                        radioGroupType.check(checkedId)
+                    }
+                    updateCardSelection()
                 }
-                updateCardSelection()
             }
         }
-        updateCardSelection()
     }
 
     private fun updateCardSelection() {
-        val cardPemasukan = view?.findViewById<MaterialCardView>(R.id.card_pemasukan)
-        val cardPengeluaran = view?.findViewById<MaterialCardView>(R.id.card_pengeluaran)
-        val tvLabelPemasukan = view?.findViewById<TextView>(R.id.tv_label_pemasukan)
-        val tvLabelPengeluaran = view?.findViewById<TextView>(R.id.tv_label_pengeluaran)
-        val tvIconPemasukan = view?.findViewById<TextView>(R.id.tv_icon_pemasukan)
-        val tvIconPengeluaran = view?.findViewById<TextView>(R.id.tv_icon_pengeluaran)
-
         val colorSuccess = ContextCompat.getColor(requireContext(), R.color.success)
         val colorDanger = ContextCompat.getColor(requireContext(), R.color.danger)
+        val colorSecondary = ContextCompat.getColor(requireContext(), R.color.text_secondary)
         val colorBorder = ContextCompat.getColor(requireContext(), R.color.border)
 
-        val isPemasukanChecked = radioPemasukan.isChecked
+        val isTransfer = viewModel.selectedType.value == TransactionType.TRANSFER
 
-        if (isPemasukanChecked) {
-            cardPemasukan?.apply {
-                strokeColor = colorSuccess
-                strokeWidth = 3
-                cardElevation = 4f
-            }
-            tvLabelPemasukan?.setTypeface(null, android.graphics.Typeface.BOLD)
-            tvIconPemasukan?.setTypeface(null, android.graphics.Typeface.BOLD)
-
-            cardPengeluaran?.apply {
+        // Reset all cards
+        listOf(cardPemasukan, cardPengeluaran, cardTransfer).forEach { card ->
+            card.apply {
                 strokeColor = colorBorder
                 strokeWidth = 1
                 cardElevation = 2f
             }
-            tvLabelPengeluaran?.setTypeface(null, android.graphics.Typeface.NORMAL)
-            tvIconPengeluaran?.setTypeface(null, android.graphics.Typeface.NORMAL)
+        }
+        listOf(tvLabelPemasukan, tvLabelPengeluaran, tvLabelTransfer).forEach { it.setTypeface(null, android.graphics.Typeface.NORMAL) }
+        listOf(tvIconPemasukan, tvIconPengeluaran, tvIconTransfer).forEach { it.setTypeface(null, android.graphics.Typeface.NORMAL) }
 
+        // Highlight selected card
+        when (viewModel.selectedType.value) {
+            TransactionType.PEMASUKAN -> {
+                cardPemasukan.apply {
+                    strokeColor = colorSuccess
+                    strokeWidth = 3
+                    cardElevation = 4f
+                }
+                tvLabelPemasukan.setTypeface(null, android.graphics.Typeface.BOLD)
+                tvIconPemasukan.setTypeface(null, android.graphics.Typeface.BOLD)
+            }
+            TransactionType.TRANSFER -> {
+                cardTransfer.apply {
+                    strokeColor = colorSecondary
+                    strokeWidth = 3
+                    cardElevation = 4f
+                }
+                tvLabelTransfer.setTypeface(null, android.graphics.Typeface.BOLD)
+                tvIconTransfer.setTypeface(null, android.graphics.Typeface.BOLD)
+            }
+            TransactionType.PENGELUARAN -> {
+                cardPengeluaran.apply {
+                    strokeColor = colorDanger
+                    strokeWidth = 3
+                    cardElevation = 4f
+                }
+                tvLabelPengeluaran.setTypeface(null, android.graphics.Typeface.BOLD)
+                tvIconPengeluaran.setTypeface(null, android.graphics.Typeface.BOLD)
+            }
+        }
+
+        // Kontrol Visibilitas Kategori
+        if (isTransfer) {
+            tvLabelKategori.visibility = View.GONE
+            cardKategori.visibility = View.GONE
         } else {
-            cardPengeluaran?.apply {
-                strokeColor = colorDanger
-                strokeWidth = 3
-                cardElevation = 4f
-            }
-            tvLabelPengeluaran?.setTypeface(null, android.graphics.Typeface.BOLD)
-            tvIconPengeluaran?.setTypeface(null, android.graphics.Typeface.BOLD)
+            tvLabelKategori.visibility = View.VISIBLE
+            cardKategori.visibility = View.VISIBLE
+        }
 
-            cardPemasukan?.apply {
-                strokeColor = colorBorder
-                strokeWidth = 1
-                cardElevation = 2f
-            }
-            tvLabelPemasukan?.setTypeface(null, android.graphics.Typeface.NORMAL)
-            tvIconPemasukan?.setTypeface(null, android.graphics.Typeface.NORMAL)
+        // Kontrol Visibilitas Dompet Sumber/Tujuan
+        if (isTransfer) {
+            tvLabelWalletSource.text = "Dompet Sumber"
+            tvLabelWalletTarget.visibility = View.VISIBLE
+            cardWalletTarget.visibility = View.VISIBLE
+        } else {
+            tvLabelWalletSource.text = "Dompet / Sumber Dana"
+            tvLabelWalletTarget.visibility = View.GONE
+            cardWalletTarget.visibility = View.GONE
+            // Reset dompet tujuan saat beralih dari Transfer
+            viewModel.setTargetWallet(null)
         }
     }
-
 
     private fun setupDatePicker() {
         cardSelectDate.setOnClickListener {
@@ -465,71 +738,44 @@ class TambahTransaksiPage : Fragment() {
         btnSimpan.setOnClickListener {
             btnLanjut.visibility = View.GONE
 
-            val amount = etAmount.text.toString()
+            // Ambil input dari UI
+            val rawAmount = etAmount.text.toString().replace(Regex("[^0-9]"), "")
             val notes = etNotes.text.toString()
 
-            android.util.Log.d("DEBUG_FOTO", "=== SAVE BUTTON CLICKED ===")
-            android.util.Log.d("DEBUG_FOTO", "Current imageUri: $imageUri")
-            android.util.Log.d("DEBUG_FOTO", "Current ViewModel imagePath: ${viewModel.imagePath.value}")
-
-            // ✅ LOGIKA BARU YANG LEBIH SEDERHANA
-            if (imageUri != null) {
-                val currentPath = viewModel.imagePath.value
-
-                // Cek apakah ini foto BARU atau foto LAMA
-                if (currentPath != null) {
-                    // Kasus A: Foto lama masih ada (mode edit, tidak ganti foto)
-                    val file = java.io.File(currentPath)
-                    if (file.exists()) {
-                        android.util.Log.d("DEBUG_FOTO", "Using existing photo from: $currentPath")
-                        // Tidak perlu set lagi, ViewModel sudah punya path-nya
-                    } else {
-                        // File hilang? Save foto baru
-                        android.util.Log.d("DEBUG_FOTO", "Old file missing, saving new photo")
-                        val newPath = saveImageToInternalStorage(imageUri!!)
-                        viewModel.setImagePath(newPath)
-                    }
-                } else {
-                    // Kasus B: Foto baru (dari gallery/camera)
-                    android.util.Log.d("DEBUG_FOTO", "New photo detected, saving to internal storage")
-                    val newPath = saveImageToInternalStorage(imageUri!!)
-
-                    if (newPath != null) {
-                        android.util.Log.d("DEBUG_FOTO", "✅ Photo saved to: $newPath")
-                        viewModel.setImagePath(newPath)
-                    } else {
-                        android.util.Log.e("DEBUG_FOTO", "❌ Failed to save photo!")
-                        viewModel.setImagePath(null)
-                        Toast.makeText(requireContext(), "Gagal menyimpan foto", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } else {
-                // Kasus C: Tidak ada foto
-                android.util.Log.d("DEBUG_FOTO", "No photo selected")
-                viewModel.setImagePath(null)
-            }
-
-            // Set data lain
-            viewModel.setAmount(amount)
+            // Update ViewModel dengan input terbaru
+            viewModel.setAmount(rawAmount)
             viewModel.setNotes(notes)
 
-            // Validasi & Simpan
+            // Penanganan Gambar: simpan ke internal storage sebelum menyimpan transaksi
+            // PERBAIKAN: Mengganti isEditMode.value dengan pemanggilan fungsi isEditMode()
+            if (imageUri != null && viewModel.isEditMode() == false) {
+                // Hanya simpan jika ini transaksi baru atau jika uri adalah temp uri dari kamera
+                val newPath = saveImageToInternalStorage(imageUri!!)
+                if (newPath != null) {
+                    viewModel.setImagePath(newPath)
+                } else {
+                    viewModel.setImagePath(null)
+                    Toast.makeText(requireContext(), "Gagal menyimpan foto", Toast.LENGTH_SHORT).show()
+                }
+            } else if (imageUri == null) {
+                viewModel.setImagePath(null)
+            }
+            // Jika imageUri != null dan isEditMode = true, asumsi path lama sudah benar
+
             if (viewModel.isFormValid()) {
-                android.util.Log.d("DEBUG_FOTO", "Form valid, saving transaction...")
-                android.util.Log.d("DEBUG_FOTO", "Final imagePath: ${viewModel.imagePath.value}")
                 viewModel.saveTransaction()
             } else {
-                Toast.makeText(requireContext(), "Form belum lengkap", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Form belum lengkap atau Dompet Sumber/Tujuan sama!", Toast.LENGTH_SHORT).show()
             }
         }
 
         btnLanjut.setOnClickListener {
-            // Reset form, KEEP TYPE, dan set Tanggal Hari Ini
             viewModel.resetForm(keepType = true, keepCategory = false, setTodayDate = true)
 
             btnLanjut.visibility = View.GONE
             resetImageProof()
 
+            etAmount.setText("") // Clear the visible amount
             etAmount.requestFocus()
             Toast.makeText(requireContext(), "Siap mencatat transaksi ${viewModel.selectedType.value} berikutnya!", Toast.LENGTH_SHORT).show()
         }
@@ -542,12 +788,9 @@ class TambahTransaksiPage : Fragment() {
     }
 
     private fun observeData() {
-
-        // 1. OBSERVE UNTUK STATEFLOW
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 
-                // Observe tanggal
                 launch {
                     viewModel.date.collect { timestamp ->
                         tvDate.text = viewModel.formatDate(timestamp)
@@ -556,34 +799,30 @@ class TambahTransaksiPage : Fragment() {
 
                 launch {
                     viewModel.amount.collect { amountString ->
-                        // HINDARI LOOP UPDATE: Hanya update jika beda dengan yang diketik
-                        if (etAmount.text.toString() != amountString) {
+                        // Hapus pemformatan angka yang ada jika pengguna mengetik saat observasi
+                        val cleanString = amountString.replace(Regex("[^0-9]"), "")
 
-                            // --- PERBAIKAN LOGIKA FORMATTING ---
-                            // Jika amountString berisi notasi ilmiah (E9), kita konversi dulu ke Long/BigDecimal
-                            val cleanString = if (amountString.contains("E")) {
-                                try {
-                                    val doubleVal = amountString.toDouble()
-                                    // Ubah ke format string biasa (tanpa koma/titik ribuan dulu agar EditText bisa baca)
-                                    java.math.BigDecimal(doubleVal).toPlainString().replace(".0", "")
-                                } catch (e: Exception) {
-                                    amountString
-                                }
-                            } else {
-                                amountString
-                            }
+                        val formattedAmount = try {
+                            formatAmount(cleanString)
+                        } catch (e: Exception) {
+                            cleanString
+                        }
 
-                            etAmount.setText(cleanString)
-                            etAmount.setSelection(cleanString.length) // Cursor di akhir
+                        if (etAmount.text.toString().replace(Regex("[^0-9]"), "") != cleanString) {
+                            etAmount.setText(formattedAmount)
                         }
                     }
                 }
 
-                // Observe amount & notes untuk reset
-//                launch { viewModel.amount.collect { if (it.isEmpty() && etAmount.text.toString().isNotEmpty()) etAmount.text?.clear() } }
-                launch { viewModel.notes.collect { if (it.isEmpty() && etNotes.text.toString().isNotEmpty()) etNotes.text?.clear() } }
+                // Observasi notes hanya untuk set value (misal saat edit)
+                launch {
+                    viewModel.notes.collect { notes ->
+                        if (etNotes.text.toString() != notes) {
+                            etNotes.setText(notes)
+                        }
+                    }
+                }
 
-                // Observe loading state
                 launch {
                     viewModel.isSaving.collect { isSaving ->
                         progressBar.visibility = if (isSaving) View.VISIBLE else View.GONE
@@ -593,13 +832,12 @@ class TambahTransaksiPage : Fragment() {
                     }
                 }
 
-                // Observe success message
                 launch {
                     viewModel.successMessage.collect { message ->
                         message?.let {
                             Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
 
-                            // Setelah Sukses: Reset form, tampilkan tombol Lanjut
+                            // Reset setelah sukses menyimpan, namun pertahankan tipe
                             viewModel.resetForm(keepType = true, keepCategory = false, setTodayDate = true)
 
                             btnLanjut.visibility = View.VISIBLE
@@ -610,7 +848,6 @@ class TambahTransaksiPage : Fragment() {
                     }
                 }
 
-                // Observe error message
                 launch {
                     viewModel.errorMessage.collect { error ->
                         error?.let {
@@ -622,34 +859,31 @@ class TambahTransaksiPage : Fragment() {
 
                 launch {
                     viewModel.imagePath.collect { path ->
-                        android.util.Log.d("DEBUG_FOTO", "=== IMAGE PATH CHANGED ===")
-                        android.util.Log.d("DEBUG_FOTO", "New path from ViewModel: $path")
+                        // Tentukan apakah kita dalam mode edit
+                        val isEditing = viewModel.isEditMode()
 
                         if (path != null) {
-                            val file = java.io.File(path)
-                            android.util.Log.d("DEBUG_FOTO", "File exists: ${file.exists()}")
-                            android.util.Log.d("DEBUG_FOTO", "File size: ${file.length()} bytes")
-
+                            val file = File(path)
                             if (file.exists()) {
-                                // ✅ PERBAIKAN: Set imageUri dari file path
                                 val uri = Uri.fromFile(file)
                                 imageUri = uri
 
-                                // Tampilkan gambar
                                 ivProofImage.setImageURI(uri)
                                 ivProofImage.visibility = View.VISIBLE
                                 btnAddPhoto.setText("Hapus Foto")
                                 btnAddPhoto.setIconResource(R.drawable.ic_baseline_close_24)
-
-                                android.util.Log.d("DEBUG_FOTO", "✅ Image displayed successfully!")
                             } else {
-                                android.util.Log.e("DEBUG_FOTO", "❌ File not found at path: $path")
                                 resetImageProof()
                             }
                         } else {
-                            // Path null = tidak ada gambar
-                            android.util.Log.d("DEBUG_FOTO", "Path is null, resetting image")
-                            if (imageUri == null) {
+                            // PERBAIKAN: Mengganti isEditMode.value dengan pemanggilan fungsi isEditMode()
+                            if (imageUri != null && isEditing == false) {
+                                // Jika path di ViewModel null dan ini bukan proses edit
+                                resetImageProof()
+                            } else if (imageUri != null) {
+                                // Jika imageUri masih ada tapi path null (misal imageUri adalah temp uri)
+                                // Biarkan UI tetap menampilkan imageUri, namun path akan di-set null saat simpan
+                            } else {
                                 resetImageProof()
                             }
                         }
@@ -658,60 +892,68 @@ class TambahTransaksiPage : Fragment() {
             }
         }
 
-        // 2. OBSERVE UNTUK LIVE DATA (Categories)
+
         viewModel.categories.observe(viewLifecycleOwner) { categories: List<Category> ->
             categoriesList = categories
 
-            if (categories.isEmpty()) {
-                Toast.makeText(requireContext(), "Tidak ada kategori tersedia!", Toast.LENGTH_LONG).show()
-                return@observe
-            }
+            // --- START PERUBAHAN DI SINI ---
+            val isTransfer = viewModel.selectedType.value == TransactionType.TRANSFER
 
-            val categoryNames = categories.map { "${it.icon} ${it.name}" }
-            val adapter = ArrayAdapter(
-                requireContext(),
-                android.R.layout.simple_spinner_item,
-                categoryNames
-            )
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            spinnerKategori.adapter = adapter
-
-            // Pilih kategori pertama jika belum ada yang dipilih
-            var selectedIndex = 0
-            val currentId = viewModel.selectedCategoryId.value
-            if (currentId != null) {
-                val existingIndex = categories.indexOfFirst { it.id == currentId }
-                if (existingIndex != -1) {
-                    selectedIndex = existingIndex
+            // Hanya tampilkan dan proses kategori jika bukan Transfer
+            if (!isTransfer) {
+                if (categories.isEmpty()) {
+                    Toast.makeText(requireContext(), "Tidak ada kategori tersedia!", Toast.LENGTH_LONG).show()
+                    spinnerKategori.adapter = null
+                    viewModel.setCategory(0) // Set ke ID tidak valid
+                    return@observe
                 }
-            }
 
-            // Penting: Nonaktifkan listener sementara
-            spinnerKategori.onItemSelectedListener = null
-            spinnerKategori.setSelection(selectedIndex, false)
-            if (categories.isNotEmpty() && selectedIndex >= 0) {
-                viewModel.setCategory(categories[selectedIndex].id)
-            }
-            // Set listener baru
-            spinnerKategori.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                    if (position < categories.size) {
-                        viewModel.setCategory(categories[position].id)
-                        btnLanjut.visibility = View.GONE
+                val categoryNames = categories.map { "${it.icon} ${it.name}" }
+                val adapter = ArrayAdapter(
+                    requireContext(),
+                    android.R.layout.simple_spinner_item,
+                    categoryNames
+                )
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                spinnerKategori.adapter = adapter
+
+                // Set selection
+                var selectedIndex = 0
+                val currentId = viewModel.selectedCategoryId.value
+                if (currentId != null && currentId > 0) {
+                    val existingIndex = categories.indexOfFirst { it.id == currentId }
+                    if (existingIndex != -1) {
+                        selectedIndex = existingIndex
                     }
                 }
-                override fun onNothingSelected(parent: AdapterView<*>?) {
-                    // Biarkan kosong
+
+                spinnerKategori.onItemSelectedListener = null
+                spinnerKategori.setSelection(selectedIndex, false)
+                if (categories.isNotEmpty() && selectedIndex >= 0) {
+                    viewModel.setCategory(categories[selectedIndex].id)
+                }
+
+                spinnerKategori.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                        if (position < categories.size) {
+                            viewModel.setCategory(categories[position].id)
+                            btnLanjut.visibility = View.GONE
+                        }
+                    }
+                    override fun onNothingSelected(parent: AdapterView<*>?) {}
                 }
             }
         }
 
-        // 3. OBSERVE UNTUK LIVE DATA (Wallets)
         viewModel.wallets.observe(viewLifecycleOwner) { wallets: List<Wallet> ->
             walletsList = wallets
 
             if (wallets.isEmpty()) {
                 Toast.makeText(requireContext(), "Tidak ada dompet tersedia untuk Buku ini!", Toast.LENGTH_LONG).show()
+                spinnerWallet.adapter = null
+                spinnerWalletTarget.adapter = null
+                viewModel.setWallet(0) // Set ke ID tidak valid
+                viewModel.setTargetWallet(null)
                 return@observe
             }
 
@@ -723,77 +965,85 @@ class TambahTransaksiPage : Fragment() {
             )
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             spinnerWallet.adapter = adapter
+            spinnerWalletTarget.adapter = adapter // Atur adapter untuk Dompet Tujuan
 
-            // Pilih dompet aktif default
-            var selectedIndex = 0
-            val currentId = viewModel.selectedWalletId.value
-            if (currentId > 0) {
-                val existingIndex = wallets.indexOfFirst { it.id == currentId }
+            // --- Logika Dompet Sumber (spinnerWallet) ---
+            var selectedSourceIndex = 0
+            val currentSourceId = viewModel.selectedWalletId.value
+            if (currentSourceId > 0) {
+                val existingIndex = wallets.indexOfFirst { it.id == currentSourceId }
                 if (existingIndex != -1) {
-                    selectedIndex = existingIndex
+                    selectedSourceIndex = existingIndex
+                }
+            }
+            spinnerWallet.setSelection(selectedSourceIndex, false)
+            if (wallets.isNotEmpty() && selectedSourceIndex >= 0) {
+                viewModel.setWallet(wallets[selectedSourceIndex].id)
+            }
+            setupWalletSpinnerListener(walletsList)
+
+
+            // --- Logika Dompet Tujuan (spinnerWalletTarget) ---
+            var selectedTargetIndex = -1
+            val currentTargetId = viewModel.selectedTargetWalletId.value
+
+            if (currentTargetId != null && currentTargetId > 0) {
+                val existingIndex = wallets.indexOfFirst { it.id == currentTargetId }
+                if (existingIndex != -1) {
+                    selectedTargetIndex = existingIndex
+                }
+            } else if (viewModel.selectedType.value == TransactionType.TRANSFER) {
+                // Jika Transfer dan Dompet Tujuan belum di-set, default ke dompet yang berbeda
+                if (wallets.size > 1) {
+                    selectedTargetIndex = if (selectedSourceIndex == 0) 1 else 0
                 }
             }
 
-            // Set pilihan default
-            spinnerWallet.setSelection(selectedIndex, false)
-            if (wallets.isNotEmpty() && selectedIndex >= 0) {
-                viewModel.setWallet(wallets[selectedIndex].id)
+            if (selectedTargetIndex != -1) {
+                spinnerWalletTarget.setSelection(selectedTargetIndex, false)
+                viewModel.setTargetWallet(wallets[selectedTargetIndex].id)
+            } else {
+                // Jika tidak ada dompet tujuan yang valid atau hanya satu dompet
+                spinnerWalletTarget.setSelection(0, false)
+                viewModel.setTargetWallet(if (wallets.isNotEmpty()) wallets[0].id else null) // Set default
             }
-            // Pasang listener di sini (setelah selection)
-            setupWalletSpinnerListener(walletsList)
+
+            setupTargetWalletSpinnerListener(walletsList)
         }
     }
 
     private fun saveImageToInternalStorage(uri: Uri): String? {
-        android.util.Log.d("DEBUG_FOTO", "=== SAVING IMAGE ===")
-        android.util.Log.d("DEBUG_FOTO", "Source URI: $uri")
-
         return try {
             val context = requireContext()
-
-            // 1. Buka InputStream
+            // Menggunakan contentResolver.openInputStream
             val inputStream = context.contentResolver.openInputStream(uri)
             if (inputStream == null) {
-                android.util.Log.e("DEBUG_FOTO", "❌ Cannot open InputStream")
                 return null
             }
 
-            // 2. Buat folder tujuan
-            val directory = java.io.File(context.filesDir, "transaction_images")
+            val directory = File(context.filesDir, "transaction_images")
             if (!directory.exists()) {
-                val created = directory.mkdirs()
-                android.util.Log.d("DEBUG_FOTO", "Directory created: $created")
+                directory.mkdirs()
             }
 
-            // 3. Generate nama file unique
-            val fileName = "IMG_${System.currentTimeMillis()}_${java.util.UUID.randomUUID()}.jpg"
-            val file = java.io.File(directory, fileName)
+            val fileName = "IMG_${System.currentTimeMillis()}_${UUID.randomUUID()}.jpg"
+            val file = File(directory, fileName)
 
-            android.util.Log.d("DEBUG_FOTO", "Target file: ${file.absolutePath}")
-
-            // 4. Copy stream
             val outputStream = java.io.FileOutputStream(file)
-            val bytesCopied = inputStream.copyTo(outputStream)
+            inputStream.copyTo(outputStream)
 
             inputStream.close()
             outputStream.close()
 
-            // 5. Verify
             if (file.exists() && file.length() > 0) {
-                android.util.Log.d("DEBUG_FOTO", "✅ SUCCESS!")
-                android.util.Log.d("DEBUG_FOTO", "   Path: ${file.absolutePath}")
-                android.util.Log.d("DEBUG_FOTO", "   Size: ${file.length()} bytes")
-                android.util.Log.d("DEBUG_FOTO", "   Copied: $bytesCopied bytes")
-
                 file.absolutePath
             } else {
-                android.util.Log.e("DEBUG_FOTO", "❌ File saved but invalid")
+                file.delete()
                 null
             }
 
         } catch (e: Exception) {
             e.printStackTrace()
-            android.util.Log.e("DEBUG_FOTO", "❌ EXCEPTION: ${e.message}")
             Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             null
         }

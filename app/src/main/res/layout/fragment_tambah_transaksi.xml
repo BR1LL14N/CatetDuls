@@ -13,15 +13,33 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <TextView
-            android:id="@+id/tv_header_title"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_header_blue"
+            android:orientation="vertical"
+            android:padding="20dp"
             android:layout_marginBottom="24dp"
-            android:text="Tambah Transaksi"
-            android:textColor="@color/text_primary"
-            android:textSize="24sp"
-            android:textStyle="bold" />
+            android:elevation="4dp">
+
+            <TextView
+                android:id="@+id/tv_header_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Tambah Transaksi"
+                android:textColor="@color/white"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Catat transaksi keuangan Anda"
+                android:textColor="@color/white"
+                android:alpha="0.9"
+                android:textSize="14sp" />
+        </LinearLayout>
 
         <RadioGroup
             android:id="@+id/radio_group_type"
@@ -29,17 +47,25 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="24dp"
             android:orientation="horizontal"
-            android:visibility="gone"> <RadioButton
-            android:id="@+id/radio_pemasukan"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Pemasukan" />
+            android:visibility="gone">
+
+            <RadioButton
+                android:id="@+id/radio_pemasukan"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pemasukan" />
 
             <RadioButton
                 android:id="@+id/radio_pengeluaran"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Pengeluaran" />
+
+            <RadioButton
+                android:id="@+id/radio_transfer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Transfer" />
         </RadioGroup>
 
         <LinearLayout
@@ -52,8 +78,8 @@
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_pemasukan"
                 android:layout_width="0dp"
-                android:layout_height="80dp"
-                android:layout_marginEnd="8dp"
+                android:layout_height="70dp"
+                android:layout_marginEnd="6dp"
                 android:layout_weight="1"
                 android:clickable="true"
                 android:focusable="true"
@@ -75,24 +101,25 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="💰"
-                        android:textSize="24sp" />
+                        android:textSize="20sp" />
 
                     <TextView
                         android:id="@+id/tv_label_pemasukan"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
+                        android:layout_marginTop="2dp"
                         android:text="Pemasukan"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_pengeluaran"
                 android:layout_width="0dp"
-                android:layout_height="80dp"
-                android:layout_marginStart="8dp"
+                android:layout_height="70dp"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="6dp"
                 android:layout_weight="1"
                 android:clickable="true"
                 android:focusable="true"
@@ -114,39 +141,120 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="💸"
-                        android:textSize="24sp"
+                        android:textSize="20sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/tv_label_pengeluaran"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
+                        android:layout_marginTop="2dp"
                         android:text="Pengeluaran"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp"
+                        android:textSize="11sp"
                         android:textStyle="bold" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_transfer"
+                android:layout_width="0dp"
+                android:layout_height="70dp"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tv_icon_transfer"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🔄"
+                        android:textSize="20sp" />
+
+                    <TextView
+                        android:id="@+id/tv_label_transfer"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Transfer"
+                        android:textColor="@color/text_primary"
+                        android:textSize="11sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
-            android:hint="Jumlah (Rp)">
+            app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:strokeColor="@color/primary_light"
+            app:strokeWidth="2dp">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/et_amount"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="number"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-        </com.google.android.material.textfield.TextInputLayout>
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Jumlah"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="8dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Rp"
+                        android:textColor="@color/primary"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:layout_marginEnd="8dp" />
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_amount"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@android:color/transparent"
+                        android:hint="0"
+                        android:inputType="none"
+                        android:textColor="@color/text_primary"
+                        android:textSize="28sp"
+                        android:textStyle="bold"
+                        android:focusable="false"
+                        android:cursorVisible="false" />
+
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
         <TextView
+            android:id="@+id/tv_label_kategori"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
@@ -155,6 +263,7 @@
             android:textSize="14sp" />
 
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_kategori"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
@@ -169,8 +278,8 @@
                 android:layout_height="56dp"
                 android:paddingStart="8dp" />
         </com.google.android.material.card.MaterialCardView>
-
         <TextView
+            android:id="@+id/tv_label_wallet_source"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
@@ -179,6 +288,7 @@
             android:textSize="14sp" />
 
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_wallet_source"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
@@ -193,7 +303,33 @@
                 android:layout_height="56dp"
                 android:paddingStart="8dp" />
         </com.google.android.material.card.MaterialCardView>
+        <TextView
+            android:id="@+id/tv_label_wallet_target"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="Dompet Tujuan"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp"
+            android:visibility="gone" />
 
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_wallet_target"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="8dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp"
+            android:visibility="gone">
+
+            <Spinner
+                android:id="@+id/spinner_wallet_target"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:paddingStart="8dp" />
+        </com.google.android.material.card.MaterialCardView>
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -288,6 +424,7 @@
                 app:icon="@drawable/ic_photo_24"
                 app:iconGravity="textStart" />
         </LinearLayout>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -308,6 +445,7 @@
                 android:layout_marginBottom="8dp"
                 android:text="Simpan"
                 android:textSize="16sp"
+                app:backgroundTint="@color/primary"
                 app:cornerRadius="28dp" />
 
             <com.google.android.material.button.MaterialButton
@@ -319,6 +457,7 @@
                 android:text="Tambah Lagi"
                 android:textSize="16sp"
                 android:visibility="gone"
+                app:backgroundTint="@color/primary_light"
                 app:cornerRadius="28dp" />
 
             <com.google.android.material.button.MaterialButton
@@ -328,13 +467,10 @@
                 android:layout_height="wrap_content"
                 android:text="Reset Form"
                 android:textColor="@color/danger" />
-
         </LinearLayout>
 
         <View
             android:layout_width="match_parent"
             android:layout_height="40dp" />
-
     </LinearLayout>
-
 </ScrollView>

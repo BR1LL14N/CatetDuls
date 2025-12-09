@@ -166,4 +166,9 @@ class CategoryRepository(
             lastSyncAt = System.currentTimeMillis()
         ))
     }
+
+    suspend fun getCategoryIdByType(type: TransactionType, bookId: Int): Int? {
+        return categoryDao.getCategoryIdByType(type, bookId)
+    }
+
 }

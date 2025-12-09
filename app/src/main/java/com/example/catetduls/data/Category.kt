@@ -10,7 +10,8 @@ import kotlinx.parcelize.Parcelize
 
 enum class TransactionType {
     PEMASUKAN,
-    PENGELUARAN
+    PENGELUARAN,
+    TRANSFER
 }
 
 /**

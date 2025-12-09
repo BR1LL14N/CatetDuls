@@ -370,6 +370,14 @@ abstract class AppDatabase : RoomDatabase() {
                     type = TransactionType.PENGELUARAN,
                     isDefault = true,
                     lastSyncAt = 0L
+                ),
+                Category(
+                    bookId = bookId,
+                    name = "Transfer",
+                    icon = "🔄️",
+                    type = TransactionType.TRANSFER,
+                    isDefault = true,
+                    lastSyncAt = 0L
                 )
             )
 
