@@ -170,7 +170,8 @@ abstract class AppDatabase : RoomDatabase() {
                 description = "Buku keuangan utama",
                 icon = "📖",
                 color = "#4CAF50",
-                isActive = true
+                isActive = true,
+                lastSyncAt = 0L
             )
             val bookId = bookDao.insert(defaultBook).toInt()
 
@@ -196,7 +197,8 @@ abstract class AppDatabase : RoomDatabase() {
                     icon = "💵",
                     color = "#4CAF50",
                     initialBalance = 0.0,
-                    isActive = true
+                    isActive = true,
+                    lastSyncAt = 0L
                 ),
                 Wallet(
                     bookId = bookId,
@@ -205,7 +207,8 @@ abstract class AppDatabase : RoomDatabase() {
                     icon = "🏦",
                     color = "#2196F3",
                     initialBalance = 0.0,
-                    isActive = true
+                    isActive = true,
+                    lastSyncAt = 0L
                 ),
                 Wallet(
                     bookId = bookId,
@@ -214,7 +217,8 @@ abstract class AppDatabase : RoomDatabase() {
                     icon = "📱",
                     color = "#FF9800",
                     initialBalance = 0.0,
-                    isActive = true
+                    isActive = true,
+                    lastSyncAt = 0L
                 )
             )
 
@@ -232,70 +236,80 @@ abstract class AppDatabase : RoomDatabase() {
                     name = "Makanan & Minuman",
                     icon = "🍔",
                     type = TransactionType.PENGELUARAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Transport",
                     icon = "🚌",
                     type = TransactionType.PENGELUARAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Belanja",
                     icon = "🛒",
                     type = TransactionType.PENGELUARAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Hiburan",
                     icon = "🎮",
                     type = TransactionType.PENGELUARAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Kesehatan",
                     icon = "💊",
                     type = TransactionType.PENGELUARAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Pendidikan",
                     icon = "📚",
                     type = TransactionType.PENGELUARAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Tagihan",
                     icon = "💡",
                     type = TransactionType.PENGELUARAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Rumah Tangga",
                     icon = "🏠",
                     type = TransactionType.PENGELUARAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Olahraga",
                     icon = "⚽",
                     type = TransactionType.PENGELUARAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Kecantikan",
                     icon = "💄",
                     type = TransactionType.PENGELUARAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
 
                 // Kategori Pemasukan
@@ -304,35 +318,40 @@ abstract class AppDatabase : RoomDatabase() {
                     name = "Gaji",
                     icon = "💼",
                     type = TransactionType.PEMASUKAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Bonus",
                     icon = "💰",
                     type = TransactionType.PEMASUKAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Investasi",
                     icon = "📈",
                     type = TransactionType.PEMASUKAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Hadiah",
                     icon = "🎁",
                     type = TransactionType.PEMASUKAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Freelance",
                     icon = "💻",
                     type = TransactionType.PEMASUKAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
 
                 // Kategori Lainnya
@@ -341,14 +360,16 @@ abstract class AppDatabase : RoomDatabase() {
                     name = "Lainnya (Pemasukan)",
                     icon = "⚙️",
                     type = TransactionType.PEMASUKAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 ),
                 Category(
                     bookId = bookId,
                     name = "Lainnya (Pengeluaran)",
                     icon = "⚙️",
                     type = TransactionType.PENGELUARAN,
-                    isDefault = true
+                    isDefault = true,
+                    lastSyncAt = 0L
                 )
             )
 

@@ -139,7 +139,7 @@ class CategoryRepository(
     /**
      * Mengambil semua kategori yang belum tersinkronisasi atau ditandai DELETE
      */
-    suspend fun getUnsyncedCategories(): List<Category> {
+    suspend fun getAllUnsynced(): List<Category> {
         // Asumsi CategoryDao memiliki fungsi ini (mirip dengan BookDao)
         // Jika belum ada, tambahkan di CategoryDao: @Query("SELECT * FROM categories WHERE is_synced = 0 OR is_deleted = 1")
         // return categoryDao.getUnsyncedCategories()

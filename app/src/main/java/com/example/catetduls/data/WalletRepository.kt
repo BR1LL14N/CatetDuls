@@ -151,7 +151,7 @@ class WalletRepository(private val walletDao: WalletDao) {
      * Mengambil semua dompet yang perlu disinkronisasi (CREATE, UPDATE, DELETE).
      * Termasuk yang baru dibuat/diubah (is_synced = 0) dan yang ditandai untuk dihapus (is_deleted = 1).
      */
-    suspend fun getAllUnsyncedWallets(): List<Wallet> {
+    suspend fun getAllUnsynced(): List<Wallet> {
         // Menggabungkan logika unsynced (is_synced = 0) dan deleted (is_deleted = 1 & is_synced = 0)
         return walletDao.getUnsyncedWallets() // Asumsi DAO ini mengambil semua yang is_synced = 0
     }
@@ -187,7 +187,8 @@ class WalletRepository(private val walletDao: WalletDao) {
                 type = WalletType.CASH,
                 icon = "💵",
                 color = "#4CAF50",
-                initialBalance = 0.0
+                initialBalance = 0.0,
+                lastSyncAt = 0L
             ),
             Wallet(
                 bookId = bookId,
@@ -195,7 +196,8 @@ class WalletRepository(private val walletDao: WalletDao) {
                 type = WalletType.BANK,
                 icon = "🏦",
                 color = "#2196F3",
-                initialBalance = 0.0
+                initialBalance = 0.0,
+                lastSyncAt = 0L
             )
         )
         // Memanggil fungsi insertAll() di repository yang sudah menangani logic sync

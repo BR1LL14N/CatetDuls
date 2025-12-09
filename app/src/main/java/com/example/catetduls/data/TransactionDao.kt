@@ -14,81 +14,46 @@ interface TransactionDao {
     // CRUD Operations - Basic
     // ========================================
 
-    /**
-     * Insert transaksi baru
-     */
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: Transaction)
 
-    /**
-     * Insert multiple transaksi sekaligus (untuk import data)
-     */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(transactions: List<Transaction>)
 
-    /**
-     * Update transaksi yang sudah ada
-     */
+
     @Update
     suspend fun updateTransaction(transaction: Transaction)
 
-    /**
-     * Delete transaksi
-     */
     @Delete
     suspend fun deleteTransaction(transaction: Transaction)
 
-    /**
-     * Delete transaksi berdasarkan ID
-     */
     @Query("DELETE FROM transactions WHERE id = :transactionId")
     suspend fun deleteById(transactionId: Int)
 
-    /**
-     * Delete semua transaksi
-     */
     @Query("DELETE FROM transactions")
     suspend fun deleteAllTransactions()
 
-    /**
-     * Get semua transaksi, diurutkan dari terbaru
-     */
     @Query("SELECT * FROM transactions ORDER BY date DESC")
     fun getAllTransactions(): Flow<List<Transaction>>
 
-    /**
-     * Get transaksi berdasarkan ID
-     */
+
     @Query("SELECT * FROM transactions WHERE id = :id")
     fun getTransactionById(id: Int): Flow<Transaction?>
 
-    /**
-     * Get jumlah total transaksi
-     */
     @Query("SELECT COUNT(*) FROM transactions")
     suspend fun getTransactionCount(): Int
 
     // ========================================
-    // SYNC OPERATIONS - TAMBAHAN BARU
+    // SYNC OPERATIONS - PERBAIKAN DAN TAMBAHAN
     // ========================================
 
-    /**
-     * Get semua transaksi yang belum di-sync ke server
-     * Hanya ambil yang belum dihapus (is_deleted = 0)
-     */
-    @Query("SELECT * FROM transactions WHERE is_synced = 0 AND is_deleted = 0")
-    suspend fun getUnsyncedTransactions(): List<Transaction>
+    @Query("SELECT * FROM transactions WHERE is_synced = 0")
+    suspend fun getPendingSyncTransactions(): List<Transaction>
 
-    /**
-     * Get transaksi berdasarkan server ID
-     * Untuk cek apakah data dari server sudah ada di lokal
-     */
     @Query("SELECT * FROM transactions WHERE server_id = :serverId LIMIT 1")
     suspend fun getByServerId(serverId: String): Transaction?
 
-    /**
-     * Update status sync setelah berhasil sync ke server
-     */
     @Query("""
         UPDATE transactions 
         SET server_id = :serverId, 
@@ -103,10 +68,9 @@ interface TransactionDao {
         lastSyncAt: Long
     )
 
-    /**
-     * Mark transaksi sebagai belum sync
-     * Dipanggil setiap kali ada perubahan (create/update/delete)
-     */
+    @Query("DELETE FROM transactions WHERE is_deleted = 1 AND is_synced = 1")
+    suspend fun cleanupSyncedDeletes(): Unit
+
     @Query("""
         UPDATE transactions 
         SET is_synced = 0, 
@@ -116,23 +80,10 @@ interface TransactionDao {
     """)
     suspend fun markAsUnsynced(id: Int, action: String, updatedAt: Long)
 
-    /**
-     * Get transaksi yang sudah di-mark delete tapi belum sync
-     * Untuk dikirim ke server sebagai delete request
-     */
     @Query("SELECT * FROM transactions WHERE is_deleted = 1 AND is_synced = 0")
     suspend fun getDeletedTransactions(): List<Transaction>
 
-    /**
-     * Hard delete transaksi yang sudah berhasil sync delete ke server
-     */
-    @Query("DELETE FROM transactions WHERE is_deleted = 1 AND is_synced = 1")
-    suspend fun cleanupSyncedDeletes()
 
-    /**
-     * Get semua transaksi yang perlu di-sync (create, update, delete)
-     * Termasuk yang sudah di-delete
-     */
     @Query("SELECT * FROM transactions WHERE is_synced = 0")
     suspend fun getAllUnsyncedTransactions(): List<Transaction>
 

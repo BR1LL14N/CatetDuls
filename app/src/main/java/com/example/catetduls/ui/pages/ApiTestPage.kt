@@ -10,9 +10,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.catetduls.data.sync.SyncManager
 import com.example.catetduls.di.NetworkModule
 import com.example.catetduls.ui.viewmodel.ApiTestViewModel
 
@@ -135,6 +137,39 @@ fun ApiTestPage() {
             }
 
             HorizontalDivider()
+
+            // ============ SYNC DATA BUTTON ============
+            val context = LocalContext.current // Mendapatkan context
+
+            Card {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🔄 Sync Data",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Button(
+                        onClick = {
+                            // Panggil sinkronisasi paksa
+                            SyncManager.forceOneTimeSync(context)
+                        },
+                        enabled = !isLoading // Gunakan status isLoading API Tester
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Force Sync")
+                    }
+                }
+            }
+
+
+            HorizontalDivider() // Tambahkan pemisah
 
             // ============ CUSTOM REQUEST ============
             Card {

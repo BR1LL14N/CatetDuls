@@ -111,7 +111,8 @@ class KelolaWalletPage : Fragment() {
                             icon = icon,
                             type = WalletType.CASH, // Default type
                             initialBalance = balance,
-                            currentBalance = balance
+                            currentBalance = balance,
+                            lastSyncAt = 0L
                         )
                         repo.insert(newWallet)
                     } else {

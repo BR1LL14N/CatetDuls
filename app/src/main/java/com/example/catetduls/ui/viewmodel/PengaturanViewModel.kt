@@ -225,23 +225,23 @@ class PengaturanViewModel(
             _isLoading.value = true
             try {
                 val defaultCategories = listOf(
-                    Category(bookId = activeBookId,name = "Makanan & Minuman", icon = "🍔", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Transport", icon = "🚌", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Belanja", icon = "🛒", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Hiburan", icon = "🎮", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Kesehatan", icon = "💊", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Pendidikan", icon = "📚", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Tagihan", icon = "💡", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Rumah Tangga", icon = "🏠", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Olahraga", icon = "⚽", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Kecantikan", icon = "💄", type = TransactionType.PENGELUARAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Gaji", icon = "💼", type = TransactionType.PEMASUKAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Bonus", icon = "💰", type = TransactionType.PEMASUKAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Investasi", icon = "📈", type = TransactionType.PEMASUKAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Hadiah", icon = "🎁", type = TransactionType.PEMASUKAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Freelance", icon = "💻", type = TransactionType.PEMASUKAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Lainnya (Pemasukan)", icon = "⚙️", type = TransactionType.PEMASUKAN, isDefault = true),
-                    Category(bookId = activeBookId,name = "Lainnya (Pengeluaran)", icon = "⚙️", type = TransactionType.PENGELUARAN, isDefault = true)
+                    Category(bookId = activeBookId,name = "Makanan & Minuman", icon = "🍔", type = TransactionType.PENGELUARAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Transport", icon = "🚌", type = TransactionType.PENGELUARAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Belanja", icon = "🛒", type = TransactionType.PENGELUARAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Hiburan", icon = "🎮", type = TransactionType.PENGELUARAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Kesehatan", icon = "💊", type = TransactionType.PENGELUARAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Pendidikan", icon = "📚", type = TransactionType.PENGELUARAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Tagihan", icon = "💡", type = TransactionType.PENGELUARAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Rumah Tangga", icon = "🏠", type = TransactionType.PENGELUARAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Olahraga", icon = "⚽", type = TransactionType.PENGELUARAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Kecantikan", icon = "💄", type = TransactionType.PENGELUARAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Gaji", icon = "💼", type = TransactionType.PEMASUKAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Bonus", icon = "💰", type = TransactionType.PEMASUKAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Investasi", icon = "📈", type = TransactionType.PEMASUKAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Hadiah", icon = "🎁", type = TransactionType.PEMASUKAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Freelance", icon = "💻", type = TransactionType.PEMASUKAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Lainnya (Pemasukan)", icon = "⚙️", type = TransactionType.PEMASUKAN, isDefault = true,lastSyncAt = 0L),
+                    Category(bookId = activeBookId,name = "Lainnya (Pengeluaran)", icon = "⚙️", type = TransactionType.PENGELUARAN, isDefault = true,lastSyncAt = 0L)
                 )
 
 
@@ -373,7 +373,8 @@ object BackupHelper {
                     amount = json.getDouble("amount"),
                     categoryId = json.getInt("categoryId"),
                     date = json.getLong("date"),
-                    notes = json.optString("notes", "")
+                    notes = json.optString("notes", ""),
+                    lastSyncAt = 0L
                 )
             )
         }
@@ -414,7 +415,8 @@ object BackupHelper {
 
                     type = TransactionType.valueOf(json.getString("type")),
                     // ---------------------------------------------------
-                    isDefault = json.getBoolean("isDefault")
+                    isDefault = json.getBoolean("isDefault"),
+                    lastSyncAt = 0L
                 )
             )
         }

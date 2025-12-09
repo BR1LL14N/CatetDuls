@@ -129,7 +129,8 @@ class BookRepository(private val bookDao: BookDao) {
             name = "Buku Baru",
             description = "Buku keuangan baru",
             icon = "📖",
-            isActive = false
+            isActive = false,
+            lastSyncAt = 0L
         )
 
         return insert(defaultBook)

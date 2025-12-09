@@ -69,7 +69,7 @@ data class Transaction(
     override val isDeleted: Boolean = false,
 
     @ColumnInfo(name = "last_sync_at")
-    override val lastSyncAt: Long? = null,
+    override val lastSyncAt: Long,
 
     @ColumnInfo(name = "sync_action")
     override val syncAction: String? = null
