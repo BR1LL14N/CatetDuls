@@ -1,5 +1,6 @@
 package com.example.catetduls.di
 
+import android.content.Context
 import com.example.catetduls.data.remote.ApiService
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -7,36 +8,37 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
+import com.example.catetduls.data.local.TokenManager
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
 
+@Module
+@InstallIn(SingletonComponent::class)
 object NetworkModule {
-
-
-    private const val AUTH_TOKEN = "1|xzi277UzdQLZjdDmKn6lXEs54mgZphtDEyPf2sAB4d8a87de"
-
-
     private const val BASE_URL = "http://10.0.2.2:8000/api/"
-
     private const val TIMEOUT_SECONDS = 30L
 
-    // ===========================================
-    // 1. Menyediakan OkHttpClient
-    // ===========================================
-
-    fun provideOkHttpClient(): OkHttpClient {
-        // Interceptor untuk logging (membantu debugging API)
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(@ApplicationContext context: Context): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            // Ubah menjadi HttpLoggingInterceptor.Level.BODY untuk melihat payload dan response
-            setLevel(HttpLoggingInterceptor.Level.NONE)
             setLevel(HttpLoggingInterceptor.Level.BODY)
         }
 
         val authInterceptor = Interceptor { chain ->
-            val req = chain.request().newBuilder()
-                .addHeader("Authorization", "Bearer $AUTH_TOKEN")
+            val token = TokenManager.getToken(context)
+            val requestBuilder = chain.request().newBuilder()
                 .addHeader("Accept", "application/json")
                 .addHeader("Content-Type", "application/json")
-                .build()
-            chain.proceed(req)
+
+            if (!token.isNullOrEmpty()) {
+                requestBuilder.addHeader("Authorization", "Bearer $token")
+            }
+            chain.proceed(requestBuilder.build())
         }
 
         return OkHttpClient.Builder()
@@ -52,6 +54,8 @@ object NetworkModule {
     // 2. Menyediakan Retrofit Instance
     // ===========================================
 
+    @Provides
+    @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl(BASE_URL)
@@ -65,21 +69,15 @@ object NetworkModule {
     // 3. Menyediakan ApiService (Contract Retrofit)
     // ===========================================
 
+    @Provides
+    @Singleton
     fun provideApiService(retrofit: Retrofit): ApiService {
         return retrofit.create(ApiService::class.java)
     }
+//    val apiService: ApiService by lazy {
+//        val client = provideOkHttpClient()
+//        val retrofit = provideRetrofit(client)
+//        provideApiService(retrofit)
+//    }
 
-    // ===========================================
-    // Fungsi Init (Untuk DI Manual)
-    // ===========================================
-
-    /**
-     * Fungsi helper untuk menginisialisasi semua instance.
-     * Biasanya dipanggil di Application class pertama kali.
-     */
-    val apiService: ApiService by lazy {
-        val client = provideOkHttpClient()
-        val retrofit = provideRetrofit(client)
-        provideApiService(retrofit)
-    }
 }

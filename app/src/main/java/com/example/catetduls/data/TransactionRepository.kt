@@ -2,12 +2,13 @@ package com.example.catetduls.data
 
 import kotlinx.coroutines.flow.Flow
 import java.util.*
+import javax.inject.Inject
 
 /**
  * Repository adalah perantara antara ViewModel dan DAO.
  * Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
  */
-class TransactionRepository(
+class TransactionRepository @Inject constructor(
     private val transactionDao: TransactionDao
 ) {
 

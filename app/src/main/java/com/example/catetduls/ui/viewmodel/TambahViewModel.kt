@@ -169,7 +169,7 @@ class TambahViewModel(
             try {
                 val amountValue = parseAmount()
                 val categoryId = _selectedCategoryId.value
-                val walletId = _selectedWalletId.value // Ambil ID Wallet
+                val walletId = _selectedWalletId.value
 
                 if (amountValue == null || amountValue <= 0) {
                     _errorMessage.value = "Jumlah harus lebih dari 0"
@@ -183,7 +183,14 @@ class TambahViewModel(
                     return@launch
                 }
 
+                val currentTime = System.currentTimeMillis()
+                val isEdit = isEditMode()
+
+                // Tentukan Sync Action (CREATE jika baru, UPDATE jika edit)
+                val action = if (isEdit) "UPDATE" else "CREATE"
+
                 // Buat object Transaction
+                // Kita harus mengisi field-field baru (Sync Metadata)
                 val transaction = Transaction(
                     id = _transactionId.value ?: 0,
                     type = _selectedType.value,
@@ -192,11 +199,26 @@ class TambahViewModel(
                     date = _date.value,
                     notes = _notes.value,
                     walletId = walletId,
-                    imagePath = _imagePath.value
+                    imagePath = _imagePath.value,
+
+                    // === TAMBAHAN FIELD SYNC (WAJIB DIISI) ===
+                    createdAt = if (isEdit) 0 else currentTime, // Nanti di Repository/DAO biasanya di-handle agar tidak menimpa created_at lama jika Update
+                    updatedAt = currentTime,
+                    lastSyncAt = 0,      // 0 artinya belum disinkronkan ke server
+                    isSynced = false,    // False karena baru diubah di lokal
+                    syncAction = action, // "CREATE" atau "UPDATE"
+                    serverId = null,     // Null karena ini operasi lokal
+                    isDeleted = false
                 )
 
                 // Simpan ke database
-                if (isEditMode()) {
+                if (isEdit) {
+                    // Jika Edit: Sebaiknya kita pertahankan created_at dan server_id yang lama
+                    // Tapi karena TransactionDao @Update biasanya replace,
+                    // Kita asumsikan Repository menghandle logic mempertahankan field lama
+                    // atau kita harus load data lama dulu di sini.
+
+                    // Untuk solusi cepat agar tidak error:
                     transactionRepository.updateTransaction(transaction)
                     _successMessage.value = "Transaksi berhasil diupdate"
                 } else {

@@ -2,12 +2,13 @@ package com.example.catetduls.data
 
 import kotlinx.coroutines.flow.Flow
 import java.lang.IllegalArgumentException
+import javax.inject.Inject
 
 /**
  * Repository untuk operasi Buku
  * Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
  */
-class BookRepository(private val bookDao: BookDao) {
+class BookRepository @Inject constructor(private val bookDao: BookDao) {
 
     // ===================================
     // READ

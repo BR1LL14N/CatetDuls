@@ -11,6 +11,22 @@ import okhttp3.ResponseBody
 //    val data: T
 //)
 
+data class AuthData(
+    val user: User,
+    val token: String,      // Sesuai JSON: "token"
+    val token_type: String  // Sesuai JSON: "token_type"
+)
+
+// 3. Update User sesuai JSON
+data class User(
+    val id: Int,
+    val name: String,
+    val email: String,
+    val email_verified_at: String?,
+    val photo_url: String?,
+    val created_at: String?,
+    val updated_at: String?
+)
 
 
 interface ApiService {
@@ -59,10 +75,10 @@ interface ApiService {
     // ===================================
 
     @POST("auth/register")
-    suspend fun register(@Body request: RegisterRequest): Response<AuthResponse>
+    suspend fun register(@Body request: RegisterRequest): Response<ApiResponse<AuthData>>
 
     @POST("auth/login")
-    suspend fun login(@Body request: LoginRequest): Response<AuthResponse>
+    suspend fun login(@Body request: LoginRequest): Response<ApiResponse<AuthData>>
 
     @POST("auth/logout")
     suspend fun logout(): Response<MessageResponse>
