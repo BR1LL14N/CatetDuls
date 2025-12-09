@@ -50,6 +50,9 @@ data class Transaction(
 
     val notes: String = "",
 
+    @ColumnInfo(name = "image_path")
+    val imagePath: String? = null,
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
 

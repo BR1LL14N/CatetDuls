@@ -36,7 +36,8 @@ class TransactionRepository(
             isDeleted = false,
             syncAction = "CREATE", // Aksi yang perlu dilakukan server
             createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
+            updatedAt = System.currentTimeMillis(),
+            imagePath = transaction.imagePath
         )
         transactionDao.insertTransaction(transactionToInsert)
     }
@@ -51,7 +52,8 @@ class TransactionRepository(
                 isDeleted = false,
                 syncAction = "CREATE",
                 createdAt = System.currentTimeMillis(),
-                updatedAt = System.currentTimeMillis()
+                updatedAt = System.currentTimeMillis(),
+                imagePath = transaction.imagePath
             )
         }
         transactionDao.insertAll(transactionsToInsert)
@@ -71,7 +73,8 @@ class TransactionRepository(
             isSynced = false,
             isDeleted = false,
             syncAction = "UPDATE", // Aksi yang perlu dilakukan server
-            updatedAt = System.currentTimeMillis()
+            updatedAt = System.currentTimeMillis(),
+            imagePath = transaction.imagePath
         )
         transactionDao.updateTransaction(transactionToUpdate)
     }
@@ -137,11 +140,13 @@ class TransactionRepository(
      * Menyimpan data transaksi yang diterima dari server (untuk operasi PULL/READ dari server)
      */
     suspend fun saveFromRemote(transaction: Transaction) {
+        val existingPath = transactionDao.getByServerId(transaction.serverId ?: "")?.imagePath
         transactionDao.insertTransaction(transaction.copy(
             isSynced = true,
             isDeleted = false,
             syncAction = null,
-            lastSyncAt = System.currentTimeMillis()
+            lastSyncAt = System.currentTimeMillis(),
+            imagePath = existingPath ?: transaction.imagePath
         ))
     }
 
@@ -332,6 +337,7 @@ class TransactionRepository(
             }
             else -> ValidationResult.Success
         }
+
     }
 }
 

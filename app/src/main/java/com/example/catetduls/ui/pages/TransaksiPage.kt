@@ -117,10 +117,18 @@ class TransaksiPage : Fragment() {
     private fun setupRecyclerView() {
         rvTransactions.layoutManager = LinearLayoutManager(requireContext())
 
+
         // SETUP ADAPTER DENGAN MAP LOOKUP
         transactionAdapter = TransactionAdapter(
             onItemClick = { transaction ->
                 // Handle klik item
+
+                val editFragment = TambahTransaksiPage.newInstance(transaction.id)
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.fragment_container, editFragment) // Pastikan ID container sesuai Activity utama Anda
+                    .addToBackStack(null) // Agar bisa di-back
+                    .commit()
+
                 Toast.makeText(requireContext(), "Catatan: ${transaction.notes}", Toast.LENGTH_SHORT).show()
             },
 

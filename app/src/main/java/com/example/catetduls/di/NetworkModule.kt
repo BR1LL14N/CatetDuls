@@ -18,34 +18,25 @@ object NetworkModule {
 
     private const val TIMEOUT_SECONDS = 30L
 
-    fun provideOkHttpClient(): OkHttpClient {
+    // ===========================================
+    // 1. Menyediakan OkHttpClient
+    // ===========================================
 
+    fun provideOkHttpClient(): OkHttpClient {
+        // Interceptor untuk logging (membantu debugging API)
         val loggingInterceptor = HttpLoggingInterceptor().apply {
+            // Ubah menjadi HttpLoggingInterceptor.Level.BODY untuk melihat payload dan response
+            setLevel(HttpLoggingInterceptor.Level.NONE)
             setLevel(HttpLoggingInterceptor.Level.BODY)
         }
 
-
         val authInterceptor = Interceptor { chain ->
-            val originalRequest = chain.request()
-
-            val newRequest = originalRequest.newBuilder()
+            val req = chain.request().newBuilder()
                 .addHeader("Authorization", "Bearer $AUTH_TOKEN")
                 .addHeader("Accept", "application/json")
                 .addHeader("Content-Type", "application/json")
                 .build()
-
-            val response = chain.proceed(newRequest)
-
-
-            println("=== REQUEST ===")
-            println("URL: ${originalRequest.url}")
-            println("Method: ${originalRequest.method}")
-            println("Headers: ${newRequest.headers}")
-            println("=== RESPONSE ===")
-            println("Code: ${response.code}")
-            println("Message: ${response.message}")
-
-            response
+            chain.proceed(req)
         }
 
         return OkHttpClient.Builder()
@@ -57,18 +48,35 @@ object NetworkModule {
             .build()
     }
 
+    // ===========================================
+    // 2. Menyediakan Retrofit Instance
+    // ===========================================
+
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(okHttpClient)
+            // Menggunakan Gson Converter. Pastikan dependensi sudah ada.
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
+
+    // ===========================================
+    // 3. Menyediakan ApiService (Contract Retrofit)
+    // ===========================================
 
     fun provideApiService(retrofit: Retrofit): ApiService {
         return retrofit.create(ApiService::class.java)
     }
 
+    // ===========================================
+    // Fungsi Init (Untuk DI Manual)
+    // ===========================================
+
+    /**
+     * Fungsi helper untuk menginisialisasi semua instance.
+     * Biasanya dipanggil di Application class pertama kali.
+     */
     val apiService: ApiService by lazy {
         val client = provideOkHttpClient()
         val retrofit = provideRetrofit(client)

@@ -42,9 +42,9 @@ class MainActivity : AppCompatActivity(), NavigationCallback {
                     true
                 }
                 R.id.nav_pengaturan -> {
-                    loadFragment(ApiTestFragment())
+//                    loadFragment(ApiTestFragment())
 
-//                    loadFragment(PengaturanPage())
+                    loadFragment(PengaturanPage())
                     true
                 }
                 else -> false
@@ -59,6 +59,9 @@ class MainActivity : AppCompatActivity(), NavigationCallback {
     }
 
     override fun navigateTo(fragment: Fragment) {
-        loadFragment(fragment)
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, fragment)
+            .addToBackStack(null) // <--- TAMBAHAN PENTING
+            .commit()
     }
 }
