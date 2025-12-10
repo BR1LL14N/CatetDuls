@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.example.catetduls.di.NetworkModule.apiService
+//import com.example.catetduls.di.NetworkModule.apiService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -409,7 +409,7 @@ fun Context.getTransactionRepository(): TransactionRepository {
     return TransactionRepository(database.transactionDao())
 }
 
-fun Context.getUserRepository(): UserRepository {
-    val database = AppDatabase.getDatabase(this)
-    return UserRepository(database.userDao(), apiService)
-}
+//fun Context.getUserRepository(): UserRepository {
+//    val database = AppDatabase.getDatabase(this)
+//    return UserRepository(database.userDao(), apiService)
+//}

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Log
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.catetduls.data.*
@@ -11,12 +12,15 @@ import com.example.catetduls.data.remote.ApiResponse
 import com.example.catetduls.data.remote.ApiService
 import com.example.catetduls.data.remote.CreateResponse
 import com.example.catetduls.data.remote.MessageResponse
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import retrofit2.Response
 import java.io.IOException
 
-class DataSyncWorker(
-    appContext: Context,
-    workerParams: WorkerParameters,
+@HiltWorker
+class DataSyncWorker @AssistedInject constructor(
+    @Assisted appContext: Context,
+    @Assisted workerParams: WorkerParameters,
     private val bookRepository: BookRepository,
     private val walletRepository: WalletRepository,
     private val categoryRepository: CategoryRepository,

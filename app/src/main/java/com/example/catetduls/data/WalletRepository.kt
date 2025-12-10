@@ -2,12 +2,13 @@ package com.example.catetduls.data
 
 import kotlinx.coroutines.flow.Flow
 import java.lang.IllegalArgumentException
+import javax.inject.Inject
 
 /**
  * Repository untuk operasi Dompet
  * Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
  */
-class WalletRepository(private val walletDao: WalletDao) {
+class WalletRepository @Inject constructor (private val walletDao: WalletDao) {
 
     // ===================================
     // READ
