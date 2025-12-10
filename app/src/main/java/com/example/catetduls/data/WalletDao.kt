@@ -23,6 +23,9 @@ interface WalletDao {
     @Query("SELECT * FROM wallets WHERE id = :walletId")
     fun getWalletById(walletId: Int): Flow<Wallet?>
 
+    @Query("SELECT * FROM wallets WHERE id = :walletId LIMIT 1")
+    suspend fun getSingleWalletById(walletId: Int): Wallet?
+
     @Query("SELECT * FROM wallets WHERE id = :walletId")
     suspend fun getWalletByIdSync(walletId: Int): Wallet?
 

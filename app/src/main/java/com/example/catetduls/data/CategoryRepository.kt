@@ -2,12 +2,13 @@ package com.example.catetduls.data
 
 import kotlinx.coroutines.flow.Flow
 import java.lang.IllegalArgumentException
+import javax.inject.Inject
 
 /**
  * Repository untuk operasi Kategori
  * Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
  */
-class CategoryRepository(
+class CategoryRepository @Inject constructor(
     private val categoryDao: CategoryDao
 ) {
 
@@ -166,4 +167,9 @@ class CategoryRepository(
             lastSyncAt = System.currentTimeMillis()
         ))
     }
+
+    suspend fun getCategoryIdByType(type: TransactionType, bookId: Int): Int? {
+        return categoryDao.getCategoryIdByType(type, bookId)
+    }
+
 }

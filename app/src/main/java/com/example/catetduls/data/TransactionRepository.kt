@@ -1,13 +1,15 @@
 package com.example.catetduls.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import java.util.*
+import javax.inject.Inject
 
 /**
  * Repository adalah perantara antara ViewModel dan DAO.
  * Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
  */
-class TransactionRepository(
+class TransactionRepository @Inject constructor(
     private val transactionDao: TransactionDao
 ) {
 
@@ -20,6 +22,11 @@ class TransactionRepository(
 
     fun getTransactionById(id: Int): Flow<Transaction?> =
         transactionDao.getTransactionById(id)
+
+    suspend fun getSingleTransactionById(id: Int): Transaction? {
+        // Menggunakan first() atau singleOrNull() untuk mendapatkan nilai pertama/tunggal dari Flow
+        return transactionDao.getTransactionById(id).firstOrNull()
+    }
 
     // ========================================
     // CREATE (Penandaan Sync: CREATE)

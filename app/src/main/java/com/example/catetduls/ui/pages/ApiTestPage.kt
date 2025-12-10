@@ -17,14 +17,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.catetduls.data.sync.SyncManager
 import com.example.catetduls.di.NetworkModule
 import com.example.catetduls.ui.viewmodel.ApiTestViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ApiTestPage() {
-    val apiService = NetworkModule.apiService
-    val viewModel: ApiTestViewModel = viewModel(
-        factory = ApiTestViewModel.Factory(apiService)
-    )
+fun ApiTestPage(
+    // Kita biarkan Hilt menyuntikkan ViewModel otomatis
+    viewModel: ApiTestViewModel = viewModel()
+) {
+    // HAPUS MANUAL INJECTION INI:
+    // val apiService = NetworkModule.apiService
+    // val viewModel: ApiTestViewModel = viewModel(factory = ...)
 
     var selectedMethod by remember { mutableStateOf("GET") }
     var endpoint by remember { mutableStateOf("") }
@@ -139,7 +142,7 @@ fun ApiTestPage() {
             HorizontalDivider()
 
             // ============ SYNC DATA BUTTON ============
-            val context = LocalContext.current // Mendapatkan context
+            val context = LocalContext.current
 
             Card {
                 Row(
@@ -156,10 +159,9 @@ fun ApiTestPage() {
 
                     Button(
                         onClick = {
-                            // Panggil sinkronisasi paksa
                             SyncManager.forceOneTimeSync(context)
                         },
-                        enabled = !isLoading // Gunakan status isLoading API Tester
+                        enabled = !isLoading
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
@@ -169,7 +171,7 @@ fun ApiTestPage() {
             }
 
 
-            HorizontalDivider() // Tambahkan pemisah
+            HorizontalDivider()
 
             // ============ CUSTOM REQUEST ============
             Card {
@@ -208,15 +210,12 @@ fun ApiTestPage() {
                         label = { Text("Endpoint") },
                         placeholder = { Text("e.g., categories, auth/login, books/1") },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-//                        leadingIcon = {
-//                            Icon(Icons.Default.Language, contentDescription = null)
-//                        }
+                        singleLine = true
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // JSON Body (untuk POST/PUT)
+                    // JSON Body
                     if (selectedMethod == "POST" || selectedMethod == "PUT") {
                         OutlinedTextField(
                             value = jsonBody,
@@ -349,7 +348,7 @@ fun ApiTestPage() {
                             IconButton(
                                 onClick = { /* TODO: Copy to clipboard */ }
                             ) {
-//                                Icon(Icons.Default.Description, contentDescription = "Copy")
+                                // Icon(Icons.Default.Description, contentDescription = "Copy")
                             }
                         }
                     }

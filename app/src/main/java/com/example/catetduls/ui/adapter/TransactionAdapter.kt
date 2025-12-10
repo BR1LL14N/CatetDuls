@@ -22,7 +22,7 @@ class TransactionAdapter(
     private val onItemClick: (com.example.catetduls.data.Transaction) -> Unit,
     private val getCategoryName: (Int) -> String = { "" },
     private val getCategoryIcon: (Int) -> String = { "💰" },
-    private val getWalletName: (Int) -> String = { "" } // TAMBAHAN: Untuk nama dompet (Tunai/Bank)
+    private val getWalletName: (Int) -> String = { "" }
 ) : ListAdapter<TransactionListItem, RecyclerView.ViewHolder>(TransactionDiffCallback()) {
 
     companion object {
@@ -39,12 +39,10 @@ class TransactionAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return if (viewType == TYPE_HEADER) {
-            // Inflate layout Header Tanggal
             val view = LayoutInflater.from(parent.context)
                 .inflate(R.layout.item_transaction_header, parent, false)
             HeaderViewHolder(view)
         } else {
-            // Inflate layout Item Transaksi
             val view = LayoutInflater.from(parent.context)
                 .inflate(R.layout.item_transaction, parent, false)
             TransactionViewHolder(view)
@@ -68,9 +66,9 @@ class TransactionAdapter(
     // 1. VIEWHOLDER HEADER (TANGGAL & TOTAL)
     // ==========================================
     class HeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val tvDateDay: TextView = itemView.findViewById(R.id.tv_date_day)         // "19"
-        private val tvDateDayName: TextView = itemView.findViewById(R.id.tv_date_day_name) // "Rab"
-        private val tvDateMonthYear: TextView = itemView.findViewById(R.id.tv_date_month_year) // "11.2025"
+        private val tvDateDay: TextView = itemView.findViewById(R.id.tv_date_day)
+        private val tvDateDayName: TextView = itemView.findViewById(R.id.tv_date_day_name)
+        private val tvDateMonthYear: TextView = itemView.findViewById(R.id.tv_date_month_year)
         private val tvDailyIncome: TextView = itemView.findViewById(R.id.tv_daily_income)
         private val tvDailyExpense: TextView = itemView.findViewById(R.id.tv_daily_expense)
 
@@ -78,16 +76,13 @@ class TransactionAdapter(
             val date = Date(header.dateTimestamp)
             val localeID = Locale("id", "ID")
 
-            // Format Tanggal Sesuai Gambar
             tvDateDay.text = SimpleDateFormat("dd", localeID).format(date)
             tvDateDayName.text = SimpleDateFormat("EEE", localeID).format(date)
             tvDateMonthYear.text = SimpleDateFormat("MM.yyyy", localeID).format(date)
 
-            // Format Uang
             val formatter = NumberFormat.getCurrencyInstance(localeID)
             formatter.maximumFractionDigits = 0
 
-            // Tampilkan Income harian jika ada
             if (header.dailyIncome > 0) {
                 tvDailyIncome.text = formatter.format(header.dailyIncome).replace("Rp", "Rp ")
                 tvDailyIncome.visibility = View.VISIBLE
@@ -95,7 +90,6 @@ class TransactionAdapter(
                 tvDailyIncome.visibility = View.GONE
             }
 
-            // Tampilkan Expense harian jika ada
             if (header.dailyExpense > 0) {
                 tvDailyExpense.text = formatter.format(header.dailyExpense).replace("Rp", "Rp ")
                 tvDailyExpense.visibility = View.VISIBLE
@@ -109,15 +103,14 @@ class TransactionAdapter(
     // 2. VIEWHOLDER ITEM (TRANSAKSI)
     // ==========================================
     class TransactionViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        // ID harus sesuai dengan item_transaction.xml yang baru
         private val tvCategoryIcon: TextView = itemView.findViewById(R.id.tv_category_icon)
         private val tvCategoryName: TextView = itemView.findViewById(R.id.tv_category_name)
         private val tvNotes: TextView = itemView.findViewById(R.id.tv_transaction_notes)
         private val tvWalletName: TextView = itemView.findViewById(R.id.tv_wallet_name)
         private val tvAmount: TextView = itemView.findViewById(R.id.tv_amount)
 
-        private val cardImage: View = itemView.findViewById(R.id.card_image_preview) // Pembungkus CardView
-        private val ivThumb: android.widget.ImageView = itemView.findViewById(R.id.iv_transaction_thumb) // ImageView di dalamnya
+        private val cardImage: View = itemView.findViewById(R.id.card_image_preview)
+        private val ivThumb: android.widget.ImageView = itemView.findViewById(R.id.iv_transaction_thumb)
 
         fun bind(
             transaction: com.example.catetduls.data.Transaction,
@@ -147,13 +140,13 @@ class TransactionAdapter(
             val formatter = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
             formatter.maximumFractionDigits = 0
 
-            // Format: Rp 50.000
             tvAmount.text = CurrencyUtils.toRupiah(transaction.amount)
 
-            // Warna: Pemasukan (Biru/Hijau), Pengeluaran (Merah/Oranye)
+            // ✅ FIXED: Tambahkan branch untuk TRANSFER
             val amountColor = when (transaction.type) {
                 TransactionType.PEMASUKAN -> ContextCompat.getColor(context, R.color.success)
-                TransactionType.PENGELUARAN -> ContextCompat.getColor(context, R.color.danger) // Sesuaikan dengan warna merah di gambar
+                TransactionType.PENGELUARAN -> ContextCompat.getColor(context, R.color.danger)
+                TransactionType.TRANSFER -> ContextCompat.getColor(context, R.color.text_secondary) // Abu-abu untuk transfer
             }
             tvAmount.setTextColor(amountColor)
 
@@ -178,7 +171,6 @@ class TransactionAdapter(
     object CurrencyUtils {
         fun toRupiah(amount: Double): String {
             val format = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-            // Hapus ".00" di belakang koma jika tidak diinginkan
             format.maximumFractionDigits = 0
             return format.format(amount).replace("Rp", "Rp ")
         }

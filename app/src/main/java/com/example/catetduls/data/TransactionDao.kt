@@ -44,6 +44,8 @@ interface TransactionDao {
     @Query("SELECT COUNT(*) FROM transactions")
     suspend fun getTransactionCount(): Int
 
+
+
     // ========================================
     // SYNC OPERATIONS - PERBAIKAN DAN TAMBAHAN
     // ========================================

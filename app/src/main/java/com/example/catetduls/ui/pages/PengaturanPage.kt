@@ -1,47 +1,33 @@
 package com.example.catetduls.ui.pages
 
 import android.app.AlertDialog
-import android.content.Context
-import android.net.Uri // Import yang diperlukan
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.widget.SwitchCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.ViewModelProvider
+import androidx.fragment.app.viewModels // Import Hilt ktx
+import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
 import com.example.catetduls.R
-import com.example.catetduls.data.getCategoryRepository
-import com.example.catetduls.data.getTransactionRepository
-import com.example.catetduls.data.getWalletRepository
 import com.example.catetduls.viewmodel.PengaturanViewModel
-import com.example.catetduls.viewmodel.PengaturanViewModelFactory
+// Hapus import PengaturanViewModelFactory (sudah tidak ada)
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import androidx.lifecycle.asLiveData
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import androidx.activity.result.contract.ActivityResultContracts
 
-/**
- * PengaturanPage - Halaman pengaturan aplikasi
- *
- * Fitur:
- * - Dark Mode toggle <-- DIHAPUS
- * - Kelola Kategori
- * - Backup & Restore
- * - Export CSV/JSON
- * - Reset Data
- * - Info Aplikasi
- */
+@AndroidEntryPoint // WAJIB: Anotasi agar Hilt bekerja di Fragment ini
 class PengaturanPage : Fragment() {
 
-    private lateinit var viewModel: PengaturanViewModel
+    // CARA BARU: Init ViewModel dengan Hilt (Otomatis)
+    private val viewModel: PengaturanViewModel by viewModels()
 
     // Views
-    // private lateinit var switchDarkMode: SwitchCompat <-- DIHAPUS
     private lateinit var cardKelolaKategori: MaterialCardView
     private lateinit var cardKelolaWallet: MaterialCardView
     private lateinit var btnBackup: MaterialButton
@@ -54,11 +40,14 @@ class PengaturanPage : Fragment() {
     private lateinit var tvTotalTransaksi: TextView
     private lateinit var tvTotalKategori: TextView
 
+    // View Baru (Login/Logout Button)
+    private lateinit var btnAuthAction: MaterialButton
+    private lateinit var tvUserStatus: TextView
+
     // ===============================================
-    // DUA LAUNCHER UNTUK EXPORT FILE (MENGGUNAKAN SAF)
+    // LAUNCHER UNTUK EXPORT FILE
     // ===============================================
 
-    /** Launcher untuk membuat file CSV (mimeType: text/csv) */
     private val createCsvFileLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("text/csv")
     ) { uri: Uri? ->
@@ -71,7 +60,6 @@ class PengaturanPage : Fragment() {
         }
     }
 
-    /** Launcher untuk membuat file JSON (mimeType: application/json) */
     private val createJsonFileLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
@@ -84,59 +72,39 @@ class PengaturanPage : Fragment() {
         }
     }
 
-
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // Asumsi layout R.layout.fragment_pengaturan juga akan diubah
-        // untuk menghapus elemen Dark Mode
         return inflater.inflate(R.layout.fragment_pengaturan, container, false)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Initialize Repositories
-        val transactionRepo = requireContext().getTransactionRepository()
-        val categoryRepo = requireContext().getCategoryRepository()
-        val walletRepo = requireContext().getWalletRepository() // <--- AMBIL WALLET REPO
-
-        val activeBookId: Int = try {
-            val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-            prefs.getInt("active_book_id", 1)
-        } catch (e: Exception) {
-            1
-        }
-
-        // Initialize Factory dengan parameter yang LENGKAP
-        val factory = PengaturanViewModelFactory(
-            transactionRepo,
-            categoryRepo,
-            walletRepo, // <--- TAMBAHKAN DI SINI
-            activeBookId,
-            requireContext()
-        )
-
-        viewModel = ViewModelProvider(this, factory)[PengaturanViewModel::class.java]
+        // =================================================================
+        // HAPUS SEMUA KODE INISIALISASI MANUAL (Repository, Factory, dll)
+        // Hilt sudah menanganinya lewat 'by viewModels()' di atas.
+        // =================================================================
 
         // Initialize Views
         initViews(view)
 
         // Setup
-        // setupDarkMode() <-- DIHAPUS
         setupButtons()
 
         // Observe data
         observeData()
 
-        // Load statistics
+        // Load statistics & Check Login
         loadStatistics()
+
+        // Panggil fungsi ini (Pastikan di ViewModel sudah PUBLIC, tidak private)
+        viewModel.checkLoginStatus()
     }
 
     private fun initViews(view: View) {
-        // switchDarkMode = view.findViewById(R.id.switch_dark_mode) <-- DIHAPUS
         cardKelolaKategori = view.findViewById(R.id.card_kelola_kategori)
         cardKelolaWallet = view.findViewById(R.id.card_kelola_wallet)
         btnBackup = view.findViewById(R.id.btn_backup)
@@ -148,21 +116,11 @@ class PengaturanPage : Fragment() {
         tvAppVersion = view.findViewById(R.id.tv_app_version)
         tvTotalTransaksi = view.findViewById(R.id.tv_total_transaksi)
         tvTotalKategori = view.findViewById(R.id.tv_total_kategori)
+
+        // Init View Baru
+        btnAuthAction = view.findViewById(R.id.btn_auth_action)
+        tvUserStatus = view.findViewById(R.id.tv_user_status)
     }
-
-
-    // private fun setupDarkMode() { <-- SELURUH FUNGSI DIHAPUS
-    //     // Set initial state langsung dari SharedPreferences
-    //     val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-    //     val currentDarkMode = prefs.getBoolean("dark_mode", false)
-    //     switchDarkMode.isChecked = currentDarkMode
-    //
-    //     // Listener untuk toggle
-    //     switchDarkMode.setOnCheckedChangeListener { _, isChecked ->
-    //         viewModel.toggleDarkMode()
-    //         Toast.makeText(requireContext(), "Dark Mode akan aktif setelah restart", Toast.LENGTH_SHORT).show()
-    //     }
-    // }
 
     private fun setupButtons() {
         // Kelola Kategori
@@ -182,7 +140,7 @@ class PengaturanPage : Fragment() {
                 .commit()
         }
 
-        // Backup (Internal Backup) - Tetap menggunakan logika lama
+        // Backup
         btnBackup.setOnClickListener {
             viewLifecycleOwner.lifecycleScope.launch {
                 val jsonData = viewModel.exportToJson()
@@ -200,16 +158,14 @@ class PengaturanPage : Fragment() {
             Toast.makeText(requireContext(), "Restore - Coming Soon", Toast.LENGTH_SHORT).show()
         }
 
-        // Export CSV - Memicu pemilih file
+        // Export CSV
         btnExportCsv.setOnClickListener {
-            // Gunakan nama file default dari ViewModel (asumsi sudah diperbaiki untuk menerima ekstensi)
             val defaultFileName = viewModel.getBackupFileName("csv")
             createCsvFileLauncher.launch(defaultFileName)
         }
 
-        // Export JSON - Memicu pemilih file
+        // Export JSON
         btnExportJson.setOnClickListener {
-            // Gunakan nama file default dari ViewModel
             val defaultFileName = viewModel.getBackupFileName("json")
             createJsonFileLauncher.launch(defaultFileName)
         }
@@ -223,20 +179,31 @@ class PengaturanPage : Fragment() {
         btnResetKategori.setOnClickListener {
             showResetKategoriDialog()
         }
+
+        // LOGIN / LOGOUT Button Listener
+        btnAuthAction.setOnClickListener {
+            if (viewModel.isLoggedIn.value) {
+                // Jika Login -> Tampilkan konfirmasi Logout
+                showLogoutDialog()
+            } else {
+                // Jika Guest -> Buka Halaman Login
+                val loginFragment = LoginPage()
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.fragment_container, loginFragment)
+                    .addToBackStack(null)
+                    .commit()
+            }
+        }
     }
 
     // ===============================================
-    // FUNGSI UNTUK MENULIS DATA KE URI (SETELAH DIPILIH)
+    // EXPORT HANDLERS
     // ===============================================
 
-    /**
-     * Ambil data CSV dari ViewModel dan tulis ke URI yang dipilih pengguna.
-     */
     private suspend fun handleCsvExportAndSave(fileUri: Uri) {
         val csvData = viewModel.exportToCsv()
         if (csvData != null) {
             try {
-                // Gunakan ContentResolver untuk membuka OutputStream ke URI
                 requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream ->
                     outputStream.write(csvData.toByteArray())
                     Toast.makeText(requireContext(), "Export CSV berhasil disimpan!", Toast.LENGTH_LONG).show()
@@ -248,14 +215,10 @@ class PengaturanPage : Fragment() {
         }
     }
 
-    /**
-     * Ambil data JSON dari ViewModel dan tulis ke URI yang dipilih pengguna.
-     */
     private suspend fun handleJsonExportAndSave(fileUri: Uri) {
         val jsonData = viewModel.exportToJson()
         if (jsonData != null) {
             try {
-                // Gunakan ContentResolver untuk membuka OutputStream ke URI
                 requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream ->
                     outputStream.write(jsonData.toByteArray())
                     Toast.makeText(requireContext(), "Export JSON berhasil disimpan!", Toast.LENGTH_LONG).show()
@@ -266,6 +229,10 @@ class PengaturanPage : Fragment() {
             }
         }
     }
+
+    // ===============================================
+    // DIALOGS
+    // ===============================================
 
     private fun showResetDataDialog() {
         AlertDialog.Builder(requireContext())
@@ -289,18 +256,50 @@ class PengaturanPage : Fragment() {
             .show()
     }
 
+    private fun showLogoutDialog() {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Keluar Akun")
+            .setMessage("Apakah Anda yakin ingin keluar? Data lokal yang belum disinkronkan mungkin hilang.")
+            .setPositiveButton("Keluar") { _, _ ->
+                viewModel.logout()
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    // ===============================================
+    // OBSERVERS
+    // ===============================================
+
     private fun observeData() {
-        // Observe success messages
+        // Observe Login Status (Untuk ubah tampilan tombol)
+        viewModel.isLoggedIn.asLiveData().observe(viewLifecycleOwner) { isLoggedIn ->
+            if (isLoggedIn) {
+                btnAuthAction.text = "Keluar Akun"
+                btnAuthAction.setTextColor(resources.getColor(R.color.danger, null))
+                btnAuthAction.setIconTintResource(R.color.danger)
+            } else {
+                btnAuthAction.text = "Masuk Akun"
+                btnAuthAction.setTextColor(resources.getColor(R.color.primary, null))
+                btnAuthAction.setIconTintResource(R.color.primary)
+            }
+        }
+
+        // Observe Username
+        viewModel.userName.asLiveData().observe(viewLifecycleOwner) { name ->
+            tvUserStatus.text = "Halo, $name"
+        }
+
+        // Observe Success Message
         viewModel.successMessage.asLiveData().observe(viewLifecycleOwner) { message ->
             message?.let {
                 Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
-
                 loadStatistics()
                 viewModel.clearMessages()
             }
         }
 
-        // Observe error messages
+        // Observe Error Message
         viewModel.errorMessage.asLiveData().observe(viewLifecycleOwner) { error ->
             error?.let {
                 Toast.makeText(requireContext(), it, Toast.LENGTH_LONG).show()
@@ -310,10 +309,7 @@ class PengaturanPage : Fragment() {
     }
 
     private fun loadStatistics() {
-        // Set app version
         tvAppVersion.text = "Versi ${viewModel.getAppVersion()}"
-
-        // Get app statistics
         val stats = viewModel.getAppStatistics()
         tvTotalTransaksi.text = "Total Transaksi: ${stats["Total Transaksi"]}"
         tvTotalKategori.text = "Total Kategori: ${stats["Total Kategori"]}"
