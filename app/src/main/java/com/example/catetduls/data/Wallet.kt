@@ -53,8 +53,8 @@ data class Wallet(
 
     val currentBalance: Double = 0.0,
 
-    val description: String = "",
-
+    val description: String? = null,
+    
     val isActive: Boolean = true,
 
     @ColumnInfo(name = "created_at")

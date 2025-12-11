@@ -10,6 +10,12 @@ import com.example.catetduls.data.local.TokenManager
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.lifecycleScope
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import com.example.catetduls.utils.NetworkUtils
+import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.launch
 
 // Antarmuka yang didefinisikan di RegisterPage, harus diimplementasikan di Activity
 interface NavigationController {
@@ -28,6 +34,8 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
         setContentView(R.layout.activity_main)
 
         bottomNav = findViewById(R.id.bottom_navigation)
+        setupNetworkObserver()
+        setupSyncObserver()
 
         // =========================================================================
         // Logika Lifecycle Callback Sederhana
@@ -89,6 +97,48 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
                 }
                 else -> false
             }
+        }
+    }
+
+    private fun setupNetworkObserver() {
+        lifecycleScope.launch {
+            NetworkUtils.observeConnectivity(this@MainActivity)
+                .collect { isConnected ->
+                    val message = if (isConnected) "🟢 Online - Terhubung ke Internet" else "🔴 Offline - Koneksi Terputus"
+                    val duration = if (isConnected) Snackbar.LENGTH_SHORT else Snackbar.LENGTH_LONG
+                    Snackbar.make(findViewById(android.R.id.content), message, duration).show()
+                }
+        }
+    }
+
+    private fun setupSyncObserver() {
+        // Observe Periodic Sync
+        WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("DataSyncWork")
+            .observe(this) { workInfos ->
+                handleWorkInfo(workInfos)
+            }
+            
+        // Observe One-Time Force Sync
+        WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("ForceOneTimeSync")
+            .observe(this) { workInfos ->
+                handleWorkInfo(workInfos)
+            }
+    }
+
+    private fun handleWorkInfo(workInfos: List<WorkInfo>) {
+        if (workInfos.isNullOrEmpty()) return
+
+        val workInfo = workInfos.first()
+        val rootView = findViewById<View>(android.R.id.content)
+
+        if (workInfo.state == WorkInfo.State.RUNNING) {
+            // Hindari spam snackbar saat running, mungkin bisa pakai ProgressBar di UI kalau ada
+            // Tapi user minta pesan, jadi kita tampilkan sekilas
+           // Snackbar.make(rootView, "🔄 Sedang menyinkronkan data...", Snackbar.LENGTH_SHORT).show()
+        } else if (workInfo.state == WorkInfo.State.SUCCEEDED) {
+            Snackbar.make(rootView, "✅ Sinkronisasi berhasil!", Snackbar.LENGTH_SHORT).show()
+        } else if (workInfo.state == WorkInfo.State.FAILED) {
+            Snackbar.make(rootView, "❌ Sinkronisasi gagal. Cek koneksi Anda.", Snackbar.LENGTH_LONG).show()
         }
     }
 

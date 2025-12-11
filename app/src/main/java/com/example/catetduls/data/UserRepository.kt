@@ -11,9 +11,10 @@ import javax.inject.Inject
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
+import com.example.catetduls.utils.ErrorUtils
+
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
-
 
 class UserRepository @Inject constructor(
     private val userDao: UserDao,
@@ -63,7 +64,6 @@ class UserRepository @Inject constructor(
     // ===================================
     // AUTH OPERATIONS
     // ===================================
-
     /**
      * REGISTER dengan Refresh Token
      */
@@ -122,24 +122,11 @@ class UserRepository @Inject constructor(
                     Result.failure(Exception(apiResponse.message ?: "Registrasi gagal"))
                 }
             } else {
-
-                val errorBodyString = response.errorBody()?.string()
-                val apiErrorResponse: ApiResponse<Any?>? = try {
-
-                    Gson().fromJson(errorBodyString, object : TypeToken<ApiResponse<Any?>>() {}.type)
-                } catch (e: Exception) {
-                    null
-                }
-
-                val errorMsg = when (response.code()) {
-                    422 -> apiErrorResponse?.message ?: "Data input tidak valid (422)"
-                    500 ->  apiErrorResponse?.message ?: "Server error, coba lagi (500)"
-                    else -> "Registrasi gagal: ${response.message()}"
-                }
+                val errorMsg = ErrorUtils.parseError(response)
                 Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
-            Result.failure(Exception("Koneksi gagal: ${e.message}"))
+            Result.failure(Exception(ErrorUtils.getReadableMessage(e)))
         }
     }
 
@@ -193,26 +180,11 @@ class UserRepository @Inject constructor(
                     Result.failure(Exception(apiResponse.message ?: "Login gagal"))
                 }
             } else {
-                // Parse error body untuk mendapatkan pesan error yang sebenarnya dari API
-                val errorBodyString = response.errorBody()?.string()
-                val apiErrorResponse: ApiResponse<Any?>? = try {
-                    Gson().fromJson(errorBodyString, object : TypeToken<ApiResponse<Any?>>() {}.type)
-                } catch (e: Exception) {
-                    null
-                }
-
-                // Gunakan pesan dari API jika tersedia, jika tidak gunakan fallback
-                val errorMsg = when (response.code()) {
-                    401 -> apiErrorResponse?.message ?: "Email atau password salah (401)"
-                    404 -> apiErrorResponse?.message ?: "Endpoint tidak ditemukan. Periksa URL API (404)"
-                    422 -> apiErrorResponse?.message ?: "Data tidak valid (422)"
-                    500 -> apiErrorResponse?.message ?: "Server error, coba lagi (500)"
-                    else -> apiErrorResponse?.message ?: "Login gagal: ${response.code()} - ${response.message()}"
-                }
+                val errorMsg = ErrorUtils.parseError(response)
                 Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
-            Result.failure(Exception("Koneksi gagal: ${e.message}"))
+            Result.failure(Exception(ErrorUtils.getReadableMessage(e)))
         }
     }
 
@@ -254,10 +226,11 @@ class UserRepository @Inject constructor(
                 logoutAll()
                 Result.success(response.body()?.message ?: "Logged out from all devices")
             } else {
-                Result.failure(Exception(response.message() ?: "Logout failed"))
+                val errorMsg = ErrorUtils.parseError(response)
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(ErrorUtils.getReadableMessage(e)))
         }
     }
 
@@ -281,10 +254,11 @@ class UserRepository @Inject constructor(
                     Result.failure(Exception("No user found locally"))
                 }
             } else {
-                Result.failure(Exception(response.message() ?: "Token refresh failed"))
+                val errorMsg = ErrorUtils.parseError(response)
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(ErrorUtils.getReadableMessage(e)))
         }
     }
 
@@ -304,7 +278,7 @@ class UserRepository @Inject constructor(
                 Result.failure(Exception(response.message() ?: "Request failed"))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(ErrorUtils.getReadableMessage(e)))
         }
     }
 
@@ -321,10 +295,11 @@ class UserRepository @Inject constructor(
             if (response.isSuccessful) {
                 Result.success(response.body()?.message ?: "Password reset successful")
             } else {
-                Result.failure(Exception(response.message() ?: "Reset failed"))
+                val errorMsg = ErrorUtils.parseError(response)
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(ErrorUtils.getReadableMessage(e)))
         }
     }
 
@@ -340,10 +315,11 @@ class UserRepository @Inject constructor(
             if (response.isSuccessful) {
                 Result.success(response.body()?.message ?: "Password changed successfully")
             } else {
-                Result.failure(Exception(response.message() ?: "Change password failed"))
+                val errorMsg = ErrorUtils.parseError(response)
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(ErrorUtils.getReadableMessage(e)))
         }
     }
 
@@ -372,10 +348,11 @@ class UserRepository @Inject constructor(
                     Result.failure(Exception("No local user found"))
                 }
             } else {
-                Result.failure(Exception(response.message() ?: "Failed to fetch profile"))
+                val errorMsg = ErrorUtils.parseError(response)
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(ErrorUtils.getReadableMessage(e)))
         }
     }
 
@@ -421,11 +398,11 @@ class UserRepository @Inject constructor(
                     Result.failure(Exception(apiResponse.message ?: "Update failed"))
                 }
             } else {
-                // HTTP Error (400, 500, dll)
-                Result.failure(Exception(response.message() ?: "HTTP Error"))
+                val errorMsg = ErrorUtils.parseError(response)
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(ErrorUtils.getReadableMessage(e)))
         }
     }
 
@@ -465,10 +442,11 @@ class UserRepository @Inject constructor(
                     Result.failure(Exception(apiResponse.message ?: "Upload failed"))
                 }
             } else {
-                Result.failure(Exception(response.message() ?: "HTTP Upload failed"))
+                val errorMsg = ErrorUtils.parseError(response)
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(ErrorUtils.getReadableMessage(e)))
         }
     }
 
@@ -485,7 +463,8 @@ class UserRepository @Inject constructor(
                 }
                 Result.success(response.body()?.message ?: "Photo deleted")
             } else {
-                Result.failure(Exception(response.message() ?: "Delete failed"))
+                val errorMsg = ErrorUtils.parseError(response)
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -498,10 +477,11 @@ class UserRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.success(response.body()!!)
             } else {
-                Result.failure(Exception(response.message() ?: "Failed to fetch statistics"))
+                val errorMsg = ErrorUtils.parseError(response)
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(ErrorUtils.getReadableMessage(e)))
         }
     }
 
@@ -513,7 +493,8 @@ class UserRepository @Inject constructor(
                 deleteAccount() // Hapus data lokal
                 Result.success(response.body()?.message ?: "Account deleted")
             } else {
-                Result.failure(Exception(response.message() ?: "Delete failed"))
+                val errorMsg = ErrorUtils.parseError(response)
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
             Result.failure(e)
