@@ -193,11 +193,21 @@ class UserRepository @Inject constructor(
                     Result.failure(Exception(apiResponse.message ?: "Login gagal"))
                 }
             } else {
+                // Parse error body untuk mendapatkan pesan error yang sebenarnya dari API
+                val errorBodyString = response.errorBody()?.string()
+                val apiErrorResponse: ApiResponse<Any?>? = try {
+                    Gson().fromJson(errorBodyString, object : TypeToken<ApiResponse<Any?>>() {}.type)
+                } catch (e: Exception) {
+                    null
+                }
+
+                // Gunakan pesan dari API jika tersedia, jika tidak gunakan fallback
                 val errorMsg = when (response.code()) {
-                    401 -> "Email atau password salah"
-                    422 -> "Data tidak valid"
-                    500 -> "Server error, coba lagi"
-                    else -> "Login gagal: ${response.message()}"
+                    401 -> apiErrorResponse?.message ?: "Email atau password salah (401)"
+                    404 -> apiErrorResponse?.message ?: "Endpoint tidak ditemukan. Periksa URL API (404)"
+                    422 -> apiErrorResponse?.message ?: "Data tidak valid (422)"
+                    500 -> apiErrorResponse?.message ?: "Server error, coba lagi (500)"
+                    else -> apiErrorResponse?.message ?: "Login gagal: ${response.code()} - ${response.message()}"
                 }
                 Result.failure(Exception(errorMsg))
             }

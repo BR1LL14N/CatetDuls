@@ -193,10 +193,7 @@ interface ApiService {
     suspend fun createCategory(@Body category: Category): Response<CreateResponse>
 
     @PUT("categories/{id}")
-    suspend fun updateCategory(
-        @Path("id") serverId: String,
-        @Body category: Category
-    ): Response<CreateResponse>
+    suspend fun updateCategory(@Path("id") serverId: Long, @Body category: Category): Response<MessageResponse>
 
     @DELETE("categories/{id}")
     suspend fun deleteCategory(@Path("id") serverId: String): Response<MessageResponse>
@@ -225,10 +222,7 @@ interface ApiService {
     suspend fun createTransaction(@Body transaction: Transaction): Response<CreateResponse>
 
     @PUT("transactions/{id}")
-    suspend fun updateTransaction(
-        @Path("id") serverId: String,
-        @Body transaction: Transaction
-    ): Response<CreateResponse>
+    suspend fun updateTransaction(@Path("id") serverId: Long, @Body transaction: Transaction): Response<MessageResponse>
 
     @DELETE("transactions/{id}")
     suspend fun deleteTransaction(@Path("id") serverId: String): Response<MessageResponse>
