@@ -72,7 +72,7 @@ interface WalletDao {
     """)
     fun getTotalBalance(bookId: Int): Flow<Double?>
 
-    @Query("SELECT * FROM wallets WHERE is_synced = 0 AND is_deleted = 0")
+    @Query("SELECT * FROM wallets WHERE is_synced = 0")
     suspend fun getUnsyncedWallets(): List<Wallet>
 
     @Query("SELECT * FROM wallets WHERE server_id = :serverId LIMIT 1")

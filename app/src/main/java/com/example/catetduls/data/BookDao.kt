@@ -56,7 +56,7 @@ interface BookDao {
         setActiveBook(newActiveBookId)
     }
 
-    @Query("SELECT * FROM books WHERE is_synced = 0 AND is_deleted = 0")
+    @Query("SELECT * FROM books WHERE is_synced = 0")
     suspend fun getUnsyncedBooks(): List<Book>
 
     @Query("SELECT * FROM books WHERE server_id = :serverId LIMIT 1")

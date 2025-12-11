@@ -10,7 +10,7 @@ import javax.inject.Inject
  */
 class CategoryRepository @Inject constructor(
     private val categoryDao: CategoryDao
-) {
+) : SyncRepository<Category> {
 
     // ===================================
     // READ
@@ -133,6 +133,10 @@ class CategoryRepository @Inject constructor(
         categoryDao.deleteCategoryById(categoryId)
     }
 
+    override suspend fun deleteByIdPermanently(id: Long) {
+        deleteCategoryByIdPermanently(id.toInt())
+    }
+
     // ===================================
     // SYNC METHODS (Dipanggil oleh Sync Worker)
     // ===================================
@@ -140,32 +144,35 @@ class CategoryRepository @Inject constructor(
     /**
      * Mengambil semua kategori yang belum tersinkronisasi atau ditandai DELETE
      */
-    suspend fun getAllUnsynced(): List<Category> {
-        // Asumsi CategoryDao memiliki fungsi ini (mirip dengan BookDao)
-        // Jika belum ada, tambahkan di CategoryDao: @Query("SELECT * FROM categories WHERE is_synced = 0 OR is_deleted = 1")
-        // return categoryDao.getUnsyncedCategories()
-        TODO("Implementasikan getUnsyncedCategories di CategoryDao dan Repository")
+    override suspend fun getAllUnsynced(): List<Category> {
+        return categoryDao.getUnsyncedCategories()
     }
 
     /**
      * Memperbarui status sinkronisasi setelah operasi server berhasil.
      */
+    override suspend fun updateSyncStatus(localId: Long, serverId: String, lastSyncAt: Long) {
+        categoryDao.updateSyncStatus(localId.toInt(), serverId, lastSyncAt)
+    }
+
     suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long) {
-        // Asumsi CategoryDao memiliki fungsi ini (mirip dengan BookDao)
-        // categoryDao.updateSyncStatus(localId, serverId, lastSyncAt)
-        TODO("Implementasikan updateSyncStatus di CategoryDao dan Repository")
+        categoryDao.updateSyncStatus(localId, serverId, lastSyncAt)
     }
 
     /**
      * Menyimpan data kategori yang diterima dari server (untuk operasi PULL/READ dari server)
      */
-    suspend fun saveFromRemote(category: Category) {
+    override suspend fun saveFromRemote(category: Category) {
         categoryDao.insertCategory(category.copy(
             isSynced = true,
             isDeleted = false,
             syncAction = null,
             lastSyncAt = System.currentTimeMillis()
         ))
+    }
+
+    override suspend fun getByServerId(serverId: String): Category? {
+        return categoryDao.getByServerId(serverId)
     }
 
     suspend fun getCategoryIdByType(type: TransactionType, bookId: Int): Int? {

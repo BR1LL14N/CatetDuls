@@ -8,7 +8,7 @@ import javax.inject.Inject
  * Repository untuk operasi Dompet
  * Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
  */
-class WalletRepository @Inject constructor (private val walletDao: WalletDao) {
+class WalletRepository @Inject constructor (private val walletDao: WalletDao) : SyncRepository<Wallet> {
 
     // ===================================
     // READ
@@ -142,6 +142,10 @@ class WalletRepository @Inject constructor (private val walletDao: WalletDao) {
         walletDao.deleteById(walletId)
     }
 
+    override suspend fun deleteByIdPermanently(id: Long) {
+        deleteByIdPermanently(id.toInt())
+    }
+
     suspend fun deleteByBookId(bookId: Int) {
         // Ini adalah hard delete massal (biasanya setelah buku dihapus)
         // Pastikan Buku sudah disinkronkan/dihapus di server terlebih dahulu
@@ -156,7 +160,7 @@ class WalletRepository @Inject constructor (private val walletDao: WalletDao) {
      * Mengambil semua dompet yang perlu disinkronisasi (CREATE, UPDATE, DELETE).
      * Termasuk yang baru dibuat/diubah (is_synced = 0) dan yang ditandai untuk dihapus (is_deleted = 1).
      */
-    suspend fun getAllUnsynced(): List<Wallet> {
+    override suspend fun getAllUnsynced(): List<Wallet> {
         // Menggabungkan logika unsynced (is_synced = 0) dan deleted (is_deleted = 1 & is_synced = 0)
         return walletDao.getUnsyncedWallets() // Asumsi DAO ini mengambil semua yang is_synced = 0
     }
@@ -164,6 +168,10 @@ class WalletRepository @Inject constructor (private val walletDao: WalletDao) {
     /**
      * Memperbarui status sinkronisasi setelah operasi server berhasil (CREATE/UPDATE).
      */
+    override suspend fun updateSyncStatus(localId: Long, serverId: String, lastSyncAt: Long) {
+        walletDao.updateSyncStatus(localId.toInt(), serverId, lastSyncAt)
+    }
+
     suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long) {
         walletDao.updateSyncStatus(localId, serverId, lastSyncAt)
     }
@@ -171,13 +179,17 @@ class WalletRepository @Inject constructor (private val walletDao: WalletDao) {
     /**
      * Menyimpan data dompet yang diterima dari server (untuk operasi PULL/READ dari server)
      */
-    suspend fun saveFromRemote(wallet: Wallet) {
+    override suspend fun saveFromRemote(wallet: Wallet) {
         walletDao.insert(wallet.copy(
             isSynced = true,
             isDeleted = false,
             syncAction = null,
             lastSyncAt = System.currentTimeMillis()
         ))
+    }
+
+    override suspend fun getByServerId(serverId: String): Wallet? {
+        return walletDao.getByServerId(serverId)
     }
 
     // ===================================

@@ -11,7 +11,7 @@ import javax.inject.Inject
  */
 class TransactionRepository @Inject constructor(
     private val transactionDao: TransactionDao
-) {
+) : SyncRepository<Transaction> {
 
     // ========================================
     // READ Operations
@@ -117,6 +117,10 @@ class TransactionRepository @Inject constructor(
         transactionDao.deleteById(transactionId)
     }
 
+    override suspend fun deleteByIdPermanently(id: Long) {
+        deleteByIdPermanently(id.toInt())
+    }
+
     suspend fun deleteAllTransactions() {
         // Jika menggunakan sync, ini harus dilakukan dengan hati-hati.
         // Opsi 1: Menghapus semua yang belum sync, dan menandai yang sudah sync sebagai delete.
@@ -132,13 +136,17 @@ class TransactionRepository @Inject constructor(
     /**
      * Mengambil semua transaksi yang perlu disinkronkan (CREATE, UPDATE, DELETE).
      */
-    suspend fun getAllUnsyncedTransactions(): List<Transaction> {
+    override suspend fun getAllUnsynced(): List<Transaction> {
         return transactionDao.getAllUnsyncedTransactions()
     }
 
     /**
      * Memperbarui status sinkronisasi setelah operasi server berhasil (CREATE/UPDATE).
      */
+    override suspend fun updateSyncStatus(localId: Long, serverId: String, lastSyncAt: Long) {
+        transactionDao.updateSyncStatus(localId.toInt(), serverId, lastSyncAt)
+    }
+
     suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long) {
         transactionDao.updateSyncStatus(localId, serverId, lastSyncAt)
     }
@@ -146,7 +154,7 @@ class TransactionRepository @Inject constructor(
     /**
      * Menyimpan data transaksi yang diterima dari server (untuk operasi PULL/READ dari server)
      */
-    suspend fun saveFromRemote(transaction: Transaction) {
+    override suspend fun saveFromRemote(transaction: Transaction) {
         val existingPath = transactionDao.getByServerId(transaction.serverId ?: "")?.imagePath
         transactionDao.insertTransaction(transaction.copy(
             isSynced = true,
@@ -155,6 +163,10 @@ class TransactionRepository @Inject constructor(
             lastSyncAt = System.currentTimeMillis(),
             imagePath = existingPath ?: transaction.imagePath
         ))
+    }
+
+    override suspend fun getByServerId(serverId: String): Transaction? {
+        return transactionDao.getByServerId(serverId)
     }
 
     /**

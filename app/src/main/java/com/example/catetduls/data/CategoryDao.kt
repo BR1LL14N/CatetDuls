@@ -132,6 +132,9 @@ interface CategoryDao {
         lastSyncAt: Long
     )
 
+    @Query("SELECT * FROM categories WHERE server_id = :serverId LIMIT 1")
+    suspend fun getByServerId(serverId: String): Category?
+
     // ===================================
     // UTILITY/STATS
     // ===================================

@@ -8,7 +8,7 @@ import javax.inject.Inject
  * Repository untuk operasi Buku
  * Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
  */
-class BookRepository @Inject constructor(private val bookDao: BookDao) {
+class BookRepository @Inject constructor(private val bookDao: BookDao) : SyncRepository<Book> {
 
     // ===================================
     // READ
@@ -121,6 +121,10 @@ class BookRepository @Inject constructor(private val bookDao: BookDao) {
         bookDao.deleteById(bookId)
     }
 
+    override suspend fun deleteByIdPermanently(id: Long) {
+        deleteByIdPermanently(id.toInt())
+    }
+
     // ===================================
     // HELPER
     // ===================================
@@ -144,13 +148,17 @@ class BookRepository @Inject constructor(private val bookDao: BookDao) {
     /**
      * Mengambil semua buku yang belum tersinkronisasi atau ditandai DELETE
      */
-    suspend fun getUnsyncedBooks(): List<Book> {
+    override suspend fun getAllUnsynced(): List<Book> {
         return bookDao.getUnsyncedBooks()
     }
 
     /**
      * Memperbarui status sinkronisasi setelah operasi server berhasil (CREATE/UPDATE/DELETE).
      */
+    override suspend fun updateSyncStatus(localId: Long, serverId: String, lastSyncAt: Long) {
+        bookDao.updateSyncStatus(localId.toInt(), serverId, lastSyncAt)
+    }
+
     suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long) {
         bookDao.updateSyncStatus(localId, serverId, lastSyncAt)
     }
@@ -158,12 +166,16 @@ class BookRepository @Inject constructor(private val bookDao: BookDao) {
     /**
      * Menyimpan data buku yang diterima dari server (untuk operasi PULL/READ dari server)
      */
-    suspend fun saveFromRemote(book: Book) {
+    override suspend fun saveFromRemote(book: Book) {
         bookDao.insert(book.copy(
             isSynced = true,
             isDeleted = false,
             syncAction = null,
             lastSyncAt = System.currentTimeMillis()
         ))
+    }
+    
+    override suspend fun getByServerId(serverId: String): Book? {
+        return bookDao.getByServerId(serverId)
     }
 }
