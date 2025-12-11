@@ -125,18 +125,17 @@ class PengaturanViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                try {
-                    userRepository.logoutRemote()
-                } catch (e: Exception) {
-                    e.printStackTrace()
+
+                val result = userRepository.logout()
+
+                if (result.isSuccess) {
+                    _isLoggedIn.value = false
+                    _userName.value = "Tamu"
+                    _successMessage.value = "Berhasil keluar"
+                } else {
+
+                    throw result.exceptionOrNull() ?: Exception("Gagal logout")
                 }
-
-                TokenManager.clearToken(context)
-                userRepository.logout()
-
-                _isLoggedIn.value = false
-                _userName.value = "Tamu"
-                _successMessage.value = "Berhasil keluar"
 
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal logout: ${e.message}"

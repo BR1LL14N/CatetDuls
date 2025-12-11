@@ -1,0 +1,81 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="1080dp"
+    android:height="1920dp"
+    android:viewportWidth="1080"
+    android:viewportHeight="1920">
+
+    <!-- WAVE 1 -->
+    <path
+        android:pathData="
+            M-200,0
+            L-200,800
+            C150,650 350,880 650,780
+            C850,720 1280,900 1280,900
+            L1280,0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startColor="@color/wave_blue_dark"
+                android:endColor="@color/wave_blue_light"
+                android:angle="45"/>
+        </aapt:attr>
+    </path>
+
+    <!-- WAVE 2 (FADE TRANSPARAN) -->
+    <path
+        android:pathData="
+            M-100,400
+            L-100,920
+            C180,850 400,1020 700,920
+            C900,860 1280,1020 1280,1020
+            L1280,400 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startColor="@color/wave_blue_fade_start"
+                android:centerColor="@color/wave_blue_fade_center"
+                android:endColor="@color/wave_blue_fade_end"
+                android:angle="45"/>
+        </aapt:attr>
+    </path>
+
+    <!-- WAVE 3 (LIGHT + FADE) -->
+    <path
+        android:pathData="
+            M-150,550
+            L-150,1120
+            C200,1040 480,1180 780,1080
+            C980,1020 1280,1180 1280,1180
+            L1280,550 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startColor="@color/wave_light_blue_fade_start"
+                android:centerColor="@color/wave_light_blue_fade_center"
+                android:endColor="@color/wave_light_blue_fade_end"
+                android:angle="45"/>
+        </aapt:attr>
+    </path>
+
+    <!-- SOFT GLOW -->
+    <path
+        android:pathData="
+            M-50,450
+            L-50,900
+            C200,820 400,960 700,880
+            C880,840 1280,960 1280,960
+            L1280,450 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="1000"
+                android:centerX="0.5"
+                android:centerY="0.2"
+                android:startColor="@color/soft_glow_start"
+                android:centerColor="@color/soft_glow_center"
+                android:endColor="@color/soft_glow_end"/>
+        </aapt:attr>
+    </path>
+
+</vector>

@@ -8,14 +8,17 @@ import okhttp3.ResponseBody
 import okhttp3.MultipartBody
 
 
+// Asumsi model AuthData yang direspons oleh API
 data class AuthData(
-    val user: User,
-    val token: String,      // Sesuai JSON: "token"
-    val token_type: String  // Sesuai JSON: "token_type"
+    val user: User, // Ini adalah RemoteUser
+    val token: String, // Diperbaiki dari 'token'
+    val refresh_token: String? = null, // Ditambahkan
+    val expires_in: Long, // Ditambahkan, digunakan untuk menghitung token_expires_at
+    val token_type: String
 )
 
-// 3. Update User sesuai JSON
-data class User(
+// Gunakan RemoteUser untuk menghindari konflik dengan model User lokal
+data class RemoteUser(
     val id: Int,
     val name: String,
     val email: String,
@@ -82,7 +85,7 @@ interface ApiService {
     suspend fun login(@Body request: LoginRequest): Response<ApiResponse<AuthData>>
 
     @POST("auth/logout")
-    suspend fun logout(): Response<MessageResponse>
+    suspend fun logout(@Header("Authorization") token: String): Response<MessageResponse>
 
     @POST("auth/logout-all")
     suspend fun logoutAll(): Response<MessageResponse>

@@ -1,83 +1,154 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="24dp"
-    android:gravity="center"
-    android:background="@color/background">
+    android:background="@drawable/bg_wave">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Login Akun"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:textColor="@color/primary"
-        android:layout_marginBottom="8dp"/>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Sinkronkan data keuangan Anda"
-        android:textSize="14sp"
-        android:textColor="@color/text_secondary"
-        android:layout_marginBottom="32dp"/>
-
-    <com.google.android.material.textfield.TextInputLayout
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Email"
-        android:layout_marginBottom="16dp"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center_horizontal">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/et_email"
+        <!-- Logo -->
+        <ImageView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:src="@drawable/app_logo3"
+            android:layout_marginTop="40dp"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Judul -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Selamat Datang Kembali"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Kelola keuanganmu lebih mudah dan aman"
+            android:textColor="#E3F2FD"
+            android:textSize="14sp"
+            android:layout_marginBottom="32dp"/>
+
+        <!-- CARD LOGIN -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textEmailAddress"/>
-    </com.google.android.material.textfield.TextInputLayout>
+            android:background="@drawable/bg_card_login"
+            android:elevation="10dp"
+            android:orientation="vertical">
 
-    <com.google.android.material.textfield.TextInputLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Password"
-        android:layout_marginBottom="24dp"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+            <!-- Email -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:startIconDrawable="@drawable/ic_email"
+                app:startIconTint="#6B7280">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/et_password"
-            android:layout_width="match_parent"
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/et_email"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Alamat Email"
+                    android:inputType="textEmailAddress"
+                    android:textColor="#111827"
+                    android:textColorHint="#9CA3AF"
+                    android:background="@drawable/bg_input_rounded"/>
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Password -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                app:startIconDrawable="@drawable/ic_lock"
+                app:startIconTint="#6B7280"
+                app:passwordToggleEnabled="true"
+                app:passwordToggleTint="#6B7280">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/et_password"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Kata Sandi"
+                    android:inputType="textPassword"
+                    android:textColor="#111827"
+                    android:textColorHint="#9CA3AF"
+                    android:background="@drawable/bg_input_rounded"/>
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Lupa password -->
+            <TextView
+                android:id="@+id/tv_forgot_password"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Lupa kata sandi?"
+                android:gravity="end"
+                android:textColor="#1E88E5"
+                android:textSize="14sp"
+                android:paddingBottom="16dp"/>
+
+            <!-- Tombol Login -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_login"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:text="Masuk"
+                android:textSize="16sp"
+                android:backgroundTint="#1E88E5"
+                android:textColor="#FFFFFF"
+                app:icon="@drawable/ic_lock"
+                app:iconTint="#FFFFFF"
+                app:cornerRadius="16dp"/>
+
+        </LinearLayout>
+
+        <!-- Daftar -->
+        <LinearLayout
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:inputType="textPassword"/>
-    </com.google.android.material.textfield.TextInputLayout>
+            android:orientation="horizontal"
+            android:layout_marginTop="24dp">
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btn_login"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:text="Masuk"
-        android:textSize="16sp"
-        android:layout_marginBottom="16dp"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Belum punya akun? "
+                android:textColor="#6B7280"/>
 
-    <TextView
-        android:id="@+id/tv_skip_login"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Ingatkan saya nanti (Masuk sebagai Tamu)"
-        android:textColor="@color/text_secondary"
-        android:textSize="14sp"
-        android:padding="8dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true"
-        android:layout_marginTop="8dp"/>
+            <TextView
+                android:id="@+id/tv_go_to_register"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Buat Sekarang"
+                android:textColor="#1E88E5"
+                android:textStyle="bold"/>
+        </LinearLayout>
 
-    <ProgressBar
-        android:id="@+id/progress_bar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        android:layout_marginTop="16dp"/>
+        <!-- Skip -->
+        <TextView
+            android:id="@+id/tv_skip_login"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Lewati | Masuk sebagai Tamu"
+            android:textColor="#9CA3AF"
+            android:textSize="12sp"
+            android:layout_marginTop="16dp"/>
 
-</LinearLayout>
+        <ProgressBar
+            android:id="@+id/progress_bar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:layout_marginTop="16dp"/>
+
+    </LinearLayout>
+</ScrollView>
