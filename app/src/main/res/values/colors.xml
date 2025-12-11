@@ -5,6 +5,8 @@
     <color name="primary_dark">#2E5FD9</color>
     <color name="primary_light">#5B8FF9</color>
     <color name="primary_variant">#3D6FE8</color>
+<!--    <color name="blue_primary">#1E88E5</color>-->
+
 
     <!-- Gradient Colors -->
     <color name="gradient_start">#5B8FF9</color>
@@ -15,6 +17,7 @@
     <color name="secondary_dark">#5563E8</color>
     <color name="secondary_light">#8A96FF</color>
 
+    <color name="blue_primary">#1E88E5</color>
     <!-- Accent Colors -->
     <color name="accent">#7C8CFF</color>
     <color name="accent_dark">#6878F0</color>
@@ -107,4 +110,17 @@
 
     <!-- Transparent -->
     <color name="transparent">#00000000</color>
+
+    <!-- Wave Colors -->
+    <color name="wave_blue_dark">#1E88E5</color>
+    <color name="wave_blue_light">#1E88E5</color>
+    <color name="wave_blue_fade_start">#2196F3</color>
+    <color name="wave_blue_fade_center">#802196F3</color>
+    <color name="wave_blue_fade_end">#002196F3</color>
+    <color name="wave_light_blue_fade_start">#64B5F6</color>
+    <color name="wave_light_blue_fade_center">#6064B5F6</color>
+    <color name="wave_light_blue_fade_end">#0064B5F6</color>
+    <color name="soft_glow_start">#33FFFFFF</color>
+    <color name="soft_glow_center">#0DFFFFFF</color>
+    <color name="soft_glow_end">#00FFFFFF</color>
 </resources>

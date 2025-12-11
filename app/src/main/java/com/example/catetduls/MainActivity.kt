@@ -11,10 +11,14 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.fragment.app.FragmentManager
 
-
+// Antarmuka yang didefinisikan di RegisterPage, harus diimplementasikan di Activity
+interface NavigationController {
+    fun setNavBarVisibility(visibility: Int)
+}
 
 @AndroidEntryPoint
-class MainActivity : AppCompatActivity(), NavigationCallback {
+// ⭐ IMPLEMENTASI NAVIGATIONCONTROLLER DITAMBAHKAN
+class MainActivity : AppCompatActivity(), NavigationCallback, NavigationController {
 
     private lateinit var bottomNav: BottomNavigationView
 
@@ -26,23 +30,26 @@ class MainActivity : AppCompatActivity(), NavigationCallback {
         bottomNav = findViewById(R.id.bottom_navigation)
 
         // =========================================================================
-        // PERBAIKAN LOGIKA NAVBAR:
-        // Gunakan 'registerFragmentLifecycleCallbacks' agar selalu terdeteksi
+        // Logika Lifecycle Callback Sederhana
+        // Kita hanya perlu memastikan Navbar muncul secara default, dan biarkan
+        // Fragment seperti LoginPage/RegisterPage yang menyembunyikannya.
+        // Jika ada Fragment yang di-replace, kita atur visibilitas default.
         // =========================================================================
         supportFragmentManager.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {
             override fun onFragmentViewCreated(fm: FragmentManager, f: Fragment, v: View, savedInstanceState: Bundle?) {
                 super.onFragmentViewCreated(fm, f, v, savedInstanceState)
 
-                // Logika:
-                // Jika yang tampil adalah LoginPage -> Sembunyikan Menu
-                // Jika yang tampil BUKAN LoginPage -> Tampilkan Menu
-                if (f is LoginPage) {
+                // Jika Fragment yang ditampilkan adalah LoginPage atau RegisterPage, sembunyikan Navbar.
+                if (f is LoginPage || f is RegisterPage) {
                     bottomNav.visibility = View.GONE
-                } else {
+                }
+                // Jika Fragment lain (TransaksiPage, dll.) sedang dimuat, tampilkan.
+                else {
                     bottomNav.visibility = View.VISIBLE
                 }
             }
         }, true)
+
 
         if (savedInstanceState == null) {
             // Cek Status User
@@ -50,10 +57,10 @@ class MainActivity : AppCompatActivity(), NavigationCallback {
             val isLoggedIn = TokenManager.getToken(this) != null
 
             if (isFirstRun && !isLoggedIn) {
-                // User Baru -> Login Page
+                // User Baru -> Login Page (Navbar akan disembunyikan oleh callback)
                 loadFragment(LoginPage())
             } else {
-                // User Lama -> Halaman Utama
+                // User Lama -> Halaman Utama (Navbar akan ditampilkan oleh callback)
                 loadFragment(TransaksiPage())
             }
         }
@@ -82,6 +89,13 @@ class MainActivity : AppCompatActivity(), NavigationCallback {
                 }
                 else -> false
             }
+        }
+    }
+
+    // ⭐ IMPLEMENTASI METODE UNTUK MENGONTROL NAVIGASI BAR
+    override fun setNavBarVisibility(visibility: Int) {
+        if (::bottomNav.isInitialized) {
+            bottomNav.visibility = visibility
         }
     }
 

@@ -91,6 +91,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+//    implementation("com.squareup.okhttp3:logging-interceptor:X.Y.Z")
 //    implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
