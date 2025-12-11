@@ -40,6 +40,8 @@ class PengaturanPage : Fragment() {
     private lateinit var tvTotalTransaksi: TextView
     private lateinit var tvTotalKategori: TextView
 
+    private lateinit var btnEditProfile: MaterialButton
+
     // View Baru (Login/Logout Button)
     private lateinit var btnAuthAction: MaterialButton
     private lateinit var tvUserStatus: TextView
@@ -120,6 +122,8 @@ class PengaturanPage : Fragment() {
         // Init View Baru
         btnAuthAction = view.findViewById(R.id.btn_auth_action)
         tvUserStatus = view.findViewById(R.id.tv_user_status)
+
+        btnEditProfile = view.findViewById(R.id.btn_edit_profile)
     }
 
     private fun setupButtons() {
@@ -193,6 +197,14 @@ class PengaturanPage : Fragment() {
                     .addToBackStack(null)
                     .commit()
             }
+        }
+
+        btnEditProfile.setOnClickListener {
+            val editFragment = EditProfilePage()
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, editFragment)
+                .addToBackStack(null)
+                .commit()
         }
     }
 
@@ -278,10 +290,12 @@ class PengaturanPage : Fragment() {
                 btnAuthAction.text = "Keluar Akun"
                 btnAuthAction.setTextColor(resources.getColor(R.color.danger, null))
                 btnAuthAction.setIconTintResource(R.color.danger)
+                btnEditProfile.visibility = View.VISIBLE
             } else {
                 btnAuthAction.text = "Masuk Akun"
                 btnAuthAction.setTextColor(resources.getColor(R.color.primary, null))
                 btnAuthAction.setIconTintResource(R.color.primary)
+                btnEditProfile.visibility = View.GONE
             }
         }
 

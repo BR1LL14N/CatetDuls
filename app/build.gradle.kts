@@ -96,6 +96,7 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("androidx.fragment:fragment-ktx:1.6.2")
     implementation("androidx.activity:activity-ktx:1.8.2")
+    implementation("com.github.bumptech.glide:glide:5.0.5")
 }
 
 
