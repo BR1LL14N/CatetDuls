@@ -5,11 +5,8 @@ import retrofit2.http.*
 import com.example.catetduls.data.*
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
+import okhttp3.MultipartBody
 
-//data class ApiResponse<T>(
-//    val success: Boolean,
-//    val data: T
-//)
 
 // Asumsi model AuthData yang direspons oleh API
 data class AuthData(
@@ -29,6 +26,10 @@ data class RemoteUser(
     val photo_url: String?,
     val created_at: String?,
     val updated_at: String?
+)
+
+data class PhotoUploadData(
+    val photo_url: String
 )
 
 
@@ -268,11 +269,13 @@ interface ApiService {
     suspend fun getUserProfile(): Response<User>
 
     @PUT("user/profile")
-    suspend fun updateUserProfile(@Body request: UpdateProfileRequest): Response<User>
+    suspend fun updateUserProfile(@Body request: UpdateProfileRequest): Response<ApiResponse<User>>
 
+    @Multipart
     @POST("user/photo")
-    suspend fun uploadUserPhoto(@Body request: UploadPhotoRequest): Response<User>
-
+    suspend fun uploadUserPhoto(
+        @Part photo: MultipartBody.Part
+    ): Response<ApiResponse<PhotoUploadData>>
     @DELETE("user/photo")
     suspend fun deleteUserPhoto(): Response<MessageResponse>
 

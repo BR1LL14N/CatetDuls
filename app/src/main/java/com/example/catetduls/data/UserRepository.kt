@@ -9,6 +9,10 @@ import kotlinx.coroutines.flow.Flow
 
 import javax.inject.Inject
 import dagger.hilt.android.qualifiers.ApplicationContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
 
 
 class UserRepository @Inject constructor(
@@ -375,49 +379,83 @@ class UserRepository @Inject constructor(
             val request = UpdateProfileRequest(name, email, phone, bio)
             val response = apiService.updateUserProfile(request)
 
+            // 1. Cek HTTP Success
             if (response.isSuccessful && response.body() != null) {
-                val remoteUser = response.body()!!
-                val currentUser = getCurrentUser()
+                val apiResponse = response.body()!! // Ini ApiResponse<User>
 
-                if (currentUser != null) {
-                    val updatedUser = currentUser.copy(
-                        name = remoteUser.name,
-                        email = remoteUser.email,
-                        photo_url = remoteUser.photo_url
-                    )
-                    userDao.updateUser(updatedUser)
-                    Result.success(updatedUser)
+                // 2. Cek Logic Success (flag dari backend)
+                if (apiResponse.success && apiResponse.data != null) {
+                    val remoteUser = apiResponse.data // Ambil user dari dalam 'data'
+                    val currentUser = getCurrentUser()
+
+                    if (currentUser != null) {
+                        // Update data user lokal dengan data baru dari remote
+                        val updatedUser = currentUser.copy(
+                            name = remoteUser.name,
+                            email = remoteUser.email,
+                            photo_url = remoteUser.photo_url,
+                            updated_at = remoteUser.updated_at ?: currentUser.updated_at
+                            // Tambahkan field lain jika ada (phone/bio jika didukung DB lokal)
+                        )
+
+                        // Simpan ke Room
+                        userDao.updateUser(updatedUser)
+
+                        // Return sukses
+                        Result.success(updatedUser)
+                    } else {
+                        Result.failure(Exception("No local user found to update"))
+                    }
                 } else {
-                    Result.failure(Exception("No local user found"))
+                    // API mengembalikan success: false
+                    Result.failure(Exception(apiResponse.message ?: "Update failed"))
                 }
             } else {
-                Result.failure(Exception(response.message() ?: "Update failed"))
+                // HTTP Error (400, 500, dll)
+                Result.failure(Exception(response.message() ?: "HTTP Error"))
             }
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun uploadPhoto(photoBase64: String): Result<User> {
+    suspend fun uploadPhoto(file: File): Result<User> {
         return try {
-            val request = UploadPhotoRequest(photoBase64)
-            val response = apiService.uploadUserPhoto(request)
+            // 1. Buat RequestBody dari File (Tipe Image)
+            val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
 
+            // 2. Buat MultipartBody.Part
+            val body = MultipartBody.Part.createFormData("photo", file.name, requestFile)
+
+            // 3. Panggil API
+            val response = apiService.uploadUserPhoto(body)
+
+            // 4. Cek Response
             if (response.isSuccessful && response.body() != null) {
-                val remoteUser = response.body()!!
-                val currentUser = getCurrentUser()
+                val apiResponse = response.body()!! // ApiResponse<PhotoUploadData>
 
-                if (currentUser != null) {
-                    val updatedUser = currentUser.copy(
-                        photo_url = remoteUser.photo_url
-                    )
-                    userDao.updateUser(updatedUser)
-                    Result.success(updatedUser)
+                // Cek flag success dari backend
+                if (apiResponse.success && apiResponse.data != null) {
+                    val photoData = apiResponse.data // ✅ Ini PhotoUploadData (hanya photo_url)
+                    val currentUser = getCurrentUser()
+
+                    if (currentUser != null) {
+                        // ✅ Update HANYA photo_url di database lokal
+                        val updatedUser = currentUser.copy(
+                            photo_url = photoData.photo_url,  // ✅ Ambil dari photoData
+                            updated_at = System.currentTimeMillis().toString()  // ✅ Update timestamp
+                        )
+                        userDao.updateUser(updatedUser)
+
+                        Result.success(updatedUser)
+                    } else {
+                        Result.failure(Exception("No local user found"))
+                    }
                 } else {
-                    Result.failure(Exception("No local user found"))
+                    Result.failure(Exception(apiResponse.message ?: "Upload failed"))
                 }
             } else {
-                Result.failure(Exception(response.message() ?: "Upload failed"))
+                Result.failure(Exception(response.message() ?: "HTTP Upload failed"))
             }
         } catch (e: Exception) {
             Result.failure(e)
