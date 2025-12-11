@@ -1,6 +1,7 @@
 package com.example.catetduls.ui.pages
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -34,15 +35,11 @@ class EditProfilePage : Fragment() {
     private lateinit var ivProfile: ImageView
     private lateinit var viewChangePhoto: View
 
-    // ==========================================================
-    // 1. INI YANG HILANG SEBELUMNYA (Variabel pickMedia)
-    // ==========================================================
+    // Launcher Image Picker
     private val pickMedia = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
-            // Tampilkan preview sementara
-            ivProfile.setImageURI(uri)
-            // Langsung upload ke server via ViewModel
-            viewModel.updatePhoto(uri)
+            ivProfile.setImageURI(uri) // Preview lokal
+            viewModel.updatePhoto(uri) // Upload ke server
         } else {
             Toast.makeText(requireContext(), "Tidak ada foto yang dipilih", Toast.LENGTH_SHORT).show()
         }
@@ -57,23 +54,20 @@ class EditProfilePage : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // 2. Init Views
+        // Init Views
         etName = view.findViewById(R.id.et_name)
         etEmail = view.findViewById(R.id.et_email)
         btnSave = view.findViewById(R.id.btn_save)
         progressBar = view.findViewById(R.id.progress_bar)
-
-        // Pastikan ID ini ada di file XML fragment_edit_profile.xml
         ivProfile = view.findViewById(R.id.iv_profile)
         viewChangePhoto = view.findViewById(R.id.view_change_photo)
 
-        // 3. Listener Ganti Foto
+        // Listener Foto
         viewChangePhoto.setOnClickListener {
-            // Buka Galeri (Hanya Image)
             pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         }
 
-        // 4. Listener Simpan (HANYA Nama & Email)
+        // Listener Simpan
         btnSave.setOnClickListener {
             val name = etName.text.toString().trim()
             val email = etEmail.text.toString().trim()
@@ -85,21 +79,20 @@ class EditProfilePage : Fragment() {
 
     private fun observeViewModel() {
         viewLifecycleOwner.lifecycleScope.launch {
-            // A. Isi form otomatis DAN update foto setiap kali user berubah
+            // A. Data User & Foto
             launch {
                 viewModel.currentUser.collect { user ->
                     if (user != null) {
-                        // Update form
                         if (etName.text.isNullOrEmpty()) etName.setText(user.name)
                         if (etEmail.text.isNullOrEmpty()) etEmail.setText(user.email)
 
-                        // ✅ PERBAIKAN: Load foto SETIAP KALI user berubah
+                        // Panggil fungsi load foto
                         loadUserPhoto(user.photo_url)
                     }
                 }
             }
 
-            // B. Loading State
+            // B. Loading
             launch {
                 viewModel.isLoading.collect { isLoading ->
                     progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
@@ -112,30 +105,23 @@ class EditProfilePage : Fragment() {
             launch {
                 viewModel.updateResult.collect { result ->
                     result?.onSuccess { updatedUser ->
-                        Toast.makeText(requireContext(), "Profil berhasil diperbarui!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(requireContext(), "Berhasil disimpan!", Toast.LENGTH_SHORT).show()
 
-                        // ✅ PERBAIKAN: Refresh foto sebelum kembali
+                        // Force refresh foto dari data terbaru
                         loadUserPhoto(updatedUser.photo_url)
 
-                        // ✅ Tambahkan delay kecil agar foto sempat ter-load
-                        kotlinx.coroutines.delay(500)
-
-                        // Jangan langsung popBackStack jika hanya update foto
-                        // parentFragmentManager.popBackStack()
+                        // Reset state agar toast tidak muncul berulang
+                        viewModel.resetState()
                     }?.onFailure { e ->
                         Toast.makeText(requireContext(), "Gagal: ${e.message}", Toast.LENGTH_LONG).show()
+                        viewModel.resetState()
                     }
-                    if (result != null) viewModel.resetState()
                 }
             }
         }
-
-
     }
 
     private fun loadUserPhoto(photoUrl: String?) {
-        android.util.Log.d("EditProfile", "Raw photo_url from DB: $photoUrl")
-
         if (!photoUrl.isNullOrEmpty()) {
             val fullUrl = if (photoUrl.startsWith("http")) {
                 photoUrl
@@ -143,21 +129,22 @@ class EditProfilePage : Fragment() {
                 "http://10.0.2.2:8000$photoUrl"
             }
 
-            android.util.Log.d("EditProfile", "Full URL for Glide: $fullUrl")
+            Log.d("EditProfile", "Loading URL: $fullUrl")
 
-            // ✅ HAPUS TINT
+            // Hapus tint default (warna abu-abu) agar foto asli terlihat
             ivProfile.imageTintList = null
 
             Glide.with(requireContext())
                 .load(fullUrl)
-                .diskCacheStrategy(DiskCacheStrategy.NONE)
-                .skipMemoryCache(true)
+                .timeout(60000) // <--- SOLUSI UTAMA: Tambah Timeout 60 Detik
+                .diskCacheStrategy(DiskCacheStrategy.NONE) // Jangan cache di disk
+                .skipMemoryCache(true) // Jangan cache di memori
                 .placeholder(R.drawable.ic_person_24)
                 .error(R.drawable.ic_person_24)
-                .circleCrop()
+                .circleCrop() // Agar gambar bulat sempurna
                 .into(ivProfile)
         } else {
-            android.util.Log.w("EditProfile", "photo_url is NULL or EMPTY")
+            // Jika tidak ada foto, kembalikan ke icon default
             ivProfile.setImageResource(R.drawable.ic_person_24)
         }
     }
