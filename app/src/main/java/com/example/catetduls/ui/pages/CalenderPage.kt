@@ -73,7 +73,21 @@ class CalendarPage : Fragment() {
     }
 
     private fun setupCalendarGrid() {
-        calendarAdapter = CalendarAdapter(emptyList())
+        // Pass click listener to adapter
+        calendarAdapter = CalendarAdapter(emptyList()) { timestamp ->
+            // On Day Click -> Navigate to TransaksiPage
+            if (activity is NavigationCallback) {
+                val fragment = TransaksiPage()
+                val args = Bundle()
+                args.putLong("ARG_INITIAL_DATE", timestamp)
+                args.putInt("ARG_INITIAL_TAB_MODE", 0) // 0 = Harian
+                fragment.arguments = args
+                
+                (activity as NavigationCallback).navigateTo(fragment)
+            }
+        }
+        
+        // Fixed 6 rows, but span is 7
         rvCalendarGrid.layoutManager = GridLayoutManager(requireContext(), 7)
         rvCalendarGrid.adapter = calendarAdapter
     }
@@ -95,47 +109,11 @@ class CalendarPage : Fragment() {
             tvMonthlyTotal.text = viewModel.formatCurrency(total ?: 0.0)
         }
 
-        // Observe Data Kalender untuk Grid
-        viewModel.calendarData.observe(viewLifecycleOwner) { dailySummaryMap ->
-
-            val currentMonthTimestamp = viewModel.currentMonth.value
-
-            // Dapatkan hari dalam seminggu dari hari pertama bulan (1=Minggu, 7=Sabtu)
-            val firstDayOfWeek = viewModel.getFirstDayOfWeek(currentMonthTimestamp)
-
-            val calendar = Calendar.getInstance().apply { timeInMillis = currentMonthTimestamp }
-            val maxDayOfMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-
-            val calendarDays = ArrayList<CalendarDayCell?>()
-
-            // Hitung padding awal (Jika Minggu=1, padding=0. Jika Senin=2, padding=1, dst.)
-            // Kita harus menyesuaikan firstDayOfWeek dengan standar 0-indexed untuk padding
-            val paddingStart = firstDayOfWeek - 1
-
-            // Tambahkan padding (null cells)
-            for (i in 0 until paddingStart) {
-                calendarDays.add(null)
-            }
-
-            // Tambahkan hari-hari di bulan ini
-            for (day in 1..maxDayOfMonth) {
-                val summary = dailySummaryMap[day]
-                calendarDays.add(CalendarDayCell(day, summary))
-            }
-
-            // Update adapter
-            calendarAdapter?.submitList(calendarDays)
+        // Observe Data Kalender untuk Grid (New Logic: List is prepared in VM)
+        viewModel.calendarGridCells.observe(viewLifecycleOwner) { cells ->
+             calendarAdapter?.submitList(cells)
         }
 
-        // Observe Total Weeks untuk menyesuaikan tinggi RecyclerView
-        viewModel.totalWeeks.observe(viewLifecycleOwner) { weeks ->
-            // Mengatur tinggi RecyclerView secara dinamis untuk menghindari scrolling di dalam ScrollView utama
-            val singleItemHeight = 70 // ASUMSI: Tinggi satu item baris (misalnya 70dp)
-            val heightInPixels = (weeks * singleItemHeight) * resources.displayMetrics.density
-
-            val layoutParams = rvCalendarGrid.layoutParams
-            layoutParams.height = heightInPixels.toInt()
-            rvCalendarGrid.layoutParams = layoutParams
-        }
+        // Removed logic for manual padding and dynamic height calculation as grid is now fixed logic in VM.
     }
 }
