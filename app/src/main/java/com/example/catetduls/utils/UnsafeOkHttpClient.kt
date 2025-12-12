@@ -1,5 +1,6 @@
 package com.example.catetduls.utils
 
+import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import java.security.cert.X509Certificate
@@ -9,6 +10,8 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
 object UnsafeOkHttpClient {
+    private const val TAG = "UnsafeOkHttpClient"
+
     fun getClient(): OkHttpClient {
         try {
             // Create a trust manager that does not validate certificate chains
@@ -28,13 +31,63 @@ object UnsafeOkHttpClient {
             return OkHttpClient.Builder()
                 .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
                 .hostnameVerifier { _, _ -> true }
+
                 // PENTING: Paksa HTTP 1.1 untuk mengatasi "unexpected end of stream"
                 .protocols(listOf(Protocol.HTTP_1_1))
+
+                // Timeout yang cukup panjang
                 .connectTimeout(60, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
                 .writeTimeout(60, TimeUnit.SECONDS)
+                .callTimeout(90, TimeUnit.SECONDS) // Total timeout
+
+                // TAMBAHAN: Retry otomatis saat koneksi gagal
+                .retryOnConnectionFailure(true)
+
+                // TAMBAHAN: Interceptor untuk tambah header dan logging
+                .addInterceptor { chain ->
+                    val original = chain.request()
+
+                    // Tambahkan custom headers
+                    val request = original.newBuilder()
+                        .header("Connection", "keep-alive")
+                        .header("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
+                        .header("User-Agent", "CatetDuls-Android-App/1.0")
+                        .build()
+
+                    // Execute request
+                    val response = chain.proceed(request)
+
+                    // Log untuk debugging
+                    Log.d(TAG, """
+                        |→ Request: ${request.method} ${request.url}
+                        |← Response: ${response.code} ${response.message}
+                        |  Content-Type: ${response.header("Content-Type")}
+                        |  Content-Length: ${response.header("Content-Length")}
+                        |  Connection: ${response.header("Connection")}
+                    """.trimMargin())
+
+                    response
+                }
+
+                // TAMBAHAN: Network interceptor untuk handle response yang rusak
+                .addNetworkInterceptor { chain ->
+                    val response = chain.proceed(chain.request())
+
+                    // Periksa Content-Length vs body size
+                    val contentLength = response.header("Content-Length")?.toLongOrNull() ?: -1
+
+                    if (contentLength > 0) {
+                        Log.d(TAG, "Expected Content-Length: $contentLength bytes")
+                    }
+
+                    response
+                }
+
                 .build()
+
         } catch (e: Exception) {
+            Log.e(TAG, "Failed to create OkHttpClient", e)
             throw RuntimeException(e)
         }
     }

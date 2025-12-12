@@ -268,6 +268,9 @@ interface ApiService {
     @GET("user/profile")
     suspend fun getUserProfile(): Response<User>
 
+    @GET("user/profile")
+    suspend fun getUserProfileWithPhoto(): Response<ApiResponse<UserProfileData>>
+
     @PUT("user/profile")
     suspend fun updateUserProfile(@Body request: UpdateProfileRequest): Response<ApiResponse<User>>
 
@@ -385,4 +388,25 @@ data class CategorySummary(
     val category_name: String,
     val total_amount: Double,
     val transaction_count: Int
+)
+
+data class User(
+    val id: Int,
+    val name: String,
+    val email: String,
+    val email_verified_at: String?,
+    val photo_url: String?, // Pastikan ini ada
+    val created_at: String?,
+    val updated_at: String?,
+    // Tambahkan field lainnya jika perlu
+)
+
+// Atau buat data class khusus
+data class UserProfileData(
+    val user: User,
+    val photo_url: String?
+)
+
+data class PhotoUrlData(
+    val photo_url: String
 )
