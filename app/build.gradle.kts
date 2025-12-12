@@ -100,6 +100,7 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:1.6.2")
     implementation("androidx.activity:activity-ktx:1.8.2")
     implementation("com.github.bumptech.glide:glide:5.0.5")
+    implementation("com.github.bumptech.glide:okhttp3-integration:4.16.0")
 }
 
 

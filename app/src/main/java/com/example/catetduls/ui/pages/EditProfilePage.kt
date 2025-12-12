@@ -1,6 +1,10 @@
 package com.example.catetduls.ui.pages
 
+import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,9 +17,13 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.engine.GlideException
+import com.bumptech.glide.request.RequestListener
+import com.bumptech.glide.request.RequestOptions
+import com.bumptech.glide.request.target.Target
 import com.example.catetduls.R
-// Pastikan import ini sesuai lokasi file ViewModel Anda
 import com.example.catetduls.ui.viewmodel.EditProfileViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
@@ -34,14 +42,21 @@ class EditProfilePage : Fragment() {
     private lateinit var ivProfile: ImageView
     private lateinit var viewChangePhoto: View
 
-    // ==========================================================
-    // 1. INI YANG HILANG SEBELUMNYA (Variabel pickMedia)
-    // ==========================================================
+    private var retryCount = 0
+    private val maxRetries = 3
+
+    // Launcher Image Picker
     private val pickMedia = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
-            // Tampilkan preview sementara
-            ivProfile.setImageURI(uri)
-            // Langsung upload ke server via ViewModel
+            Log.d("EditProfile", "Image selected: $uri")
+
+            // Preview lokal langsung
+            Glide.with(requireContext())
+                .load(uri)
+                .circleCrop()
+                .into(ivProfile)
+
+            // Upload ke server
             viewModel.updatePhoto(uri)
         } else {
             Toast.makeText(requireContext(), "Tidak ada foto yang dipilih", Toast.LENGTH_SHORT).show()
@@ -57,23 +72,20 @@ class EditProfilePage : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // 2. Init Views
+        // Init Views
         etName = view.findViewById(R.id.et_name)
         etEmail = view.findViewById(R.id.et_email)
         btnSave = view.findViewById(R.id.btn_save)
         progressBar = view.findViewById(R.id.progress_bar)
-
-        // Pastikan ID ini ada di file XML fragment_edit_profile.xml
         ivProfile = view.findViewById(R.id.iv_profile)
         viewChangePhoto = view.findViewById(R.id.view_change_photo)
 
-        // 3. Listener Ganti Foto
+        // Listener Foto
         viewChangePhoto.setOnClickListener {
-            // Buka Galeri (Hanya Image)
             pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         }
 
-        // 4. Listener Simpan (HANYA Nama & Email)
+        // Listener Simpan
         btnSave.setOnClickListener {
             val name = etName.text.toString().trim()
             val email = etEmail.text.toString().trim()
@@ -85,21 +97,21 @@ class EditProfilePage : Fragment() {
 
     private fun observeViewModel() {
         viewLifecycleOwner.lifecycleScope.launch {
-            // A. Isi form otomatis DAN update foto setiap kali user berubah
+            // A. Data User & Foto
             launch {
                 viewModel.currentUser.collect { user ->
                     if (user != null) {
-                        // Update form
                         if (etName.text.isNullOrEmpty()) etName.setText(user.name)
                         if (etEmail.text.isNullOrEmpty()) etEmail.setText(user.email)
 
-                        // ✅ PERBAIKAN: Load foto SETIAP KALI user berubah
+                        // Reset retry count saat load foto baru
+                        retryCount = 0
                         loadUserPhoto(user.photo_url)
                     }
                 }
             }
 
-            // B. Loading State
+            // B. Loading
             launch {
                 viewModel.isLoading.collect { isLoading ->
                     progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
@@ -112,53 +124,103 @@ class EditProfilePage : Fragment() {
             launch {
                 viewModel.updateResult.collect { result ->
                     result?.onSuccess { updatedUser ->
-                        Toast.makeText(requireContext(), "Profil berhasil diperbarui!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(requireContext(), "Berhasil disimpan!", Toast.LENGTH_SHORT).show()
 
-                        // ✅ PERBAIKAN: Refresh foto sebelum kembali
-                        loadUserPhoto(updatedUser.photo_url)
+                        // Delay untuk memastikan server sudah siap
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            retryCount = 0
+                            loadUserPhoto(updatedUser.photo_url)
+                        }, 500)
 
-                        // ✅ Tambahkan delay kecil agar foto sempat ter-load
-                        kotlinx.coroutines.delay(500)
-
-                        // Jangan langsung popBackStack jika hanya update foto
-                        // parentFragmentManager.popBackStack()
+                        viewModel.resetState()
                     }?.onFailure { e ->
                         Toast.makeText(requireContext(), "Gagal: ${e.message}", Toast.LENGTH_LONG).show()
+                        viewModel.resetState()
                     }
-                    if (result != null) viewModel.resetState()
                 }
             }
         }
-
-
     }
 
     private fun loadUserPhoto(photoUrl: String?) {
-        android.util.Log.d("EditProfile", "Raw photo_url from DB: $photoUrl")
-
-        if (!photoUrl.isNullOrEmpty()) {
-            val fullUrl = if (photoUrl.startsWith("http")) {
-                photoUrl
-            } else {
-                "http://10.0.2.2:8000$photoUrl"
-            }
-
-            android.util.Log.d("EditProfile", "Full URL for Glide: $fullUrl")
-
-            // ✅ HAPUS TINT
-            ivProfile.imageTintList = null
-
-            Glide.with(requireContext())
-                .load(fullUrl)
-                .diskCacheStrategy(DiskCacheStrategy.NONE)
-                .skipMemoryCache(true)
-                .placeholder(R.drawable.ic_person_24)
-                .error(R.drawable.ic_person_24)
-                .circleCrop()
-                .into(ivProfile)
-        } else {
-            android.util.Log.w("EditProfile", "photo_url is NULL or EMPTY")
+        if (photoUrl.isNullOrEmpty()) {
+            Log.d("EditProfile", "No photo URL provided")
             ivProfile.setImageResource(R.drawable.ic_person_24)
+            return
         }
+
+        // Build full URL - pastikan format benar
+        val fullUrl = when {
+            photoUrl.startsWith("http://") || photoUrl.startsWith("https://") -> photoUrl
+            photoUrl.startsWith("/api/") -> "http://10.0.2.2:8000$photoUrl"
+            photoUrl.startsWith("/storage/") -> "http://10.0.2.2:8000$photoUrl"
+            else -> "http://10.0.2.2:8000/api/photos/$photoUrl"
+        }
+
+        Log.d("EditProfile", "Loading URL: $fullUrl (Attempt ${retryCount + 1}/$maxRetries)")
+
+        // Hapus tint default
+        ivProfile.imageTintList = null
+
+        Glide.with(requireContext())
+            .load(fullUrl)
+            .apply(
+                RequestOptions()
+                    .override(800, 800) // Resize untuk performa
+            )
+            .diskCacheStrategy(DiskCacheStrategy.NONE)
+            .skipMemoryCache(true)
+            .placeholder(R.drawable.ic_person_24)
+            .error(R.drawable.ic_person_24)
+            .listener(object : RequestListener<Drawable> {
+                override fun onLoadFailed(
+                    e: GlideException?,
+                    model: Any?,
+                    target: Target<Drawable>?,
+                    isFirstResource: Boolean
+                ): Boolean {
+                    Log.e("EditProfile", "Failed to load image: ${e?.message}")
+                    e?.logRootCauses("EditProfile")
+
+                    // Retry logic
+                    if (retryCount < maxRetries) {
+                        retryCount++
+                        Log.d("EditProfile", "Retrying... ($retryCount/$maxRetries)")
+
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            loadUserPhoto(photoUrl)
+                        }, 1000) // Retry setelah 1 detik
+                    } else {
+                        Log.e("EditProfile", "Max retries reached. Giving up.")
+                        Toast.makeText(
+                            requireContext(),
+                            "Gagal memuat foto profil",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+
+                    return false
+                }
+
+                override fun onResourceReady(
+                    resource: Drawable?,
+                    model: Any?,
+                    target: Target<Drawable>?,
+                    dataSource: DataSource?,
+                    isFirstResource: Boolean
+                ): Boolean {
+                    Log.d("EditProfile", "Image loaded successfully from: ${dataSource?.name}")
+                    retryCount = 0 // Reset retry count on success
+                    return false
+                }
+            })
+            .circleCrop()
+            .into(ivProfile)
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        // Clear Glide untuk mencegah memory leak
+        Glide.with(requireContext()).clear(ivProfile)
     }
 }
