@@ -1,0 +1,31 @@
+
+    private suspend inline fun <reified T : SyncableEntity> pullPaginatedEntityChanges(
+            remoteApi: Response<ApiResponse<PaginatedData<T>>>,
+            repository: SyncRepository<T>
+    ) {
+        val apiBody =
+                remoteApi.body()
+                        ?: throw IOException("PULL failed: null body, code ${remoteApi.code()}")
+
+        // Extract list from PaginatedData (apiBody.data is PaginatedData, and .data inside it is the list)
+        val items = apiBody.data?.data ?: emptyList()
+        Log.d(TAG, "PULL received ${items.size} items for ${T::class.java.simpleName}")
+        try {
+            Log.d(
+                    TAG,
+                    "Response Data for ${T::class.java.simpleName}: ${com.google.gson.Gson().toJson(items)}"
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to log response data: ${e.message}")
+        }
+
+        for (remoteItem in items) {
+            val localItem = remoteItem.serverId?.let { repository.getByServerId(it) }
+
+            if (remoteItem.isDeleted) {
+                localItem?.let { repository.deleteByIdPermanently(it.id.toLong()) }
+            } else if (localItem == null || remoteItem.updatedAt > localItem.updatedAt) {
+                repository.saveFromRemote(remoteItem)
+            }
+        }
+    }

@@ -4,17 +4,17 @@ import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
-import com.example.catetduls.ui.pages.*
-import com.example.catetduls.utils.AppPreferences
-import com.example.catetduls.data.local.TokenManager
-import com.google.android.material.bottomnavigation.BottomNavigationView
-import dagger.hilt.android.AndroidEntryPoint
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.example.catetduls.data.local.TokenManager
+import com.example.catetduls.ui.pages.*
+import com.example.catetduls.utils.AppPreferences
 import com.example.catetduls.utils.NetworkUtils
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.snackbar.Snackbar
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
 // Antarmuka yang didefinisikan di RegisterPage, harus diimplementasikan di Activity
@@ -43,26 +43,34 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
         // Fragment seperti LoginPage/RegisterPage yang menyembunyikannya.
         // Jika ada Fragment yang di-replace, kita atur visibilitas default.
         // =========================================================================
-        supportFragmentManager.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {
-            override fun onFragmentViewCreated(fm: FragmentManager, f: Fragment, v: View, savedInstanceState: Bundle?) {
-                super.onFragmentViewCreated(fm, f, v, savedInstanceState)
+        supportFragmentManager.registerFragmentLifecycleCallbacks(
+                object : FragmentManager.FragmentLifecycleCallbacks() {
+                    override fun onFragmentViewCreated(
+                            fm: FragmentManager,
+                            f: Fragment,
+                            v: View,
+                            savedInstanceState: Bundle?
+                    ) {
+                        super.onFragmentViewCreated(fm, f, v, savedInstanceState)
 
-                // Jika Fragment yang ditampilkan adalah LoginPage atau RegisterPage, sembunyikan Navbar.
-                if (f is LoginPage || f is RegisterPage) {
-                    bottomNav.visibility = View.GONE
-                }
-                // Jika Fragment lain (TransaksiPage, dll.) sedang dimuat, tampilkan.
-                else {
-                    bottomNav.visibility = View.VISIBLE
-                }
-            }
-        }, true)
-
+                        // Jika Fragment yang ditampilkan adalah LoginPage atau RegisterPage,
+                        // sembunyikan Navbar.
+                        if (f is LoginPage || f is RegisterPage) {
+                            bottomNav.visibility = View.GONE
+                        }
+                        // Jika Fragment lain (TransaksiPage, dll.) sedang dimuat, tampilkan.
+                        else {
+                            bottomNav.visibility = View.VISIBLE
+                        }
+                    }
+                },
+                true
+        )
 
         if (savedInstanceState == null) {
             // Cek Status User
             val isFirstRun = AppPreferences.isFirstRun(this)
-            val isLoggedIn = TokenManager.getToken(this) != null
+            val isLoggedIn = TokenManager.isLoggedIn(this)
 
             if (isFirstRun && !isLoggedIn) {
                 // User Baru -> Login Page (Navbar akan disembunyikan oleh callback)
@@ -70,6 +78,14 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
             } else {
                 // User Lama -> Halaman Utama (Navbar akan ditampilkan oleh callback)
                 loadFragment(TransaksiPage())
+
+                // OTOMATIS SYNC SAAT APP DIBUKA (Jika Login)
+                if (isLoggedIn) {
+                    // Force sync immediately
+                    com.example.catetduls.data.sync.SyncManager.forceOneTimeSync(this)
+                    // Ensure periodic sync is scheduled (KEEP policy won't duplicate)
+                    com.example.catetduls.data.sync.SyncManager.schedulePeriodicSync(this)
+                }
             }
         }
 
@@ -102,27 +118,31 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
 
     private fun setupNetworkObserver() {
         lifecycleScope.launch {
-            NetworkUtils.observeConnectivity(this@MainActivity)
-                .collect { isConnected ->
-                    val message = if (isConnected) "🟢 Online - Terhubung ke Internet" else "🔴 Offline - Koneksi Terputus"
-                    val duration = if (isConnected) Snackbar.LENGTH_SHORT else Snackbar.LENGTH_LONG
-                    Snackbar.make(findViewById(android.R.id.content), message, duration).show()
+            NetworkUtils.observeConnectivity(this@MainActivity).collect { isConnected ->
+                val message =
+                        if (isConnected) "🟢 Online - Terhubung ke Internet"
+                        else "🔴 Offline - Koneksi Terputus"
+                val duration = if (isConnected) Snackbar.LENGTH_SHORT else Snackbar.LENGTH_LONG
+                Snackbar.make(findViewById(android.R.id.content), message, duration).show()
+
+                // OTOMATIS SYNC SAAT KONEKSI KEMBALI
+                if (isConnected && TokenManager.isLoggedIn(this@MainActivity)) {
+                    com.example.catetduls.data.sync.SyncManager.forceOneTimeSync(this@MainActivity)
                 }
+            }
         }
     }
 
     private fun setupSyncObserver() {
         // Observe Periodic Sync
-        WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("DataSyncWork")
-            .observe(this) { workInfos ->
-                handleWorkInfo(workInfos)
-            }
-            
+        WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("DataSyncWork").observe(
+                        this
+                ) { workInfos -> handleWorkInfo(workInfos) }
+
         // Observe One-Time Force Sync
-        WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("ForceOneTimeSync")
-            .observe(this) { workInfos ->
-                handleWorkInfo(workInfos)
-            }
+        WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("ForceOneTimeSync").observe(
+                        this
+                ) { workInfos -> handleWorkInfo(workInfos) }
     }
 
     private fun handleWorkInfo(workInfos: List<WorkInfo>) {
@@ -131,14 +151,31 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
         val workInfo = workInfos.first()
         val rootView = findViewById<View>(android.R.id.content)
 
-        if (workInfo.state == WorkInfo.State.RUNNING) {
-            // Hindari spam snackbar saat running, mungkin bisa pakai ProgressBar di UI kalau ada
-            // Tapi user minta pesan, jadi kita tampilkan sekilas
-           // Snackbar.make(rootView, "🔄 Sedang menyinkronkan data...", Snackbar.LENGTH_SHORT).show()
-        } else if (workInfo.state == WorkInfo.State.SUCCEEDED) {
-            Snackbar.make(rootView, "✅ Sinkronisasi berhasil!", Snackbar.LENGTH_SHORT).show()
-        } else if (workInfo.state == WorkInfo.State.FAILED) {
-            Snackbar.make(rootView, "❌ Sinkronisasi gagal. Cek koneksi Anda.", Snackbar.LENGTH_LONG).show()
+        when (workInfo.state) {
+            WorkInfo.State.RUNNING -> {
+                // Tampilkan pesan loading saat sync sedang berjalan
+                Snackbar.make(rootView, "🔄 Sedang menyinkronkan data...", Snackbar.LENGTH_SHORT)
+                        .show()
+            }
+            WorkInfo.State.SUCCEEDED -> {
+                Snackbar.make(
+                                rootView,
+                                "✅ Sinkronisasi berhasil! Data Anda sudah diperbarui.",
+                                Snackbar.LENGTH_SHORT
+                        )
+                        .show()
+            }
+            WorkInfo.State.FAILED -> {
+                Snackbar.make(
+                                rootView,
+                                "❌ Sinkronisasi gagal. Pastikan Anda sudah login dan koneksi internet stabil.",
+                                Snackbar.LENGTH_LONG
+                        )
+                        .show()
+            }
+            else -> {
+                // State lain seperti ENQUEUED, BLOCKED, CANCELLED - tidak perlu notifikasi
+            }
         }
     }
 
@@ -150,15 +187,17 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
     }
 
     private fun loadFragment(fragment: Fragment) {
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, fragment)
-            .commit()
+        supportFragmentManager
+                .beginTransaction()
+                .replace(R.id.fragment_container, fragment)
+                .commit()
     }
 
     override fun navigateTo(fragment: Fragment) {
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, fragment)
-            .addToBackStack(null)
-            .commit()
+        supportFragmentManager
+                .beginTransaction()
+                .replace(R.id.fragment_container, fragment)
+                .addToBackStack(null)
+                .commit()
     }
 }

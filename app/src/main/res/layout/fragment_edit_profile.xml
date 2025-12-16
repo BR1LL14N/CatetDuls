@@ -3,106 +3,176 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background"
-    android:fillViewport="true">
+    android:fillViewport="true"
+    android:background="@drawable/bg_wave">
 
-    <LinearLayout
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp"
-        android:gravity="center_horizontal">
+        android:layout_height="wrap_content">
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Edit Profil"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            android:textColor="@color/primary"
-            android:layout_marginBottom="24dp"/>
+            android:orientation="vertical"
+            android:padding="24dp"
+            android:gravity="center_horizontal"
+            android:layout_centerVertical="true">
 
-        <FrameLayout
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:layout_marginBottom="32dp">
+            <!-- Header Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Edit Profil"
+                android:textColor="#FFFFFF"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:layout_marginTop="16dp"/>
 
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                app:cardCornerRadius="60dp"
-                app:cardElevation="4dp"
-                app:cardBackgroundColor="@color/surface_variant">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Perbarui informasi akun Anda"
+                android:textColor="#E3F2FD"
+                android:textSize="14sp"
+                android:layout_marginBottom="24dp"/>
 
-                <ImageView
-                    android:id="@+id/iv_profile"
+            <!-- Profile Photo Section -->
+            <FrameLayout
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_marginBottom="24dp">
+
+                <androidx.cardview.widget.CardView
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:src="@drawable/ic_person_24"
-                    android:scaleType="centerCrop"
-                    app:tint="@color/text_secondary"/> </androidx.cardview.widget.CardView>
+                    app:cardCornerRadius="60dp"
+                    app:cardElevation="8dp"
+                    app:cardBackgroundColor="#FFFFFF">
 
-            <ImageView
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:src="@drawable/ic_upload_24"
-                android:layout_gravity="bottom|end"
-                android:background="@drawable/bg_circle_white"
-                android:padding="8dp"
-                app:tint="@color/primary"
-                android:elevation="6dp"/>
+                    <ImageView
+                        android:id="@+id/iv_profile"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/ic_person_24"
+                        android:scaleType="centerCrop"
+                        app:tint="#1E88E5"
+                        android:padding="24dp"/>
+                </androidx.cardview.widget.CardView>
 
-            <View
-                android:id="@+id/view_change_photo"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="?attr/selectableItemBackground"
-                android:clickable="true"
-                android:focusable="true"/>
-        </FrameLayout>
+                <!-- Upload Button -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_gravity="bottom|end"
+                    app:cardCornerRadius="20dp"
+                    app:cardElevation="6dp"
+                    app:cardBackgroundColor="#1E88E5">
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Nama Lengkap"
-            android:layout_marginBottom="16dp"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                    <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/ic_upload_24"
+                        android:padding="8dp"
+                        app:tint="#FFFFFF"/>
+                </androidx.cardview.widget.CardView>
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/et_name"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textPersonName"/>
-        </com.google.android.material.textfield.TextInputLayout>
+                <View
+                    android:id="@+id/view_change_photo"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"/>
+            </FrameLayout>
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Email"
-            android:layout_marginBottom="24dp"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/et_email"
+            <!-- Form Card -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textEmailAddress"/>
-        </com.google.android.material.textfield.TextInputLayout>
+                android:background="@drawable/bg_card_login"
+                android:elevation="10dp"
+                android:orientation="vertical"
+                android:padding="24dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_save"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="Simpan Perubahan"
-            android:textSize="16sp"/>
+                <!-- Name Input -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:hint="Nama Lengkap"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    app:startIconDrawable="@drawable/ic_person_24"
+                    app:startIconTint="#6B7280"
+                    app:boxStrokeColor="#A0C4FF"
+                    app:hintTextColor="#1E88E5"
+                    app:boxStrokeWidth="1dp"
+                    app:boxCornerRadiusTopStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusBottomEnd="8dp">
 
-        <ProgressBar
-            android:id="@+id/progress_bar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:visibility="gone"
-            android:layout_marginTop="16dp"/>
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPersonName"
+                        android:textColor="#111827"
+                        android:textColorHint="#9CA3AF"
+                        android:background="@null"/>
+                </com.google.android.material.textfield.TextInputLayout>
 
-    </LinearLayout>
+                <!-- Email Input -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="24dp"
+                    android:hint="Alamat Email"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    app:startIconDrawable="@drawable/ic_email"
+                    app:startIconTint="#6B7280"
+                    app:boxStrokeColor="#A0C4FF"
+                    app:hintTextColor="#1E88E5"
+                    app:boxStrokeWidth="1dp"
+                    app:boxCornerRadiusTopStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:endIconMode="clear_text"
+                    app:endIconTint="#6B7280">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_email"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textEmailAddress"
+                        android:textColor="#111827"
+                        android:textColorHint="#9CA3AF"
+                        android:background="@null"/>
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Save Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_save"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:text="Simpan Perubahan"
+                    android:textSize="16sp"
+                    android:backgroundTint="#1E88E5"
+                    android:textColor="#FFFFFF"
+                    app:icon="@drawable/ic_check_24"
+                    app:iconTint="#FFFFFF"
+                    app:cornerRadius="16dp"/>
+
+            </LinearLayout>
+
+            <!-- Progress Bar -->
+            <ProgressBar
+                android:id="@+id/progress_bar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:layout_marginTop="16dp"/>
+
+        </LinearLayout>
+    </RelativeLayout>
 </ScrollView>
