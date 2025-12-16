@@ -346,31 +346,40 @@ constructor(
 
     /** Buat notifikasi foreground untuk sync */
     private fun createForegroundInfo(progress: String): ForegroundInfo {
-        // Buat notification channel untuk Android O+
+        // 1. Buat Notification Channel (Wajib untuk Android O+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel =
-                    NotificationChannel(
-                                    CHANNEL_ID,
-                                    "Sinkronisasi Data",
-                                    NotificationManager.IMPORTANCE_LOW
-                            )
-                            .apply { description = "Notifikasi untuk proses sinkronisasi data" }
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Sinkronisasi Data",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Notifikasi untuk proses sinkronisasi data"
+            }
 
-            val notificationManager =
-                    applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as
-                            NotificationManager
+            val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
 
-        // Buat notification
-        val notification =
-                NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-                        .setContentTitle("Sinkronisasi Data")
-                        .setContentText(progress)
-                        .setSmallIcon(R.drawable.ic_sync_24) // Pastikan icon ini ada
-                        .setOngoing(true)
-                        .build()
+        // 2. Buat Objek Notifikasi
+        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+            .setContentTitle("Sinkronisasi Data")
+            .setContentText(progress)
+            .setSmallIcon(R.drawable.ic_sync_24) // Pastikan icon ini ada di drawable
+            .setOngoing(true)
+            // Tambahkan ini agar user bisa membatalkan jika macet (opsional tapi disarankan)
+            // .addAction(android.R.drawable.ic_delete, "Batal", workManager.createCancelPendingIntent(id))
+            .build()
 
-        return ForegroundInfo(NOTIFICATION_ID, notification)
+        // 3. Return ForegroundInfo dengan Tipe Service (FIX UTAMA)
+        return if (Build.VERSION.SDK_INT >= 34) { // Android 14+
+            ForegroundInfo(
+                NOTIFICATION_ID,
+                notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+        } else {
+            // Android 13 ke bawah
+            ForegroundInfo(NOTIFICATION_ID, notification)
+        }
     }
 }

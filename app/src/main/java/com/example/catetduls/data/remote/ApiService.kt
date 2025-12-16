@@ -1,6 +1,7 @@
 package com.example.catetduls.data.remote
 
 import com.example.catetduls.data.*
+import com.google.gson.annotations.SerializedName
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
@@ -264,7 +265,11 @@ interface ApiService {
 
 data class CreateResponse(val success: Boolean, val message: String, val data: CreatedData?)
 
-data class CreatedData(val server_id: String)
+data class CreatedData(
+    // 👇 INI PERBAIKAN UTAMANYA:
+    @SerializedName("id") // Mapping JSON "id" -> Kotlin "server_id"
+    val server_id: String
+)
 
 data class MessageResponse(val message: String)
 

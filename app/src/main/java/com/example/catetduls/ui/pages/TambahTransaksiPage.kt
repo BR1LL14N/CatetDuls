@@ -836,7 +836,7 @@ class TambahTransaksiPage : Fragment() {
                     viewModel.successMessage.collect { message ->
                         message?.let {
                             Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
-
+                            triggerImmediateSync()
                             // Reset setelah sukses menyimpan, namun pertahankan tipe
                             viewModel.resetForm(keepType = true, keepCategory = false, setTodayDate = true)
 
@@ -1047,5 +1047,14 @@ class TambahTransaksiPage : Fragment() {
             Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             null
         }
+    }
+
+    private fun triggerImmediateSync() {
+        val workRequest = androidx.work.OneTimeWorkRequest.Builder(com.example.catetduls.data.sync.DataSyncWorker::class.java)
+            .setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .build()
+
+        androidx.work.WorkManager.getInstance(requireContext())
+            .enqueue(workRequest)
     }
 }

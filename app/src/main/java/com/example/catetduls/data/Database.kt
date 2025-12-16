@@ -406,7 +406,8 @@ fun Context.getCategoryRepository(): CategoryRepository {
 
 fun Context.getTransactionRepository(): TransactionRepository {
     val database = AppDatabase.getDatabase(this)
-    return TransactionRepository(database.transactionDao())
+    // PERBAIKAN: Tambahkan parameter 'this' (context)
+    return TransactionRepository(database.transactionDao(), this)
 }
 
 //fun Context.getUserRepository(): UserRepository {

@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.google.gson.annotations.SerializedName
 
 /** Entity untuk Transaksi Sekarang setiap transaksi terikat pada kategori dan dompet */
 @Entity(
@@ -38,6 +39,9 @@ data class Transaction(
         @com.google.gson.annotations.SerializedName("wallet_id") val walletId: Int,
         val date: Long = System.currentTimeMillis(),
         val notes: String = "",
+        @ColumnInfo(name = "book_id")
+        @SerializedName("book_id") // Agar cocok dengan JSON API "book_id"
+        val bookId: Int = 0,
         @ColumnInfo(name = "image_path") val imagePath: String? = null,
         @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
         @ColumnInfo(name = "updated_at") override val updatedAt: Long = System.currentTimeMillis(),

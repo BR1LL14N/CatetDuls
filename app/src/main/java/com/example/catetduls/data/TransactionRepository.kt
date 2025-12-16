@@ -3,6 +3,9 @@ package com.example.catetduls.data
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import java.util.*
+import android.content.Context
+import android.content.SharedPreferences
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
 /**
@@ -10,8 +13,16 @@ import javax.inject.Inject
  * Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
  */
 class TransactionRepository @Inject constructor(
-    private val transactionDao: TransactionDao
+    private val transactionDao: TransactionDao,
+    // INJECT CONTEXT untuk akses SharedPreferences
+    @ApplicationContext private val context: Context
 ) : SyncRepository<Transaction> {
+
+    private val activeBookId: Int
+        get() {
+            val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            return prefs.getInt("active_book_id", 1) // Default ke 1 jika tidak ada
+        }
 
     // ========================================
     // READ Operations
@@ -37,11 +48,12 @@ class TransactionRepository @Inject constructor(
             throw IllegalArgumentException("Transaksi tidak valid: Jumlah, kategori, atau dompet kosong.")
         }
 
-        // Menentukan status sinkronisasi untuk CREATE
+        // OTOMATIS ISI bookId DARI STATE APLIKASI
         val transactionToInsert = transaction.copy(
+            bookId = if (transaction.bookId == 0) activeBookId else transaction.bookId, // <--- TAMBAHAN PENTING
             isSynced = false,
             isDeleted = false,
-            syncAction = "CREATE", // Aksi yang perlu dilakukan server
+            syncAction = "CREATE",
             createdAt = System.currentTimeMillis(),
             updatedAt = System.currentTimeMillis(),
             imagePath = transaction.imagePath
@@ -55,6 +67,7 @@ class TransactionRepository @Inject constructor(
                 throw IllegalArgumentException("Transaksi tidak valid: Jumlah, kategori, atau dompet kosong.")
             }
             transaction.copy(
+                bookId = if (transaction.bookId == 0) activeBookId else transaction.bookId, // <--- TAMBAHAN PENTING
                 isSynced = false,
                 isDeleted = false,
                 syncAction = "CREATE",
@@ -77,9 +90,10 @@ class TransactionRepository @Inject constructor(
 
         // Menentukan status sinkronisasi untuk UPDATE
         val transactionToUpdate = transaction.copy(
+            bookId = if (transaction.bookId == 0) activeBookId else transaction.bookId, // <--- Jaga-jaga jika 0
             isSynced = false,
             isDeleted = false,
-            syncAction = "UPDATE", // Aksi yang perlu dilakukan server
+            syncAction = "UPDATE",
             updatedAt = System.currentTimeMillis(),
             imagePath = transaction.imagePath
         )
@@ -96,13 +110,11 @@ class TransactionRepository @Inject constructor(
      */
     suspend fun deleteTransaction(transaction: Transaction) {
         if (transaction.serverId == null) {
-            // Jika belum pernah disinkronkan, hapus permanen dari lokal
             transactionDao.deleteTransaction(transaction)
         } else {
-            // Jika sudah ada di server, tandai sebagai deleted dan update
             val transactionToDelete = transaction.copy(
                 isSynced = false,
-                isDeleted = true, // Tanda bahwa ini harus dihapus di server
+                isDeleted = true,
                 syncAction = "DELETE",
                 updatedAt = System.currentTimeMillis()
             )
@@ -155,14 +167,27 @@ class TransactionRepository @Inject constructor(
      * Menyimpan data transaksi yang diterima dari server (untuk operasi PULL/READ dari server)
      */
     override suspend fun saveFromRemote(transaction: Transaction) {
-        val existingPath = transactionDao.getByServerId(transaction.serverId ?: "")?.imagePath
-        transactionDao.insertTransaction(transaction.copy(
+        // Cek data lama berdasarkan serverId
+        val existingTransaction = if (transaction.serverId != null) {
+            transactionDao.getByServerId(transaction.serverId)
+        } else {
+            null
+        }
+
+        val existingPath = existingTransaction?.imagePath
+
+        // Simpan ke DB Lokal
+        val transactionToSave = transaction.copy(
             isSynced = true,
             isDeleted = false,
             syncAction = null,
             lastSyncAt = System.currentTimeMillis(),
-            imagePath = existingPath ?: transaction.imagePath
-        ))
+            imagePath = existingPath ?: transaction.imagePath,
+            // Handle Nullability 'notes' agar tidak crash
+            notes = transaction.notes ?: ""
+        )
+
+        transactionDao.insertTransaction(transactionToSave)
     }
 
     override suspend fun getByServerId(serverId: String): Transaction? {
