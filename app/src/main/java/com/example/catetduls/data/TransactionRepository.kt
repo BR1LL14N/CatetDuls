@@ -1,38 +1,40 @@
 package com.example.catetduls.data
 
+import java.util.*
+import javax.inject.Inject
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
-import java.util.*
-import android.content.Context
-import android.content.SharedPreferences
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 
 /**
- * Repository adalah perantara antara ViewModel dan DAO.
- * Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
+ * Repository adalah perantara antara ViewModel dan DAO. Disesuaikan untuk mendukung mekanisme
+ * sinkronisasi offline-first.
  */
-class TransactionRepository @Inject constructor(
-    private val transactionDao: TransactionDao,
-    // INJECT CONTEXT untuk akses SharedPreferences
-    @ApplicationContext private val context: Context
+class TransactionRepository
+@Inject
+constructor(
+        private val transactionDao: TransactionDao,
+        private val bookRepository: BookRepository
 ) : SyncRepository<Transaction> {
 
-    private val activeBookId: Int
-        get() {
-            val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-            return prefs.getInt("active_book_id", 1) // Default ke 1 jika tidak ada
-        }
+    // Helper untuk suspend functions
+    private suspend fun getActiveBookId(): Int {
+        return bookRepository.getActiveBookSync()?.id ?: 1
+    }
 
     // ========================================
     // READ Operations
     // ========================================
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getAllTransactions(): Flow<List<Transaction>> =
-        transactionDao.getAllTransactions()
+            bookRepository.getActiveBook().flatMapLatest { book ->
+                transactionDao.getAllTransactions(book?.id ?: 1)
+            }
 
-    fun getTransactionById(id: Int): Flow<Transaction?> =
-        transactionDao.getTransactionById(id)
+    fun getTransactionById(id: Int): Flow<Transaction?> = transactionDao.getTransactionById(id)
 
     suspend fun getSingleTransactionById(id: Int): Transaction? {
         // Menggunakan first() atau singleOrNull() untuk mendapatkan nilai pertama/tunggal dari Flow
@@ -45,37 +47,46 @@ class TransactionRepository @Inject constructor(
 
     suspend fun insertTransaction(transaction: Transaction) {
         if (!transaction.isValid()) {
-            throw IllegalArgumentException("Transaksi tidak valid: Jumlah, kategori, atau dompet kosong.")
+            throw IllegalArgumentException(
+                    "Transaksi tidak valid: Jumlah, kategori, atau dompet kosong."
+            )
         }
 
         // OTOMATIS ISI bookId DARI STATE APLIKASI
-        val transactionToInsert = transaction.copy(
-            bookId = if (transaction.bookId == 0) activeBookId else transaction.bookId, // <--- TAMBAHAN PENTING
-            isSynced = false,
-            isDeleted = false,
-            syncAction = "CREATE",
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis(),
-            imagePath = transaction.imagePath
-        )
+        val currentBookId = if (transaction.bookId == 0) getActiveBookId() else transaction.bookId
+        val transactionToInsert =
+                transaction.copy(
+                        bookId = currentBookId, // <--- TAMBAHAN PENTING
+                        isSynced = false,
+                        isDeleted = false,
+                        syncAction = "CREATE",
+                        createdAt = System.currentTimeMillis(),
+                        updatedAt = System.currentTimeMillis(),
+                        imagePath = transaction.imagePath
+                )
         transactionDao.insertTransaction(transactionToInsert)
     }
 
     suspend fun insertAll(transactions: List<Transaction>) {
-        val transactionsToInsert = transactions.map { transaction ->
-            if (!transaction.isValid()) {
-                throw IllegalArgumentException("Transaksi tidak valid: Jumlah, kategori, atau dompet kosong.")
-            }
-            transaction.copy(
-                bookId = if (transaction.bookId == 0) activeBookId else transaction.bookId, // <--- TAMBAHAN PENTING
-                isSynced = false,
-                isDeleted = false,
-                syncAction = "CREATE",
-                createdAt = System.currentTimeMillis(),
-                updatedAt = System.currentTimeMillis(),
-                imagePath = transaction.imagePath
-            )
-        }
+        val transactionsToInsert =
+                transactions.map { transaction ->
+                    if (!transaction.isValid()) {
+                        throw IllegalArgumentException(
+                                "Transaksi tidak valid: Jumlah, kategori, atau dompet kosong."
+                        )
+                    }
+                    val currentBookId =
+                            if (transaction.bookId == 0) getActiveBookId() else transaction.bookId
+                    transaction.copy(
+                            bookId = currentBookId, // <--- TAMBAHAN PENTING
+                            isSynced = false,
+                            isDeleted = false,
+                            syncAction = "CREATE",
+                            createdAt = System.currentTimeMillis(),
+                            updatedAt = System.currentTimeMillis(),
+                            imagePath = transaction.imagePath
+                    )
+                }
         transactionDao.insertAll(transactionsToInsert)
     }
 
@@ -85,18 +96,22 @@ class TransactionRepository @Inject constructor(
 
     suspend fun updateTransaction(transaction: Transaction) {
         if (!transaction.isValid()) {
-            throw IllegalArgumentException("Transaksi tidak valid: Jumlah, kategori, atau dompet kosong.")
+            throw IllegalArgumentException(
+                    "Transaksi tidak valid: Jumlah, kategori, atau dompet kosong."
+            )
         }
 
         // Menentukan status sinkronisasi untuk UPDATE
-        val transactionToUpdate = transaction.copy(
-            bookId = if (transaction.bookId == 0) activeBookId else transaction.bookId, // <--- Jaga-jaga jika 0
-            isSynced = false,
-            isDeleted = false,
-            syncAction = "UPDATE",
-            updatedAt = System.currentTimeMillis(),
-            imagePath = transaction.imagePath
-        )
+        val currentBookId = if (transaction.bookId == 0) getActiveBookId() else transaction.bookId
+        val transactionToUpdate =
+                transaction.copy(
+                        bookId = currentBookId, // <--- Jaga-jaga jika 0
+                        isSynced = false,
+                        isDeleted = false,
+                        syncAction = "UPDATE",
+                        updatedAt = System.currentTimeMillis(),
+                        imagePath = transaction.imagePath
+                )
         transactionDao.updateTransaction(transactionToUpdate)
     }
 
@@ -105,19 +120,20 @@ class TransactionRepository @Inject constructor(
     // ========================================
 
     /**
-     * Menandai transaksi sebagai terhapus (soft delete) untuk disinkronkan ke server.
-     * Jika transaksi belum pernah disinkronkan (server_id null), maka hapus permanen lokal.
+     * Menandai transaksi sebagai terhapus (soft delete) untuk disinkronkan ke server. Jika
+     * transaksi belum pernah disinkronkan (server_id null), maka hapus permanen lokal.
      */
     suspend fun deleteTransaction(transaction: Transaction) {
         if (transaction.serverId == null) {
             transactionDao.deleteTransaction(transaction)
         } else {
-            val transactionToDelete = transaction.copy(
-                isSynced = false,
-                isDeleted = true,
-                syncAction = "DELETE",
-                updatedAt = System.currentTimeMillis()
-            )
+            val transactionToDelete =
+                    transaction.copy(
+                            isSynced = false,
+                            isDeleted = true,
+                            syncAction = "DELETE",
+                            updatedAt = System.currentTimeMillis()
+                    )
             transactionDao.updateTransaction(transactionToDelete)
         }
     }
@@ -134,58 +150,51 @@ class TransactionRepository @Inject constructor(
     }
 
     suspend fun deleteAllTransactions() {
-        // Jika menggunakan sync, ini harus dilakukan dengan hati-hati.
-        // Opsi 1: Menghapus semua yang belum sync, dan menandai yang sudah sync sebagai delete.
-        // Opsi 2: Hapus permanen lokal (untuk reset database).
-        // Kita gunakan versi DAO yang ada (Hard Delete All)
-        transactionDao.deleteAllTransactions()
+        // Hapus transaksi HANYA untuk buku yang sedang aktif
+        transactionDao.deleteTransactionsByBook(getActiveBookId())
     }
 
     // ========================================
     // SYNC METHODS (Dipanggil oleh Sync Worker)
     // ========================================
 
-    /**
-     * Mengambil semua transaksi yang perlu disinkronkan (CREATE, UPDATE, DELETE).
-     */
+    /** Mengambil semua transaksi yang perlu disinkronkan (CREATE, UPDATE, DELETE). */
     override suspend fun getAllUnsynced(): List<Transaction> {
         return transactionDao.getAllUnsyncedTransactions()
     }
 
-    /**
-     * Memperbarui status sinkronisasi setelah operasi server berhasil (CREATE/UPDATE).
-     */
-    override suspend fun updateSyncStatus(localId: Long, serverId: String, lastSyncAt: Long) {
-        transactionDao.updateSyncStatus(localId.toInt(), serverId, lastSyncAt)
+    /** Memperbarui status sinkronisasi setelah operasi server berhasil (CREATE/UPDATE). */
+    override suspend fun updateSyncStatus(id: Long, serverId: String, syncedAt: Long) {
+        transactionDao.updateSyncStatus(id.toInt(), serverId, syncedAt)
     }
 
     suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long) {
         transactionDao.updateSyncStatus(localId, serverId, lastSyncAt)
     }
 
-    /**
-     * Menyimpan data transaksi yang diterima dari server (untuk operasi PULL/READ dari server)
-     */
-    override suspend fun saveFromRemote(transaction: Transaction) {
+    /** Menyimpan data transaksi yang diterima dari server (untuk operasi PULL/READ dari server) */
+    override suspend fun saveFromRemote(entity: Transaction) {
         // Cek data lama berdasarkan serverId
-        val existingTransaction = if (transaction.serverId != null) {
-            transactionDao.getByServerId(transaction.serverId)
-        } else {
-            null
-        }
+        val existingTransaction =
+                if (entity.serverId != null) {
+                    transactionDao.getByServerId(entity.serverId)
+                } else {
+                    null
+                }
 
         val existingPath = existingTransaction?.imagePath
 
         // Simpan ke DB Lokal
-        val transactionToSave = transaction.copy(
-            isSynced = true,
-            isDeleted = false,
-            syncAction = null,
-            lastSyncAt = System.currentTimeMillis(),
-            imagePath = existingPath ?: transaction.imagePath,
-            // Handle Nullability 'notes' agar tidak crash
-            notes = transaction.notes ?: ""
-        )
+        val transactionToSave =
+                entity.copy(
+                        isSynced = true,
+                        isDeleted = false,
+                        syncAction = null,
+                        lastSyncAt = System.currentTimeMillis(),
+                        imagePath = existingPath ?: entity.imagePath,
+                        // Handle Nullability 'notes' agar tidak crash
+                        notes = entity.notes ?: ""
+                )
 
         transactionDao.insertTransaction(transactionToSave)
     }
@@ -194,9 +203,7 @@ class TransactionRepository @Inject constructor(
         return transactionDao.getByServerId(serverId)
     }
 
-    /**
-     * Membersihkan transaksi yang sudah berhasil di-sync delete ke server
-     */
+    /** Membersihkan transaksi yang sudah berhasil di-sync delete ke server */
     suspend fun cleanupSyncedDeletes() {
         transactionDao.cleanupSyncedDeletes()
     }
@@ -205,105 +212,152 @@ class TransactionRepository @Inject constructor(
     // Dashboard - Ringkasan Keuangan
     // ========================================
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getTotalBalance(): Flow<Double?> =
-        transactionDao.getTotalBalance()
+            bookRepository.getActiveBook().flatMapLatest { book ->
+                transactionDao.getTotalBalance(book?.id ?: 1)
+            }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getRecentTransactions(limit: Int = 5): Flow<List<Transaction>> =
-        transactionDao.getRecentTransactions(limit)
+            bookRepository.getActiveBook().flatMapLatest { book ->
+                transactionDao.getRecentTransactions(book?.id ?: 1, limit)
+            }
 
-    /**
-     * Total pemasukan bulan ini
-     */
+    /** Total pemasukan bulan ini */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getTotalIncomeThisMonth(): Flow<Double?> {
         val (startOfMonth, endOfMonth) = getThisMonthDateRange()
-        return transactionDao.getTotalByTypeAndDateRange(
-            TransactionType.PEMASUKAN,
-            startOfMonth,
-            endOfMonth
-        )
+        return bookRepository.getActiveBook().flatMapLatest { book ->
+            transactionDao.getTotalByTypeAndDateRange(
+                    book?.id ?: 1,
+                    TransactionType.PEMASUKAN,
+                    startOfMonth,
+                    endOfMonth
+            )
+        }
     }
 
-    /**
-     * Total pengeluaran bulan ini
-     */
+    /** Total pengeluaran bulan ini */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getTotalExpenseThisMonth(): Flow<Double?> {
         val (startOfMonth, endOfMonth) = getThisMonthDateRange()
-        return transactionDao.getTotalByTypeAndDateRange(
-            TransactionType.PENGELUARAN,
-            startOfMonth,
-            endOfMonth
-        )
+        return bookRepository.getActiveBook().flatMapLatest { book ->
+            transactionDao.getTotalByTypeAndDateRange(
+                    book?.id ?: 1,
+                    TransactionType.PENGELUARAN,
+                    startOfMonth,
+                    endOfMonth
+            )
+        }
     }
 
     // ========================================
     // Halaman Transaksi - Filter & Search
     // ========================================
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getTransactionsByType(type: TransactionType): Flow<List<Transaction>> =
-        transactionDao.getTransactionsByType(type)
+            bookRepository.getActiveBook().flatMapLatest { book ->
+                transactionDao.getTransactionsByType(book?.id ?: 1, type)
+            }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getTransactionsByCategory(categoryId: Int): Flow<List<Transaction>> =
-        transactionDao.getTransactionsByCategory(categoryId)
+            bookRepository.getActiveBook().flatMapLatest { book ->
+                transactionDao.getTransactionsByCategory(book?.id ?: 1, categoryId)
+            }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getTransactionsByDateRange(startDate: Long, endDate: Long): Flow<List<Transaction>> =
-        transactionDao.getTransactionsByDateRange(startDate, endDate)
+            bookRepository.getActiveBook().flatMapLatest { book ->
+                transactionDao.getTransactionsByDateRange(book?.id ?: 1, startDate, endDate)
+            }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getTransactionsByCategoryAndDateRange(
-        categoryId: Int,
-        startDate: Long,
-        endDate: Long
+            categoryId: Int,
+            startDate: Long,
+            endDate: Long
     ): Flow<List<Transaction>> {
-        return transactionDao.getTransactionsByCategoryAndDateRange(categoryId, startDate, endDate)
+        return bookRepository.getActiveBook().flatMapLatest { book ->
+            transactionDao.getTransactionsByCategoryAndDateRange(
+                    book?.id ?: 1,
+                    categoryId,
+                    startDate,
+                    endDate
+            )
+        }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getTransactionsByTypeAndDateRange(
-        type: TransactionType,
-        startDate: Long,
-        endDate: Long
+            type: TransactionType,
+            startDate: Long,
+            endDate: Long
     ): Flow<List<Transaction>> {
-        return transactionDao.getTransactionsByTypeAndDateRange(type, startDate, endDate)
+        return bookRepository.getActiveBook().flatMapLatest { book ->
+            transactionDao.getTransactionsByTypeAndDateRange(
+                    book?.id ?: 1,
+                    type,
+                    startDate,
+                    endDate
+            )
+        }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun searchTransactions(query: String): Flow<List<Transaction>> {
-        return transactionDao.searchTransactions("%$query%")
+        return bookRepository.getActiveBook().flatMapLatest { book ->
+            transactionDao.searchTransactions(book?.id ?: 1, "%$query%")
+        }
     }
 
-    /**
-     * Filter kombinasi: jenis + kategori + rentang tanggal
-     */
+    /** Filter kombinasi: jenis + kategori + rentang tanggal */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getFilteredTransactions(
-        type: TransactionType? = null,
-        categoryId: Int? = null,
-        startDate: Long? = null,
-        endDate: Long? = null
+            type: TransactionType? = null,
+            categoryId: Int? = null,
+            startDate: Long? = null,
+            endDate: Long? = null
     ): Flow<List<Transaction>> {
-        return when {
-
-            type != null && categoryId != null && startDate != null && endDate != null -> {
-                transactionDao.getTransactionsByTypeAndCategoryAndDateRange(
-                    type, categoryId, startDate, endDate
-                )
+        return bookRepository.getActiveBook().flatMapLatest { book ->
+            val bookId = book?.id ?: 1
+            when {
+                type != null && categoryId != null && startDate != null && endDate != null -> {
+                    transactionDao.getTransactionsByTypeAndCategoryAndDateRange(
+                            bookId,
+                            type,
+                            categoryId,
+                            startDate,
+                            endDate
+                    )
+                }
+                type != null && startDate != null && endDate != null -> {
+                    transactionDao.getTransactionsByTypeAndDateRange(
+                            bookId,
+                            type,
+                            startDate,
+                            endDate
+                    )
+                }
+                type == null && categoryId != null && startDate != null && endDate != null -> {
+                    transactionDao.getTransactionsByCategoryAndDateRange(
+                            bookId,
+                            categoryId,
+                            startDate,
+                            endDate
+                    )
+                }
+                type != null && categoryId != null -> {
+                    transactionDao.getTransactionsByTypeAndCategory(bookId, type, categoryId)
+                }
+                type != null -> transactionDao.getTransactionsByType(bookId, type)
+                categoryId != null -> transactionDao.getTransactionsByCategory(bookId, categoryId)
+                startDate != null && endDate != null ->
+                        transactionDao.getTransactionsByDateRange(bookId, startDate, endDate)
+                else -> transactionDao.getAllTransactions(bookId)
             }
-
-            type != null && startDate != null && endDate != null -> {
-                transactionDao.getTransactionsByTypeAndDateRange(type, startDate, endDate)
-            }
-
-            type == null && categoryId != null && startDate != null && endDate != null -> {
-                getTransactionsByCategoryAndDateRange(categoryId, startDate, endDate)
-            }
-
-            type != null && categoryId != null -> {
-                transactionDao.getTransactionsByTypeAndCategory(type, categoryId)
-            }
-
-            type != null -> getTransactionsByType(type)
-
-            categoryId != null -> getTransactionsByCategory(categoryId)
-
-            startDate != null && endDate != null -> getTransactionsByDateRange(startDate, endDate)
-
-            else -> getAllTransactions()
         }
     }
 
@@ -311,24 +365,39 @@ class TransactionRepository @Inject constructor(
     // Halaman Statistik - Analisis Data
     // ========================================
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getTotalExpenseByCategory(): Flow<List<CategoryExpense>> =
-        transactionDao.getTotalExpenseByCategory()
+            bookRepository.getActiveBook().flatMapLatest { book ->
+                transactionDao.getTotalExpenseByCategory(book?.id ?: 1)
+            }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getMonthlyTotals(year: Int): Flow<List<MonthlyTotal>> =
-        transactionDao.getMonthlyTotals(year)
+            bookRepository.getActiveBook().flatMapLatest { book ->
+                transactionDao.getMonthlyTotals(book?.id ?: 1, year)
+            }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getTopExpenseCategory(): Flow<CategoryExpense?> =
-        transactionDao.getTopExpenseCategory()
+            bookRepository.getActiveBook().flatMapLatest { book ->
+                transactionDao.getTopExpenseCategory(book?.id ?: 1)
+            }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getTotalByTypeAndDateRange(
-        type: TransactionType,
-        startDate: Long,
-        endDate: Long
+            type: TransactionType,
+            startDate: Long,
+            endDate: Long
     ): Flow<Double?> =
-        transactionDao.getTotalByTypeAndDateRange(type, startDate, endDate)
+            bookRepository.getActiveBook().flatMapLatest { book ->
+                transactionDao.getTotalByTypeAndDateRange(book?.id ?: 1, type, startDate, endDate)
+            }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getMonthlyDailySummary(startDate: Long, endDate: Long): Flow<List<DailySummary>> {
-        return transactionDao.getDailySummaries(startDate, endDate)
+        return bookRepository.getActiveBook().flatMapLatest { book ->
+            transactionDao.getDailySummaries(book?.id ?: 1, startDate, endDate)
+        }
     }
 
     // ========================================
@@ -381,7 +450,6 @@ class TransactionRepository @Inject constructor(
             }
             else -> ValidationResult.Success
         }
-
     }
 }
 

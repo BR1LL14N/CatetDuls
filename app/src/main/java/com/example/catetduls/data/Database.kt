@@ -396,18 +396,20 @@ fun Context.getBookRepository(): BookRepository {
 
 fun Context.getWalletRepository(): WalletRepository {
     val database = AppDatabase.getDatabase(this)
-    return WalletRepository(database.walletDao())
+    val bookRepository = BookRepository(database.bookDao())
+    return WalletRepository(database.walletDao(), bookRepository)
 }
 
 fun Context.getCategoryRepository(): CategoryRepository {
     val database = AppDatabase.getDatabase(this)
-    return CategoryRepository(database.categoryDao())
+    val bookRepository = BookRepository(database.bookDao())
+    return CategoryRepository(database.categoryDao(), bookRepository)
 }
 
 fun Context.getTransactionRepository(): TransactionRepository {
     val database = AppDatabase.getDatabase(this)
-    // PERBAIKAN: Tambahkan parameter 'this' (context)
-    return TransactionRepository(database.transactionDao(), this)
+    val bookRepository = BookRepository(database.bookDao())
+    return TransactionRepository(database.transactionDao(), bookRepository)
 }
 
 //fun Context.getUserRepository(): UserRepository {
