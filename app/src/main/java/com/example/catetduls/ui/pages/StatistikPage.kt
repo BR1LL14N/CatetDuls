@@ -15,9 +15,6 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.catetduls.R
@@ -38,6 +35,7 @@ import com.google.android.material.tabs.TabLayout
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlinx.coroutines.flow.collect
 
 class StatistikPage : Fragment() {
 
@@ -111,16 +109,12 @@ class StatistikPage : Fragment() {
     }
 
     private fun setupHeaderDate() {
-        // Menampilkan Bulan & Tahun saat ini (Hanya visual header)
-        val calendar = Calendar.getInstance()
-        val format = SimpleDateFormat("MMM yyyy", Locale("id", "ID"))
-        tvCurrentMonth.text = format.format(calendar.time)
+        // Init state for buttons
+        btnPrevMonth.alpha = 1.0f
+        btnNextMonth.alpha = 1.0f
 
-        // TODO: Jika ingin fitur navigasi bulan (< >) berfungsi mengubah data,
-        // ViewModel harus diupdate untuk mendukung pergeseran bulan (addMonth).
-        // Untuk saat ini, kita biarkan statis sesuai periode "Bulan Ini" di ViewModel.
-        btnPrevMonth.alpha = 0.3f // Dimmed agar user tahu belum aktif
-        btnNextMonth.alpha = 0.3f
+        btnPrevMonth.setOnClickListener { viewModel.prevPeriod() }
+        btnNextMonth.setOnClickListener { viewModel.nextPeriod() }
     }
 
     private fun setupSpinner() {
@@ -178,19 +172,23 @@ class StatistikPage : Fragment() {
     }
 
     private fun setupRecyclerView() {
-        categoryAdapter = CategoryStatAdapter(onItemClick = { categoryExpense ->
-            val detailFragment = DetailStatistikPage.newInstance(categoryExpense.categoryId)
+        categoryAdapter =
+                CategoryStatAdapter(
+                        onItemClick = { categoryExpense ->
+                            val detailFragment =
+                                    DetailStatistikPage.newInstance(categoryExpense.categoryId)
 
-            parentFragmentManager
-                    .beginTransaction()
-                    .setCustomAnimations(
-                            android.R.anim.slide_in_left,
-                            android.R.anim.slide_out_right
-                    )
-                    .replace(R.id.fragment_container, detailFragment)
-                    .addToBackStack(null)
-                    .commit()
-        })
+                            parentFragmentManager
+                                    .beginTransaction()
+                                    .setCustomAnimations(
+                                            android.R.anim.slide_in_left,
+                                            android.R.anim.slide_out_right
+                                    )
+                                    .replace(R.id.fragment_container, detailFragment)
+                                    .addToBackStack(null)
+                                    .commit()
+                        }
+                )
 
         // 2. BAGIAN PENTING YANG HILANG: Pasang ke RecyclerView UI
         rvCategoryDetails.apply {
@@ -230,9 +228,11 @@ class StatistikPage : Fragment() {
 
             // 3. Update Center Text (Total di tengah Donut)
             val total = categories.sumOf { it.total }
-            // FIX: Gunakan CurrencyHelper.format langsung karena 'total' sudah dalam mata uang asing (hasil convert di ViewModel)
+            // FIX: Gunakan CurrencyHelper.format langsung karena 'total' sudah dalam mata uang
+            // asing (hasil convert di ViewModel)
             // Jangan pakai viewModel.formatCurrency() lagi karena itu akan mengkonversi ulang.
-            pieChart.centerText = "Total\n${com.example.catetduls.utils.CurrencyHelper.format(total, viewModel.currencySymbol.value)}"
+            pieChart.centerText =
+                    "Total\n${com.example.catetduls.utils.CurrencyHelper.format(total, viewModel.currencySymbol.value)}"
             pieChart.setCenterTextSize(14f)
             pieChart.setCenterTextColor(
                     ContextCompat.getColor(requireContext(), R.color.text_primary)
@@ -250,12 +250,39 @@ class StatistikPage : Fragment() {
 
         // 4. Currency (New)
         viewLifecycleOwner.lifecycleScope.launchWhenStarted {
-            viewModel.currencySymbol.collect { symbol ->
-                categoryAdapter.setCurrency(symbol)
-                // Refresh list if needed (though submitList triggers update, but bind uses symbol)
-                // Adapter.notifyDataSetChanged should be called in setCurrency
+            viewModel.currencySymbol.collect { symbol -> categoryAdapter.setCurrency(symbol) }
+        }
+
+        // 5. Date Header Observer
+        viewLifecycleOwner.lifecycleScope.launchWhenStarted {
+            // Combine selectedDate and selectedPeriod to format header
+            viewModel.selectedDate.collect { date ->
+                updateHeaderDisplay(date, viewModel.selectedPeriod.value)
             }
         }
+
+        viewLifecycleOwner.lifecycleScope.launchWhenStarted {
+            viewModel.selectedPeriod.collect { period ->
+                updateHeaderDisplay(viewModel.selectedDate.value, period)
+            }
+        }
+    }
+
+    private fun updateHeaderDisplay(date: Long, period: String) {
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = date
+
+        val formatPattern =
+                when (period) {
+                    "Harian", "Hari Ini" -> "dd MMM yyyy"
+                    "Mingguan", "Minggu Ini" -> "'Minggu-'W, MMM yyyy"
+                    "Bulanan", "Bulan Ini" -> "MMM yyyy"
+                    "Tahunan", "Tahun Ini" -> "yyyy"
+                    else -> "MMM yyyy"
+                }
+
+        val format = SimpleDateFormat(formatPattern, Locale("id", "ID"))
+        tvCurrentMonth.text = format.format(calendar.time)
     }
 
     private fun updateChartData(categories: List<CategoryExpense>) {

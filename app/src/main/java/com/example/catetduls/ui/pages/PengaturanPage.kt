@@ -15,10 +15,10 @@ import androidx.fragment.app.viewModels // Import Hilt ktx
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
 import com.example.catetduls.R
+import com.example.catetduls.data.getBookRepository // Import Extension
 import com.example.catetduls.viewmodel.PengaturanViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.example.catetduls.data.getBookRepository // Import Extension
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -49,6 +49,8 @@ class PengaturanPage : Fragment() {
     private lateinit var btnAuthAction: MaterialButton
     private lateinit var tvUserStatus: TextView
     private lateinit var btnSyncNow: MaterialButton
+    private lateinit var tvActiveBookName: TextView
+    private lateinit var tvActiveCurrency: TextView
 
     // ===============================================
     // LAUNCHER UNTUK EXPORT FILE
@@ -136,6 +138,8 @@ class PengaturanPage : Fragment() {
         btnAuthAction = view.findViewById(R.id.btn_auth_action)
         tvUserStatus = view.findViewById(R.id.tv_user_status)
         btnSyncNow = view.findViewById(R.id.btn_sync_now)
+        tvActiveBookName = view.findViewById(R.id.tv_active_book_name)
+        tvActiveCurrency = view.findViewById(R.id.tv_active_currency)
 
         btnEditProfile = view.findViewById(R.id.btn_edit_profile)
     }
@@ -179,17 +183,8 @@ class PengaturanPage : Fragment() {
             val bookRepository = requireContext().getBookRepository()
             bookRepository.getActiveBook().collect { book ->
                 if (book != null) {
-                    // Try to find a TextView inside the card to update, or just append to a known
-                    // view
-                    // Since I don't see the XML, I'll rely on the Dialog showing the selection.
-                    // But user asked "tampilkan mata uang yang sedang aktif".
-                    // I will try to find a TextView with id `tv_current_currency` if it exists, or
-                    // just use `tv_app_version` temporarily?
-                    // No, that's bad.
-                    // I will just rely on the Dialog highlight for now as "selected".
-                    // "di halaman pengaturan menu mata uang itu tampilkan mata uang yang sedang
-                    // aktif"
-                    // implies viewing it without clicking.
+                    tvActiveBookName.text = book.name
+                    tvActiveCurrency.text = "${book.currencyCode} (${book.currencySymbol})"
                 }
             }
         }
@@ -260,7 +255,18 @@ class PengaturanPage : Fragment() {
                     .commit()
         }
 
-        btnSyncNow.setOnClickListener { viewModel.forceSync() }
+        btnSyncNow.setOnClickListener {
+            if (viewModel.isLoggedIn.value) {
+                viewModel.forceSync()
+            } else {
+                Toast.makeText(
+                                requireContext(),
+                                "Harap login terlebih dahulu untuk menggunakan fitur sinkronisasi",
+                                Toast.LENGTH_SHORT
+                        )
+                        .show()
+            }
+        }
     }
 
     // ===============================================
