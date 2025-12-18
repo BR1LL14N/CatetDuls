@@ -17,12 +17,15 @@ data class CalendarDayCell(
     val dayOfMonth: Int,
     val summary: DailySummary?,
     val isCurrentMonth: Boolean = true,
-    val isToday: Boolean = false
+    val isToday: Boolean = false,
+    val timestamp: Long = 0L // Store the actual date timestamp
 )
 
 // Adapter yang menerima List<CalendarDayCell?>
-class CalendarAdapter(initialDays: List<CalendarDayCell?>) :
-    RecyclerView.Adapter<CalendarAdapter.CalendarViewHolder>() {
+class CalendarAdapter(
+    initialDays: List<CalendarDayCell?>,
+    private val onDayClick: (Long) -> Unit
+) : RecyclerView.Adapter<CalendarAdapter.CalendarViewHolder>() {
 
     // PROPERTI DIPERBAIKI: Mendeklarasikan data sebagai Mutable List dari awal
     private val calendarDays: MutableList<CalendarDayCell?> = initialDays.toMutableList()
@@ -49,7 +52,7 @@ class CalendarAdapter(initialDays: List<CalendarDayCell?>) :
     override fun onBindViewHolder(holder: CalendarViewHolder, position: Int) {
         // Akses item langsung dari list internal
         val item = calendarDays[position]
-        holder.bind(item)
+        holder.bind(item, onDayClick)
     }
 
     class CalendarViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -64,17 +67,21 @@ class CalendarAdapter(initialDays: List<CalendarDayCell?>) :
             minimumFractionDigits = 0
         }
 
-        fun bind(cell: CalendarDayCell?) {
+        fun bind(cell: CalendarDayCell?, onDayClick: (Long) -> Unit) {
             val context = itemView.context
 
-            // Reset visibility
+            // Reset visibility & Style
             tvDayIncome.visibility = View.GONE
             tvDayExpense.visibility = View.GONE
             tvDayTotal.visibility = View.GONE
             viewDayMarker.visibility = View.GONE
             tvDayNumber.setTextColor(ContextCompat.getColor(context, R.color.text_primary))
+            itemView.alpha = 1.0f // Reset alpha
+            itemView.setOnClickListener(null) // Reset listener
 
             // Logika untuk Cell Kosong (Padding)
+            // Note: With the new logic, cell ideally shouldn't be null often if we fill everything,
+            // but we keep null safety just in case.
             if (cell == null) {
                 tvDayNumber.text = ""
                 return
@@ -83,10 +90,29 @@ class CalendarAdapter(initialDays: List<CalendarDayCell?>) :
             // Atur Nomor Hari
             tvDayNumber.text = cell.dayOfMonth.toString()
 
+            // Styling untuk Bukan Bulan Saat Ini
+            if (!cell.isCurrentMonth) {
+                // Dim content only, keep border (background) opaque
+                tvDayNumber.alpha = 0.5f
+                tvDayIncome.alpha = 0.5f
+                tvDayExpense.alpha = 0.5f
+                tvDayTotal.alpha = 0.5f
+            } else {
+                tvDayNumber.alpha = 1.0f
+                tvDayIncome.alpha = 1.0f
+                tvDayExpense.alpha = 1.0f
+                tvDayTotal.alpha = 1.0f
+            }
+
             // Tandai Hari Ini
             if (cell.isToday) {
                 viewDayMarker.visibility = View.VISIBLE
                 tvDayNumber.setTextColor(ContextCompat.getColor(context, R.color.white))
+            }
+
+            // Click Listener
+            itemView.setOnClickListener {
+                onDayClick(cell.timestamp)
             }
 
             val summary = cell.summary

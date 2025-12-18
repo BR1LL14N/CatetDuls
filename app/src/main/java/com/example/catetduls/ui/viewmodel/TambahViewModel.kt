@@ -14,7 +14,7 @@ class TambahViewModel(
     private val categoryRepository: CategoryRepository,
     private val walletRepository: WalletRepository,
     private val activeWalletId: Int,
-    private val activeBookId: Int
+    private val activeBookId: Int // Ensure this is passed correctly via Factory
 ) : ViewModel() {
 
     // === State Management ===
@@ -37,10 +37,10 @@ class TambahViewModel(
     private val _transactionId = MutableStateFlow<Int?>(null)
     val transactionId: StateFlow<Int?> = _transactionId.asStateFlow()
 
-    private val _selectedWalletId = MutableStateFlow(activeWalletId) // Dompet Sumber
+    private val _selectedWalletId = MutableStateFlow(activeWalletId) // Source Wallet
     val selectedWalletId: StateFlow<Int> = _selectedWalletId.asStateFlow()
 
-    private val _selectedTargetWalletId = MutableStateFlow<Int?>(null) // Dompet Tujuan
+    private val _selectedTargetWalletId = MutableStateFlow<Int?>(null) // Target Wallet
     val selectedTargetWalletId: StateFlow<Int?> = _selectedTargetWalletId.asStateFlow()
 
     private val _selectedType = MutableStateFlow(TransactionType.PENGELUARAN)
@@ -61,7 +61,6 @@ class TambahViewModel(
     private val _transferCategoryId = MutableStateFlow<Int?>(null)
 
     private suspend fun getWalletNameById(walletId: Int): String {
-        // Asumsi: getSingleWalletById adalah fungsi suspend yang tersedia di WalletRepository
         val wallet = walletRepository.getSingleWalletById(walletId)
         return wallet?.name ?: "Dompet ID $walletId"
     }
@@ -69,7 +68,7 @@ class TambahViewModel(
     init {
         viewModelScope.launch {
             try {
-                // Ambil ID Kategori Transfer saat inisialisasi
+                // Get Transfer Category ID on init
                 val id = categoryRepository.getCategoryIdByType(TransactionType.TRANSFER, activeBookId)
                 _transferCategoryId.value = id
             } catch (e: Exception) {
@@ -78,7 +77,7 @@ class TambahViewModel(
         }
     }
 
-    // === Data Observasi ===
+    // === Data Observation ===
     val categories: LiveData<List<Category>> = _selectedType.asLiveData().switchMap { type ->
         if (type != TransactionType.TRANSFER) {
             categoryRepository.getCategoriesByBookIdAndType(activeBookId, type).asLiveData()
@@ -106,7 +105,7 @@ class TambahViewModel(
                         sourceWalletId > 0 &&
                         targetWalletId > 0 &&
                         sourceWalletId != targetWalletId &&
-                        _transferCategoryId.value != null // Pastikan ID Transfer tersedia
+                        _transferCategoryId.value != null
             }
             TransactionType.PEMASUKAN, TransactionType.PENGELUARAN -> {
                 _selectedCategoryId.value != null &&
@@ -120,7 +119,7 @@ class TambahViewModel(
     fun setType(type: TransactionType) {
         _selectedType.value = type
         if (type == TransactionType.TRANSFER) {
-            _selectedCategoryId.value = _transferCategoryId.value // Set otomatis ID Transfer
+            _selectedCategoryId.value = _transferCategoryId.value
         } else {
             _selectedCategoryId.value = null
         }
@@ -170,7 +169,7 @@ class TambahViewModel(
                 val isEdit = isEditMode()
                 val currentTime = System.currentTimeMillis()
 
-                // --- VALIDASI AWAL ---
+                // --- INITIAL VALIDATION ---
                 if (amountValue == null || amountValue <= 0 || !isFormValid()) {
                     if (amountValue == null || amountValue <= 0) {
                         _errorMessage.value = "Jumlah harus lebih dari 0"
@@ -191,23 +190,15 @@ class TambahViewModel(
                     return@launch
                 }
 
-                // --- Persiapan Metadata Sync ---
+                // --- Sync Metadata Preparation ---
                 val syncAction = if (isEdit) "UPDATE" else "CREATE"
 
-                // Ambil data transaksi lama jika edit (untuk mempertahankan created_at dan serverId)
-                val existingTransactionLiveData = if (isEdit) {
-                    transactionRepository.getTransactionById(_transactionId.value!!)
-                } else null
-
-                // Mengakses nilai LiveData secara manual (memperbaiki Unresolved reference 'value')
-//                val existingTransaction = existingTransactionLiveData?.value
                 val existingTransaction = if (isEdit) {
-                    // Panggil fungsi suspend untuk mendapatkan objek Transaction secara langsung
                     transactionRepository.getSingleTransactionById(_transactionId.value!!)
                 } else null
                 val existingServerId = existingTransaction?.serverId
 
-                // --- LOGIKA TRANSFER (Dual Transaction) ---
+                // --- TRANSFER LOGIC (Dual Transaction) ---
                 if (currentType == TransactionType.TRANSFER) {
                     val sourceWalletId = _selectedWalletId.value
                     val targetWalletId = _selectedTargetWalletId.value!!
@@ -220,7 +211,7 @@ class TambahViewModel(
                     val sourceWalletName = getWalletNameById(sourceWalletId)
                     val targetWalletName = getWalletNameById(targetWalletId)
 
-                    // 1. Transaksi PENGELUARAN (Dari Dompet Sumber)
+                    // 1. EXPENSE Transaction (From Source Wallet)
                     val expenseTransaction = Transaction(
                         id = 0,
                         type = TransactionType.PENGELUARAN,
@@ -229,18 +220,20 @@ class TambahViewModel(
                         date = timestamp,
                         notes = "[TRANSFER OUT: dari ${sourceWalletName} ke ${targetWalletName}], $notes",
                         walletId = sourceWalletId,
+                        // ✅ FIX: Added bookId
+                        bookId = activeBookId,
                         imagePath = imagePath,
-                        // === FIELD SYNC ===
+                        // === SYNC FIELDS ===
                         createdAt = currentTime,
                         updatedAt = currentTime,
                         lastSyncAt = 0,
                         isSynced = false,
-                        syncAction = "CREATE", // Selalu CREATE untuk 2 record transfer baru
+                        syncAction = "CREATE",
                         serverId = null,
                         isDeleted = false
                     )
 
-                    // 2. Transaksi PEMASUKAN (Ke Dompet Tujuan)
+                    // 2. INCOME Transaction (To Target Wallet)
                     val incomeTransaction = Transaction(
                         id = 0,
                         type = TransactionType.PEMASUKAN,
@@ -249,8 +242,10 @@ class TambahViewModel(
                         date = timestamp,
                         notes = "[TRANSFER IN: dari ${sourceWalletName} ke ${targetWalletName}], $notes",
                         walletId = targetWalletId,
+                        // ✅ FIX: Added bookId
+                        bookId = activeBookId,
                         imagePath = imagePath,
-                        // === FIELD SYNC ===
+                        // === SYNC FIELDS ===
                         createdAt = currentTime,
                         updatedAt = currentTime,
                         lastSyncAt = 0,
@@ -267,7 +262,7 @@ class TambahViewModel(
 
                 } else {
 
-                    // --- LOGIKA PEMASUKAN/PENGELUARAN (Single Transaction) ---
+                    // --- INCOME/EXPENSE LOGIC (Single Transaction) ---
                     val categoryId = _selectedCategoryId.value
                     val walletId = _selectedWalletId.value
 
@@ -279,10 +274,11 @@ class TambahViewModel(
                         date = _date.value,
                         notes = _notes.value,
                         walletId = walletId,
+                        // ✅ FIX: Added bookId
+                        bookId = activeBookId,
                         imagePath = _imagePath.value,
 
-                        // === FIELD SYNC ===
-                        // Memperbaiki 'Unresolved reference 'createdAt''
+                        // === SYNC FIELDS ===
                         createdAt = if (isEdit) existingTransaction?.createdAt ?: 0 else currentTime,
                         updatedAt = currentTime,
                         lastSyncAt = 0,
@@ -310,7 +306,7 @@ class TambahViewModel(
         }
     }
 
-    // ... (Fungsi-fungsi lain yang sudah ada) ...
+    // ... (Other functions remain the same) ...
 
     fun loadTransaction(transactionId: Int) {
         viewModelScope.launch {
@@ -326,8 +322,6 @@ class TambahViewModel(
                         _date.value = transaction.date
                         _notes.value = transaction.notes
                         _imagePath.value = transaction.imagePath
-
-
                     }
                     _isLoading.value = false
                 }
@@ -353,7 +347,6 @@ class TambahViewModel(
         } else if (!keepCategory) {
             _selectedCategoryId.value = null
         }
-
 
         _selectedWalletId.value = activeWalletId
         _selectedTargetWalletId.value = null

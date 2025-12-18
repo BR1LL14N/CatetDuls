@@ -88,9 +88,25 @@ class TransaksiPage : Fragment() {
         loadReferenceData()
         setupListeners()
 
-        // Default: Set Tab "Bulanan" (Index 2)
-        tabLayout.getTabAt(2)?.select()
-        updateDateFilter() // Trigger load awal
+        // Cek Arguments (dari Calendar Page atau yang lain)
+        val args = arguments
+        if (args != null && args.containsKey("ARG_INITIAL_DATE")) {
+            val initialDate = args.getLong("ARG_INITIAL_DATE")
+            val initialTab = args.getInt("ARG_INITIAL_TAB_MODE", 0)
+
+            currentCalendar.timeInMillis = initialDate
+            currentTabMode = initialTab
+            
+            // Wait for layout to select tab? Or just select.
+            // Post to queue to ensure TabLayout is ready? Usually fine here.
+            tabLayout.getTabAt(initialTab)?.select()
+        } else {
+            // Default: Set Tab "Bulanan" (Index 2)
+            tabLayout.getTabAt(2)?.select()
+        }
+        
+        // Force update initial filter to ensure consistency
+        updateDateFilter()
 
         observeData()
     }

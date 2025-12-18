@@ -10,15 +10,10 @@ interface CategoryDao {
     // CREATE
     // ===================================
 
-    /**
-     * Insert kategori baru atau mengganti jika ada konflik
-     */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCategory(category: Category)
+    /** Insert kategori baru atau mengganti jika ada konflik */
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertCategory(category: Category)
 
-    /**
-     * Insert multiple categories (untuk data awal atau saat sync pull)
-     */
+    /** Insert multiple categories (untuk data awal atau saat sync pull) */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(categories: List<Category>)
 
@@ -26,49 +21,42 @@ interface CategoryDao {
     // READ
     // ===================================
 
-    /**
-     * Get semua kategori
-     */
-    @Query("SELECT * FROM categories ORDER BY name ASC")
-    fun getAllCategories(): Flow<List<Category>>
+    /** Get semua kategori */
+    @Query("SELECT * FROM categories WHERE bookId = :bookId ORDER BY name ASC")
+    fun getAllCategories(bookId: Int): Flow<List<Category>>
 
-    @Query("SELECT * FROM categories")
-    suspend fun getAllCategoriesSync(): List<Category>
+    @Query("SELECT * FROM categories WHERE bookId = :bookId")
+    suspend fun getAllCategoriesSync(bookId: Int): List<Category>
 
-    /**
-     * Get semua kategori berdasarkan ID Buku
-     */
+    /** Get semua kategori berdasarkan ID Buku */
     @Query("SELECT * FROM categories WHERE bookId = :bookId ORDER BY name ASC")
     fun getAllCategoriesByBook(bookId: Int): Flow<List<Category>>
 
-    /**
-     * Search dan filter kategori berdasarkan ID Buku, Query, dan Tipe (Opsional)
-     */
-    @Query("""
+    /** Search dan filter kategori berdasarkan ID Buku, Query, dan Tipe (Opsional) */
+    @Query(
+            """
         SELECT * FROM categories 
         WHERE bookId = :bookId 
         AND (name LIKE :query OR icon LIKE :query)
         AND (:type IS NULL OR type = :type)
         ORDER BY name ASC
-    """)
+    """
+    )
     fun searchCategories(bookId: Int, query: String, type: TransactionType?): Flow<List<Category>>
 
-    @Query("""
+    @Query(
+            """
         SELECT * FROM categories 
         WHERE bookId = :bookId AND type = :type 
         ORDER BY name ASC
-    """)
+    """
+    )
     fun getCategoriesByBookIdAndType(bookId: Int, type: TransactionType): Flow<List<Category>>
 
-    /**
-     * Get kategori berdasarkan ID
-     */
-    @Query("SELECT * FROM categories WHERE id = :id")
-    fun getCategoryById(id: Int): Flow<Category?>
+    /** Get kategori berdasarkan ID */
+    @Query("SELECT * FROM categories WHERE id = :id") fun getCategoryById(id: Int): Flow<Category?>
 
-    /**
-     * Get kategori berdasarkan ID (suspend)
-     */
+    /** Get kategori berdasarkan ID (suspend) */
     @Query("SELECT * FROM categories WHERE id = :id")
     suspend fun getCategoryByIdSync(id: Int): Category?
 
@@ -76,31 +64,23 @@ interface CategoryDao {
     // UPDATE
     // ===================================
 
-    /**
-     * Update kategori
-     */
-    @Update
-    suspend fun updateCategory(category: Category)
+    /** Update kategori */
+    @Update suspend fun updateCategory(category: Category)
 
-    /**
-     * Menandai kategori sebagai belum tersinkronisasi
-     */
-    @Query("UPDATE categories SET is_synced = 0, sync_action = :action, updated_at = :updatedAt WHERE id = :id")
+    /** Menandai kategori sebagai belum tersinkronisasi */
+    @Query(
+            "UPDATE categories SET is_synced = 0, sync_action = :action, updated_at = :updatedAt WHERE id = :id"
+    )
     suspend fun markAsUnsynced(id: Int, action: String, updatedAt: Long)
 
     // ===================================
     // DELETE
     // ===================================
 
-    /**
-     * Delete kategori (Dipanggil oleh Repo hanya jika belum pernah sync)
-     */
-    @Delete
-    suspend fun deleteCategory(category: Category)
+    /** Delete kategori (Dipanggil oleh Repo hanya jika belum pernah sync) */
+    @Delete suspend fun deleteCategory(category: Category)
 
-    /**
-     * Delete berdasarkan ID (Dipanggil oleh Repo setelah sync DELETE berhasil)
-     */
+    /** Delete berdasarkan ID (Dipanggil oleh Repo setelah sync DELETE berhasil) */
     @Query("DELETE FROM categories WHERE id = :categoryId AND isDefault = 0")
     suspend fun deleteCategoryById(categoryId: Int)
 
@@ -109,56 +89,51 @@ interface CategoryDao {
     // ===================================
 
     /**
-     * Mengambil semua kategori yang perlu disinkronkan ke server.
-     * Termasuk yang baru dibuat/diubah (is_synced = 0) dan yang ditandai untuk dihapus (is_deleted = 1).
+     * Mengambil semua kategori yang perlu disinkronkan ke server. Termasuk yang baru dibuat/diubah
+     * (is_synced = 0) dan yang ditandai untuk dihapus (is_deleted = 1).
      */
     @Query("SELECT * FROM categories WHERE is_synced = 0 OR is_deleted = 1")
     suspend fun getUnsyncedCategories(): List<Category>
 
-    /**
-     * Memperbarui status sinkronisasi setelah server merespons (sukses CREATE/UPDATE).
-     */
-    @Query("""
+    /** Memperbarui status sinkronisasi setelah server merespons (sukses CREATE/UPDATE). */
+    @Query(
+            """
         UPDATE categories 
         SET server_id = :serverId, 
             is_synced = 1, 
             last_sync_at = :lastSyncAt,
             sync_action = NULL
         WHERE id = :localId
-    """)
-    suspend fun updateSyncStatus(
-        localId: Int,
-        serverId: String,
-        lastSyncAt: Long
+    """
     )
+    suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long)
+
+    @Query("SELECT * FROM categories WHERE server_id = :serverId LIMIT 1")
+    suspend fun getByServerId(serverId: String): Category?
 
     // ===================================
     // UTILITY/STATS
     // ===================================
 
-    /**
-     * Cek apakah nama kategori sudah ada
-     */
+    /** Cek apakah nama kategori sudah ada */
     @Query("SELECT COUNT(*) > 0 FROM categories WHERE name = :name")
     suspend fun isCategoryNameExists(name: String): Boolean
 
-    /**
-     * Get jumlah kategori
-     */
-    @Query("SELECT COUNT(*) FROM categories")
-    suspend fun getCategoryCount(): Int
+    /** Get jumlah kategori */
+    @Query("SELECT COUNT(*) FROM categories") suspend fun getCategoryCount(): Int
 
-    /**
-     * Get kategori dengan jumlah transaksi
-     */
-    @Query("""
+    /** Get kategori dengan jumlah transaksi */
+    @Query(
+            """
         SELECT c.*, COUNT(t.id) as transactionCount
         FROM categories c
         LEFT JOIN transactions t ON c.id = t.categoryId
+        WHERE c.bookId = :bookId
         GROUP BY c.id, c.name, c.icon, c.type, c.isDefault, c.id /* Group by all columns of c */
         ORDER BY transactionCount DESC
-    """)
-    fun getCategoriesWithTransactionCount(): Flow<List<CategoryWithCount>>
+    """
+    )
+    fun getCategoriesWithTransactionCount(bookId: Int): Flow<List<CategoryWithCount>>
 
     @Query("SELECT id FROM categories WHERE type = :type AND bookId = :bookId LIMIT 1")
     suspend fun getCategoryIdByType(type: TransactionType, bookId: Int): Int?

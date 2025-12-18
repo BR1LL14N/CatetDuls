@@ -1,5 +1,6 @@
 package com.example.catetduls.ui.pages
 
+// Hapus import PengaturanViewModelFactory (sudah tidak ada)
 import android.app.AlertDialog
 import android.net.Uri
 import android.os.Bundle
@@ -15,7 +16,6 @@ import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
 import com.example.catetduls.R
 import com.example.catetduls.viewmodel.PengaturanViewModel
-// Hapus import PengaturanViewModelFactory (sudah tidak ada)
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import dagger.hilt.android.AndroidEntryPoint
@@ -28,6 +28,7 @@ class PengaturanPage : Fragment() {
     private val viewModel: PengaturanViewModel by viewModels()
 
     // Views
+    private lateinit var cardKelolaBuku: MaterialCardView
     private lateinit var cardKelolaKategori: MaterialCardView
     private lateinit var cardKelolaWallet: MaterialCardView
     private lateinit var btnBackup: MaterialButton
@@ -40,42 +41,53 @@ class PengaturanPage : Fragment() {
     private lateinit var tvTotalTransaksi: TextView
     private lateinit var tvTotalKategori: TextView
 
+    private lateinit var btnEditProfile: MaterialButton
+
     // View Baru (Login/Logout Button)
     private lateinit var btnAuthAction: MaterialButton
     private lateinit var tvUserStatus: TextView
+    private lateinit var btnSyncNow: MaterialButton
 
     // ===============================================
     // LAUNCHER UNTUK EXPORT FILE
     // ===============================================
 
-    private val createCsvFileLauncher = registerForActivityResult(
-        ActivityResultContracts.CreateDocument("text/csv")
-    ) { uri: Uri? ->
-        uri?.let { fileUri ->
-            viewLifecycleOwner.lifecycleScope.launch {
-                handleCsvExportAndSave(fileUri)
+    private val createCsvFileLauncher =
+            registerForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) {
+                    uri: Uri? ->
+                uri?.let { fileUri ->
+                    viewLifecycleOwner.lifecycleScope.launch { handleCsvExportAndSave(fileUri) }
+                }
+                        ?: run {
+                            Toast.makeText(
+                                            requireContext(),
+                                            "Export CSV dibatalkan",
+                                            Toast.LENGTH_SHORT
+                                    )
+                                    .show()
+                        }
             }
-        } ?: run {
-            Toast.makeText(requireContext(), "Export CSV dibatalkan", Toast.LENGTH_SHORT).show()
-        }
-    }
 
-    private val createJsonFileLauncher = registerForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri: Uri? ->
-        uri?.let { fileUri ->
-            viewLifecycleOwner.lifecycleScope.launch {
-                handleJsonExportAndSave(fileUri)
+    private val createJsonFileLauncher =
+            registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) {
+                    uri: Uri? ->
+                uri?.let { fileUri ->
+                    viewLifecycleOwner.lifecycleScope.launch { handleJsonExportAndSave(fileUri) }
+                }
+                        ?: run {
+                            Toast.makeText(
+                                            requireContext(),
+                                            "Export JSON dibatalkan",
+                                            Toast.LENGTH_SHORT
+                                    )
+                                    .show()
+                        }
             }
-        } ?: run {
-            Toast.makeText(requireContext(), "Export JSON dibatalkan", Toast.LENGTH_SHORT).show()
-        }
-    }
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
+            inflater: LayoutInflater,
+            container: ViewGroup?,
+            savedInstanceState: Bundle?
     ): View? {
         return inflater.inflate(R.layout.fragment_pengaturan, container, false)
     }
@@ -105,6 +117,7 @@ class PengaturanPage : Fragment() {
     }
 
     private fun initViews(view: View) {
+        cardKelolaBuku = view.findViewById(R.id.card_kelola_buku)
         cardKelolaKategori = view.findViewById(R.id.card_kelola_kategori)
         cardKelolaWallet = view.findViewById(R.id.card_kelola_wallet)
         btnBackup = view.findViewById(R.id.btn_backup)
@@ -120,24 +133,39 @@ class PengaturanPage : Fragment() {
         // Init View Baru
         btnAuthAction = view.findViewById(R.id.btn_auth_action)
         tvUserStatus = view.findViewById(R.id.tv_user_status)
+        btnSyncNow = view.findViewById(R.id.btn_sync_now)
+
+        btnEditProfile = view.findViewById(R.id.btn_edit_profile)
     }
 
     private fun setupButtons() {
+        // Kelola Buku
+        cardKelolaBuku.setOnClickListener {
+            val kelolaFragment = KelolaBukuPage()
+            parentFragmentManager
+                    .beginTransaction()
+                    .replace(R.id.fragment_container, kelolaFragment)
+                    .addToBackStack(null)
+                    .commit()
+        }
+
         // Kelola Kategori
         cardKelolaKategori.setOnClickListener {
             val kelolaFragment = KelolaKategoriPage()
-            parentFragmentManager.beginTransaction()
-                .replace(R.id.fragment_container, kelolaFragment)
-                .addToBackStack(null)
-                .commit()
+            parentFragmentManager
+                    .beginTransaction()
+                    .replace(R.id.fragment_container, kelolaFragment)
+                    .addToBackStack(null)
+                    .commit()
         }
 
         cardKelolaWallet.setOnClickListener {
             val kelolaFragment = KelolaWalletPage()
-            parentFragmentManager.beginTransaction()
-                .replace(R.id.fragment_container, kelolaFragment)
-                .addToBackStack(null)
-                .commit()
+            parentFragmentManager
+                    .beginTransaction()
+                    .replace(R.id.fragment_container, kelolaFragment)
+                    .addToBackStack(null)
+                    .commit()
         }
 
         // Backup
@@ -147,7 +175,12 @@ class PengaturanPage : Fragment() {
                 if (jsonData != null) {
                     val file = viewModel.saveBackupToFile(jsonData)
                     if (file != null) {
-                        Toast.makeText(requireContext(), "Backup disimpan: ${file.name}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                                        requireContext(),
+                                        "Backup disimpan: ${file.name}",
+                                        Toast.LENGTH_LONG
+                                )
+                                .show()
                     }
                 }
             }
@@ -171,14 +204,10 @@ class PengaturanPage : Fragment() {
         }
 
         // Reset Data
-        btnResetData.setOnClickListener {
-            showResetDataDialog()
-        }
+        btnResetData.setOnClickListener { showResetDataDialog() }
 
         // Reset Kategori
-        btnResetKategori.setOnClickListener {
-            showResetKategoriDialog()
-        }
+        btnResetKategori.setOnClickListener { showResetKategoriDialog() }
 
         // LOGIN / LOGOUT Button Listener
         btnAuthAction.setOnClickListener {
@@ -188,12 +217,24 @@ class PengaturanPage : Fragment() {
             } else {
                 // Jika Guest -> Buka Halaman Login
                 val loginFragment = LoginPage()
-                parentFragmentManager.beginTransaction()
-                    .replace(R.id.fragment_container, loginFragment)
-                    .addToBackStack(null)
-                    .commit()
+                parentFragmentManager
+                        .beginTransaction()
+                        .replace(R.id.fragment_container, loginFragment)
+                        .addToBackStack(null)
+                        .commit()
             }
         }
+
+        btnEditProfile.setOnClickListener {
+            val editFragment = EditProfilePage()
+            parentFragmentManager
+                    .beginTransaction()
+                    .replace(R.id.fragment_container, editFragment)
+                    .addToBackStack(null)
+                    .commit()
+        }
+
+        btnSyncNow.setOnClickListener { viewModel.forceSync() }
     }
 
     // ===============================================
@@ -206,10 +247,20 @@ class PengaturanPage : Fragment() {
             try {
                 requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream ->
                     outputStream.write(csvData.toByteArray())
-                    Toast.makeText(requireContext(), "Export CSV berhasil disimpan!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                                    requireContext(),
+                                    "Export CSV berhasil disimpan!",
+                                    Toast.LENGTH_LONG
+                            )
+                            .show()
                 }
             } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Gagal menyimpan file CSV: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                                requireContext(),
+                                "Gagal menyimpan file CSV: ${e.message}",
+                                Toast.LENGTH_LONG
+                        )
+                        .show()
                 e.printStackTrace()
             }
         }
@@ -221,10 +272,20 @@ class PengaturanPage : Fragment() {
             try {
                 requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream ->
                     outputStream.write(jsonData.toByteArray())
-                    Toast.makeText(requireContext(), "Export JSON berhasil disimpan!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                                    requireContext(),
+                                    "Export JSON berhasil disimpan!",
+                                    Toast.LENGTH_LONG
+                            )
+                            .show()
                 }
             } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Gagal menyimpan file JSON: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                                requireContext(),
+                                "Gagal menyimpan file JSON: ${e.message}",
+                                Toast.LENGTH_LONG
+                        )
+                        .show()
                 e.printStackTrace()
             }
         }
@@ -236,35 +297,33 @@ class PengaturanPage : Fragment() {
 
     private fun showResetDataDialog() {
         AlertDialog.Builder(requireContext())
-            .setTitle("Reset Semua Data")
-            .setMessage("Apakah Anda yakin ingin menghapus SEMUA transaksi? Tindakan ini tidak dapat dibatalkan!")
-            .setPositiveButton("Ya, Hapus") { _, _ ->
-                viewModel.resetAllData()
-            }
-            .setNegativeButton("Batal", null)
-            .show()
+                .setTitle("Reset Semua Data")
+                .setMessage(
+                        "Apakah Anda yakin ingin menghapus SEMUA transaksi? Tindakan ini tidak dapat dibatalkan!"
+                )
+                .setPositiveButton("Ya, Hapus") { _, _ -> viewModel.resetAllData() }
+                .setNegativeButton("Batal", null)
+                .show()
     }
 
     private fun showResetKategoriDialog() {
         AlertDialog.Builder(requireContext())
-            .setTitle("Reset Kategori")
-            .setMessage("Apakah Anda yakin ingin mereset kategori ke default?")
-            .setPositiveButton("Ya") { _, _ ->
-                viewModel.resetCategoriesToDefault()
-            }
-            .setNegativeButton("Batal", null)
-            .show()
+                .setTitle("Reset Kategori")
+                .setMessage("Apakah Anda yakin ingin mereset kategori ke default?")
+                .setPositiveButton("Ya") { _, _ -> viewModel.resetCategoriesToDefault() }
+                .setNegativeButton("Batal", null)
+                .show()
     }
 
     private fun showLogoutDialog() {
         AlertDialog.Builder(requireContext())
-            .setTitle("Keluar Akun")
-            .setMessage("Apakah Anda yakin ingin keluar? Data lokal yang belum disinkronkan mungkin hilang.")
-            .setPositiveButton("Keluar") { _, _ ->
-                viewModel.logout()
-            }
-            .setNegativeButton("Batal", null)
-            .show()
+                .setTitle("Keluar Akun")
+                .setMessage(
+                        "Apakah Anda yakin ingin keluar? Data lokal yang belum disinkronkan mungkin hilang."
+                )
+                .setPositiveButton("Keluar") { _, _ -> viewModel.logout() }
+                .setNegativeButton("Batal", null)
+                .show()
     }
 
     // ===============================================
@@ -278,10 +337,12 @@ class PengaturanPage : Fragment() {
                 btnAuthAction.text = "Keluar Akun"
                 btnAuthAction.setTextColor(resources.getColor(R.color.danger, null))
                 btnAuthAction.setIconTintResource(R.color.danger)
+                btnEditProfile.visibility = View.VISIBLE
             } else {
                 btnAuthAction.text = "Masuk Akun"
                 btnAuthAction.setTextColor(resources.getColor(R.color.primary, null))
                 btnAuthAction.setIconTintResource(R.color.primary)
+                btnEditProfile.visibility = View.GONE
             }
         }
 

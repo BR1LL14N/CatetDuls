@@ -1,32 +1,30 @@
 package com.example.catetduls.viewmodel
 
+// import com.example.catetduls.data.repository.UserRepository
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.catetduls.data.*
 import com.example.catetduls.data.local.TokenManager
-//import com.example.catetduls.data.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
+import java.util.*
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.*
-import javax.inject.Inject
 
 @HiltViewModel
-class PengaturanViewModel @Inject constructor(
-    private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository,
-    private val walletRepository: WalletRepository,
-    private val userRepository: UserRepository,
-    @ApplicationContext private val context: Context
+class PengaturanViewModel
+@Inject
+constructor(
+        private val transactionRepository: TransactionRepository,
+        private val categoryRepository: CategoryRepository,
+        private val walletRepository: WalletRepository,
+        private val userRepository: UserRepository,
+        @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     // ========================================
@@ -41,7 +39,7 @@ class PengaturanViewModel @Inject constructor(
     private val activeBookId: Int by lazy {
         try {
             context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-                .getInt("active_book_id", 1)
+                    .getInt("active_book_id", 1)
         } catch (e: Exception) {
             1
         }
@@ -70,9 +68,7 @@ class PengaturanViewModel @Inject constructor(
         loadThemePreference()
 
         // ✅ Fungsi async tetap di launch
-        viewModelScope.launch {
-            checkLoginStatus()
-        }
+        viewModelScope.launch { checkLoginStatus() }
     }
 
     private fun loadThemePreference() {
@@ -125,19 +121,17 @@ class PengaturanViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                try {
-                    userRepository.logoutRemote()
-                } catch (e: Exception) {
-                    e.printStackTrace()
+
+                val result = userRepository.logout()
+
+                if (result.isSuccess) {
+                    _isLoggedIn.value = false
+                    _userName.value = "Tamu"
+                    _successMessage.value = "Berhasil keluar"
+                } else {
+
+                    throw result.exceptionOrNull() ?: Exception("Gagal logout")
                 }
-
-                TokenManager.clearToken(context)
-                userRepository.logout()
-
-                _isLoggedIn.value = false
-                _userName.value = "Tamu"
-                _successMessage.value = "Berhasil keluar"
-
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal logout: ${e.message}"
                 e.printStackTrace()
@@ -213,21 +207,20 @@ class PengaturanViewModel @Inject constructor(
 
     fun getAppStatistics(): Map<String, String> {
         return try {
-            mapOf(
-                "Total Transaksi" to "0",
-                "Total Kategori" to "0"
-            )
+            mapOf("Total Transaksi" to "0", "Total Kategori" to "0")
         } catch (e: Exception) {
-            mapOf(
-                "Total Transaksi" to "-",
-                "Total Kategori" to "-"
-            )
+            mapOf("Total Transaksi" to "-", "Total Kategori" to "-")
         }
     }
 
     fun getBackupFileName(ext: String): String {
         val timestamp = System.currentTimeMillis()
         return "backup_$timestamp.$ext"
+    }
+
+    fun forceSync() {
+        com.example.catetduls.data.sync.SyncManager.forceOneTimeSync(context)
+        _successMessage.value = "Sinkronisasi dimulai..."
     }
 
     fun clearMessages() {
