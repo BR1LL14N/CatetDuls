@@ -1,14 +1,19 @@
 package com.example.catetduls.data
 
-import kotlinx.coroutines.flow.Flow
 import java.lang.IllegalArgumentException
 import javax.inject.Inject
+import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository untuk operasi Buku
- * Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
+ * Repository untuk operasi Buku Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
  */
-class BookRepository @Inject constructor(private val bookDao: BookDao) : SyncRepository<Book> {
+class BookRepository
+@Inject
+constructor(
+        private val bookDao: BookDao,
+        private val walletDao: WalletDao,
+        private val categoryDao: CategoryDao
+) : SyncRepository<Book> {
 
     // ===================================
     // READ
@@ -35,32 +40,40 @@ class BookRepository @Inject constructor(private val bookDao: BookDao) : SyncRep
             throw IllegalArgumentException("Nama buku tidak boleh kosong")
         }
 
+        val bookToInsert =
+                book.copy(
+                        isSynced = false,
+                        isDeleted = false,
+                        syncAction = "CREATE",
+                        createdAt = System.currentTimeMillis(),
+                        updatedAt = System.currentTimeMillis()
+                )
 
-        val bookToInsert = book.copy(
-            isSynced = false,
-            isDeleted = false,
-            syncAction = "CREATE",
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
-        )
+        val newBookId = bookDao.insert(bookToInsert)
 
+        // PENTING: Jika ini adalah buku baru (bukan hasil sync), buatkan data default
+        if (book.serverId == null) {
+            createDefaultWallets(newBookId.toInt())
+            createDefaultCategories(newBookId.toInt())
+        }
 
-        return bookDao.insert(bookToInsert)
+        return newBookId
     }
 
     suspend fun insertAll(books: List<Book>) {
-        val booksToInsert = books.map { book ->
-            if (!book.isValid()) {
-                throw IllegalArgumentException("Nama buku tidak boleh kosong")
-            }
-            book.copy(
-                isSynced = false,
-                isDeleted = false,
-                syncAction = "CREATE",
-                createdAt = System.currentTimeMillis(),
-                updatedAt = System.currentTimeMillis()
-            )
-        }
+        val booksToInsert =
+                books.map { book ->
+                    if (!book.isValid()) {
+                        throw IllegalArgumentException("Nama buku tidak boleh kosong")
+                    }
+                    book.copy(
+                            isSynced = false,
+                            isDeleted = false,
+                            syncAction = "CREATE",
+                            createdAt = System.currentTimeMillis(),
+                            updatedAt = System.currentTimeMillis()
+                    )
+                }
         bookDao.insertAll(booksToInsert)
     }
 
@@ -73,21 +86,21 @@ class BookRepository @Inject constructor(private val bookDao: BookDao) : SyncRep
             throw IllegalArgumentException("Nama buku tidak boleh kosong")
         }
 
-
-        val bookToUpdate = book.copy(
-            isSynced = false,
-            isDeleted = false,
-            syncAction = "UPDATE",
-            updatedAt = System.currentTimeMillis()
-        )
-
+        val bookToUpdate =
+                book.copy(
+                        isSynced = false,
+                        isDeleted = false,
+                        syncAction = "UPDATE",
+                        updatedAt = System.currentTimeMillis()
+                )
 
         bookDao.update(bookToUpdate)
     }
 
     suspend fun switchActiveBook(newActiveBookId: Int) {
         // Logika switch aktif tidak memerlukan flag sync, karena ini adalah state lokal
-        // kecuali Anda ingin menyinkronkan status buku aktif ke server (misalnya untuk preferensi user)
+        // kecuali Anda ingin menyinkronkan status buku aktif ke server (misalnya untuk preferensi
+        // user)
         bookDao.switchActiveBook(newActiveBookId)
     }
 
@@ -96,20 +109,21 @@ class BookRepository @Inject constructor(private val bookDao: BookDao) : SyncRep
     // ===================================
 
     /**
-     * Menandai buku sebagai terhapus (soft delete) untuk disinkronkan ke server.
-     * Jika buku belum pernah disinkronkan (server_id null), maka hapus permanen lokal.
+     * Menandai buku sebagai terhapus (soft delete) untuk disinkronkan ke server. Jika buku belum
+     * pernah disinkronkan (server_id null), maka hapus permanen lokal.
      */
     suspend fun delete(book: Book) {
         if (book.serverId == null) {
             bookDao.delete(book)
         } else {
 
-            val bookToDelete = book.copy(
-                isSynced = false,
-                isDeleted = true,
-                syncAction = "DELETE",
-                updatedAt = System.currentTimeMillis()
-            )
+            val bookToDelete =
+                    book.copy(
+                            isSynced = false,
+                            isDeleted = true,
+                            syncAction = "DELETE",
+                            updatedAt = System.currentTimeMillis()
+                    )
             bookDao.update(bookToDelete)
         }
     }
@@ -130,51 +144,243 @@ class BookRepository @Inject constructor(private val bookDao: BookDao) : SyncRep
     // ===================================
 
     suspend fun createDefaultBook(): Long {
-        val defaultBook = Book(
-            name = "Buku Baru",
-            description = "Buku keuangan baru",
-            icon = "📖",
-            isActive = false,
-            lastSyncAt = 0L
-        )
+        val defaultBook =
+                Book(
+                        name = "Buku Baru",
+                        description = "Buku keuangan baru",
+                        icon = "📖",
+                        isActive = false,
+                        lastSyncAt = 0L
+                )
 
         return insert(defaultBook)
+    }
+
+    // --- DEFAULT DATA GENERATION ---
+
+    private suspend fun createDefaultWallets(bookId: Int) {
+        val defaultWallets =
+                listOf(
+                        Wallet(
+                                bookId = bookId,
+                                name = "Tunai",
+                                type = WalletType.CASH,
+                                icon = "💵",
+                                color = "#4CAF50",
+                                initialBalance = 0.0,
+                                isActive = true,
+                                lastSyncAt = 0L
+                        ),
+                        Wallet(
+                                bookId = bookId,
+                                name = "Bank",
+                                type = WalletType.BANK,
+                                icon = "🏦",
+                                color = "#2196F3",
+                                initialBalance = 0.0,
+                                isActive = true,
+                                lastSyncAt = 0L
+                        ),
+                        Wallet(
+                                bookId = bookId,
+                                name = "E-Wallet",
+                                type = WalletType.E_WALLET,
+                                icon = "📱",
+                                color = "#FF9800",
+                                initialBalance = 0.0,
+                                isActive = true,
+                                lastSyncAt = 0L
+                        )
+                )
+        walletDao.insertAll(defaultWallets)
+    }
+
+    private suspend fun createDefaultCategories(bookId: Int) {
+        val defaultCategories =
+                listOf(
+                        // Kategori Pengeluaran
+                        Category(
+                                bookId = bookId,
+                                name = "Makanan & Minuman",
+                                icon = "🍔",
+                                type = TransactionType.PENGELUARAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Transport",
+                                icon = "🚌",
+                                type = TransactionType.PENGELUARAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Belanja",
+                                icon = "🛒",
+                                type = TransactionType.PENGELUARAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Hiburan",
+                                icon = "🎮",
+                                type = TransactionType.PENGELUARAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Kesehatan",
+                                icon = "💊",
+                                type = TransactionType.PENGELUARAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Pendidikan",
+                                icon = "📚",
+                                type = TransactionType.PENGELUARAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Tagihan",
+                                icon = "💡",
+                                type = TransactionType.PENGELUARAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Rumah Tangga",
+                                icon = "🏠",
+                                type = TransactionType.PENGELUARAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Olahraga",
+                                icon = "⚽",
+                                type = TransactionType.PENGELUARAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Kecantikan",
+                                icon = "💄",
+                                type = TransactionType.PENGELUARAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+
+                        // Kategori Pemasukan
+                        Category(
+                                bookId = bookId,
+                                name = "Gaji",
+                                icon = "💼",
+                                type = TransactionType.PEMASUKAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Bonus",
+                                icon = "💰",
+                                type = TransactionType.PEMASUKAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Investasi",
+                                icon = "📈",
+                                type = TransactionType.PEMASUKAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Hadiah",
+                                icon = "🎁",
+                                type = TransactionType.PEMASUKAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Freelance",
+                                icon = "💻",
+                                type = TransactionType.PEMASUKAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+
+                        // Kategori Lainnya
+                        Category(
+                                bookId = bookId,
+                                name = "Lainnya (Pemasukan)",
+                                icon = "⚙️",
+                                type = TransactionType.PEMASUKAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Lainnya (Pengeluaran)",
+                                icon = "⚙️",
+                                type = TransactionType.PENGELUARAN,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        ),
+                        Category(
+                                bookId = bookId,
+                                name = "Transfer",
+                                icon = "🔄️",
+                                type = TransactionType.TRANSFER,
+                                isDefault = true,
+                                lastSyncAt = 0L
+                        )
+                )
+        categoryDao.insertAll(defaultCategories)
     }
 
     // ===================================
     // SYNC METHODS (Dipanggil oleh Sync Worker)
     // ===================================
 
-    /**
-     * Mengambil semua buku yang belum tersinkronisasi atau ditandai DELETE
-     */
+    /** Mengambil semua buku yang belum tersinkronisasi atau ditandai DELETE */
     override suspend fun getAllUnsynced(): List<Book> {
         return bookDao.getUnsyncedBooks()
     }
 
-    /**
-     * Memperbarui status sinkronisasi setelah operasi server berhasil (CREATE/UPDATE/DELETE).
-     */
-    override suspend fun updateSyncStatus(localId: Long, serverId: String, lastSyncAt: Long) {
-        bookDao.updateSyncStatus(localId.toInt(), serverId, lastSyncAt)
+    /** Memperbarui status sinkronisasi setelah operasi server berhasil (CREATE/UPDATE/DELETE). */
+    override suspend fun updateSyncStatus(id: Long, serverId: String, syncedAt: Long) {
+        bookDao.updateSyncStatus(id.toInt(), serverId, syncedAt)
     }
 
     suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long) {
         bookDao.updateSyncStatus(localId, serverId, lastSyncAt)
     }
 
-    /**
-     * Menyimpan data buku yang diterima dari server (untuk operasi PULL/READ dari server)
-     */
-    override suspend fun saveFromRemote(book: Book) {
-        bookDao.insert(book.copy(
-            isSynced = true,
-            isDeleted = false,
-            syncAction = null,
-            lastSyncAt = System.currentTimeMillis()
-        ))
+    /** Menyimpan data buku yang diterima dari server (untuk operasi PULL/READ dari server) */
+    override suspend fun saveFromRemote(entity: Book) {
+        bookDao.insert(
+                entity.copy(
+                        isSynced = true,
+                        isDeleted = false,
+                        syncAction = null,
+                        lastSyncAt = System.currentTimeMillis()
+                )
+        )
     }
-    
+
     override suspend fun getByServerId(serverId: String): Book? {
         return bookDao.getByServerId(serverId)
     }
