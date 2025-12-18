@@ -114,9 +114,10 @@
             android:text="-" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/calc_btn_clear"
-            style="@style/CalculatorButton.Clear"
-            android:text="C" />
+            android:id="@+id/calc_btn_decimal"
+            style="@style/CalculatorButton"
+            android:text=","
+            android:textSize="24sp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/calc_btn_0"

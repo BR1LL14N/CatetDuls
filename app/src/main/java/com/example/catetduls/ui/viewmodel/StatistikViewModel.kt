@@ -5,14 +5,14 @@ import com.example.catetduls.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.*
-import kotlin.math.abs
 
 /**
  * ViewModel untuk StatistikPage
  */
 class StatistikViewModel(
     private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val bookRepository: BookRepository
 ) : ViewModel() {
 
     // ========================================
@@ -24,6 +24,15 @@ class StatistikViewModel(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    // Currency State
+    private val _currencyCode = MutableStateFlow("IDR")
+    private val _currencySymbol = MutableStateFlow("Rp")
+    val currencySymbol: StateFlow<String> = _currencySymbol.asStateFlow()
+    val currencyCode: StateFlow<String> = _currencyCode.asStateFlow()
+
+    // Helper data class for combining 4 streams
+    data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
     // ========================================
     // Filter State
@@ -47,15 +56,16 @@ class StatistikViewModel(
 
     /**
      * Data Utama untuk Pie Chart & List Detail.
-     * Menggabungkan filter Periode, Tipe Transaksi, dan Data Kategori.
+     * Menggabungkan filter Periode, Tipe Transaksi, Data Kategori, dan Mata Uang.
      */
     val categoryStats: LiveData<List<CategoryExpense>> = combine(
         _selectedPeriod,
         _chartType,
-        categoryRepository.getAllCategories()
-    ) { period, type, allCategories ->
-        Triple(period, type, allCategories)
-    }.flatMapLatest { (period, type, allCategories) ->
+        categoryRepository.getAllCategories(),
+        _currencyCode
+    ) { period, type, allCategories, currencyCode ->
+         Quadruple(period, type, allCategories, currencyCode)
+    }.flatMapLatest { (period, type, allCategories, currencyCode) ->
 
         val (startDate, endDate) = getDateRange(period)
 
@@ -67,7 +77,8 @@ class StatistikViewModel(
 
                 // 2. Map ke object CategoryExpense (termasuk Ikon)
                 val resultList = groupedMap.map { (catId, transList) ->
-                    val totalAmount = transList.sumOf { it.amount }
+                    val totalAmountIdr = transList.sumOf { it.amount }
+                    val totalAmountConverted = com.example.catetduls.utils.CurrencyHelper.convertIdrTo(totalAmountIdr, currencyCode)
 
                     // Cari detail kategori untuk nama & ikon
                     val category = allCategories.find { it.id == catId }
@@ -78,7 +89,7 @@ class StatistikViewModel(
                         categoryId = catId,
                         categoryName = catName,
                         icon = catIcon, // Field ini penting untuk UI baru
-                        total = totalAmount
+                        total = totalAmountConverted
                     )
                 }
 
@@ -113,6 +124,27 @@ class StatistikViewModel(
 
     init {
         loadPeriodData()
+        observeActiveBook()
+    }
+
+    private fun observeActiveBook() {
+        viewModelScope.launch {
+            bookRepository.getActiveBook().collect { book ->
+                if (book != null) {
+                    _currencySymbol.value = book.currencySymbol
+                    _currencyCode.value = book.currencyCode // Update StateFlow
+                    // Reload data if currency changes to ensure charts update
+                    loadPeriodData()
+                }
+            }
+        }
+    }
+
+    fun formatCurrency(amount: Double?): String {
+        // Amount is assumed IDR. Convert it locally to display
+        val amountIdr = amount ?: 0.0
+        val converted = com.example.catetduls.utils.CurrencyHelper.convertIdrTo(amountIdr, _currencyCode.value)
+        return com.example.catetduls.utils.CurrencyHelper.format(converted, _currencySymbol.value)
     }
 
     fun setChartType(type: TransactionType) {
@@ -152,7 +184,6 @@ class StatistikViewModel(
                         }
                 }
 
-                // Loading false bisa diatur di sini atau menggunakan logic terpisah
                 _isLoading.value = false
             } catch (e: Exception) {
                 _isLoading.value = false
@@ -202,11 +233,6 @@ class StatistikViewModel(
         }
     }
 
-    fun formatCurrency(amount: Double?): String {
-        if (amount == null) return "Rp 0"
-        return "Rp ${String.format("%,.0f", amount)}"
-    }
-
     fun getCategoryColor(index: Int): Int {
         val colors = listOf(
             android.graphics.Color.parseColor("#FF6384"), // Pink
@@ -227,12 +253,13 @@ class StatistikViewModel(
  */
 class StatistikViewModelFactory(
     private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val bookRepository: BookRepository
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(StatistikViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return StatistikViewModel(transactionRepository, categoryRepository) as T
+            return StatistikViewModel(transactionRepository, categoryRepository, bookRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

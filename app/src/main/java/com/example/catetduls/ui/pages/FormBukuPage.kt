@@ -27,7 +27,11 @@ class FormBukuPage : Fragment() {
     private lateinit var etName: TextInputEditText
     private lateinit var etDescription: TextInputEditText
     private lateinit var etIcon: TextInputEditText
+    private lateinit var etCurrencySelection: android.widget.AutoCompleteTextView
     private lateinit var btnSimpan: MaterialButton
+
+    private var selectedCurrencyCode: String = "IDR"
+    private var selectedCurrencySymbol: String = "Rp"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,6 +50,7 @@ class FormBukuPage : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         initViews(view)
+        setupCurrencyDropdown()
         populateData()
         setupListeners()
         observeEvents()
@@ -55,7 +60,25 @@ class FormBukuPage : Fragment() {
         etName = view.findViewById(R.id.et_name)
         etDescription = view.findViewById(R.id.et_description)
         etIcon = view.findViewById(R.id.et_icon)
+        etCurrencySelection = view.findViewById(R.id.et_currency_selection)
         btnSimpan = view.findViewById(R.id.btn_simpan)
+    }
+
+    private fun setupCurrencyDropdown() {
+        val currencies = com.example.catetduls.utils.CurrencyHelper.getAvailableCurrencies()
+        val adapter =
+                android.widget.ArrayAdapter(
+                        requireContext(),
+                        android.R.layout.simple_dropdown_item_1line,
+                        currencies
+                )
+        etCurrencySelection.setAdapter(adapter)
+
+        etCurrencySelection.setOnItemClickListener { _, _, position, _ ->
+            val selected = currencies[position]
+            selectedCurrencyCode = selected.code
+            selectedCurrencySymbol = selected.symbol
+        }
     }
 
     private fun populateData() {
@@ -63,6 +86,21 @@ class FormBukuPage : Fragment() {
             etName.setText(book.name)
             etDescription.setText(book.description)
             etIcon.setText(book.icon)
+
+            // Set Selection based on book currency
+            val currencies = com.example.catetduls.utils.CurrencyHelper.getAvailableCurrencies()
+            val savedCurrency = currencies.find { it.code == book.currencyCode }
+            if (savedCurrency != null) {
+                etCurrencySelection.setText(savedCurrency.toString(), false)
+                selectedCurrencyCode = savedCurrency.code
+                selectedCurrencySymbol = savedCurrency.symbol
+            } else {
+                // Fallback if custom currency (or not in list)
+                etCurrencySelection.setText("${book.currencyCode} - ${book.currencySymbol}", false)
+                selectedCurrencyCode = book.currencyCode
+                selectedCurrencySymbol = book.currencySymbol
+            }
+
             btnSimpan.text = "Update Buku"
         }
     }
@@ -78,6 +116,8 @@ class FormBukuPage : Fragment() {
                     name = name,
                     description = description,
                     icon = icon.ifBlank { "📖" },
+                    currencyCode = selectedCurrencyCode,
+                    currencySymbol = selectedCurrencySymbol,
                     existingBook = existingBook
             )
         }

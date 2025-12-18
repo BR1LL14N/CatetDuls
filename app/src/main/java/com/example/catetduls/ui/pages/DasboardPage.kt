@@ -12,13 +12,13 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.catetduls.R
 import com.example.catetduls.data.Category
+import com.example.catetduls.data.getBookRepository
 import com.example.catetduls.data.getCategoryRepository
 import com.example.catetduls.data.getTransactionRepository
 import com.example.catetduls.ui.adapter.TransactionAdapter
 import com.example.catetduls.viewmodel.DashboardViewModel
 import com.example.catetduls.viewmodel.DashboardViewModelFactory
 import com.google.android.material.card.MaterialCardView
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -45,12 +45,16 @@ class DashboardPage : Fragment() {
     private lateinit var cardSaldo: MaterialCardView
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
+            inflater: LayoutInflater,
+            container: ViewGroup?,
+            savedInstanceState: Bundle?
     ): View? {
         return inflater.inflate(R.layout.fragment_dashboard, container, false)
     }
+
+    // State Global
+    private var currentCurrencySymbol: String = "Rp"
+    private var currentCurrencyCode: String = "IDR"
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -65,9 +69,119 @@ class DashboardPage : Fragment() {
 
         setupRecyclerView()
 
+        setupCurrencyObserver()
+
         observeData()
 
         setupClickListeners()
+    }
+
+    private fun setupCurrencyObserver() {
+        val bookRepository = requireContext().getBookRepository()
+        viewLifecycleOwner.lifecycleScope.launch {
+            // Mengamati perubahan buku aktif secara real-time
+            bookRepository.getActiveBook().collect { book ->
+                if (book != null) {
+                    currentCurrencySymbol = book.currencySymbol
+                    currentCurrencyCode = book.currencyCode // Ensure code is updated!
+
+                    // Update adapter currency
+                    transactionAdapter.setCurrency(currentCurrencyCode, currentCurrencySymbol)
+
+                    // Force update summary texts manually with new currency
+                    updateDashboardTexts()
+                }
+            }
+        }
+    }
+
+    // We need to store latest values to re-update format
+    private var lastBalance: Double? = null
+    private var lastIncome: Double? = null
+    private var lastExpense: Double? = null
+
+    private fun updateDashboardTexts() {
+        if (lastBalance != null) {
+            val converted =
+                    com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
+                            lastBalance!!,
+                            currentCurrencyCode
+                    )
+            tvTotalSaldo.text = viewModel.formatCurrency(converted, currentCurrencySymbol)
+            val color = viewModel.getBalanceColor(lastBalance)
+            tvTotalSaldo.setTextColor(color)
+        }
+        if (lastIncome != null) {
+            val converted =
+                    com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
+                            lastIncome!!,
+                            currentCurrencyCode
+                    )
+            tvTotalPemasukan.text = viewModel.formatCurrency(converted, currentCurrencySymbol)
+        }
+        if (lastExpense != null) {
+            val converted =
+                    com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
+                            lastExpense!!,
+                            currentCurrencyCode
+                    )
+            tvTotalPengeluaran.text = viewModel.formatCurrency(converted, currentCurrencySymbol)
+        }
+    }
+
+    // ...
+
+    private fun observeData() {
+        // Observe total saldo
+        viewModel.totalBalance.observe(viewLifecycleOwner) { balance ->
+            lastBalance = balance
+            val converted =
+                    com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
+                            balance ?: 0.0,
+                            currentCurrencyCode
+                    )
+            tvTotalSaldo.text = viewModel.formatCurrency(converted, currentCurrencySymbol)
+            val color = viewModel.getBalanceColor(balance)
+            tvTotalSaldo.setTextColor(color)
+        }
+
+        // Observe pemasukan bulan ini
+        viewModel.totalIncomeThisMonth.observe(viewLifecycleOwner) { income ->
+            lastIncome = income
+            val converted =
+                    com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
+                            income ?: 0.0,
+                            currentCurrencyCode
+                    )
+            tvTotalPemasukan.text = viewModel.formatCurrency(converted, currentCurrencySymbol)
+        }
+
+        // Observe pengeluaran bulan ini
+        viewModel.totalExpenseThisMonth.observe(viewLifecycleOwner) { expense ->
+            lastExpense = expense
+            val converted =
+                    com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
+                            expense ?: 0.0,
+                            currentCurrencyCode
+                    )
+            tvTotalPengeluaran.text = viewModel.formatCurrency(converted, currentCurrencySymbol)
+        }
+
+        // Observe transaksi terakhir
+        viewModel.recentTransactions.observe(viewLifecycleOwner) { transactions ->
+
+            // PERBAIKAN: Konversi Transaction -> TransactionListItem
+            // Karena Dashboard hanya menampilkan list simpel, kita bungkus semua jadi
+            // TransactionItem
+            val listItems =
+                    transactions.map { transaction ->
+                        com.example.catetduls.ui.adapter.TransactionListItem.TransactionItem(
+                                transaction
+                        )
+                    }
+
+            transactionAdapter.submitList(listItems)
+        }
     }
 
     private fun initViews(view: View) {
@@ -80,8 +194,8 @@ class DashboardPage : Fragment() {
     }
 
     /**
-     * Memuat semua kategori dari database dan menyimpannya dalam Map.
-     * Ini membuat pencarian nama dan ikon menjadi sinkron dan cepat.
+     * Memuat semua kategori dari database dan menyimpannya dalam Map. Ini membuat pencarian nama
+     * dan ikon menjadi sinkron dan cepat.
      */
     private fun loadCategoriesMap() {
         val categoryRepository = requireContext().getCategoryRepository()
@@ -106,21 +220,19 @@ class DashboardPage : Fragment() {
 
     private fun setupRecyclerView() {
 
-        transactionAdapter = TransactionAdapter(
-            onItemClick = { transaction ->
-
-            },
-
-            getCategoryName = { categoryId ->
-                // Jika categoryId ditemukan, ambil namanya. Jika tidak, gunakan "Unknown".
-                categoryMap[categoryId]?.name ?: "Unknown"
-            },
-
-            getCategoryIcon = { categoryId ->
-                // Jika categoryId ditemukan, ambil ikonnya. Jika tidak, gunakan "⚙️".
-                categoryMap[categoryId]?.icon ?: "⚙️"
-            }
-        )
+        transactionAdapter =
+                TransactionAdapter(
+                        onItemClick = { transaction -> },
+                        getCategoryName = { categoryId ->
+                            // Jika categoryId ditemukan, ambil namanya. Jika tidak, gunakan
+                            // "Unknown".
+                            categoryMap[categoryId]?.name ?: "Unknown"
+                        },
+                        getCategoryIcon = { categoryId ->
+                            // Jika categoryId ditemukan, ambil ikonnya. Jika tidak, gunakan "⚙️".
+                            categoryMap[categoryId]?.icon ?: "⚙️"
+                        }
+                )
 
         rvRecentTransactions.apply {
             layoutManager = LinearLayoutManager(requireContext())
@@ -132,40 +244,12 @@ class DashboardPage : Fragment() {
     private fun setupClickListeners() {
         tvViewAll.setOnClickListener {
             // Pindah ke tab Transaksi
-            requireActivity().findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(
-                R.id.bottom_navigation
-            )?.selectedItemId = R.id.nav_transaksi
-        }
-    }
-
-    private fun observeData() {
-        // Observe total saldo
-        viewModel.totalBalance.observe(viewLifecycleOwner) { balance ->
-            tvTotalSaldo.text = viewModel.formatCurrency(balance)
-            val color = viewModel.getBalanceColor(balance)
-            tvTotalSaldo.setTextColor(color)
-        }
-
-        // Observe pemasukan bulan ini
-        viewModel.totalIncomeThisMonth.observe(viewLifecycleOwner) { income ->
-            tvTotalPemasukan.text = viewModel.formatCurrency(income)
-        }
-
-        // Observe pengeluaran bulan ini
-        viewModel.totalExpenseThisMonth.observe(viewLifecycleOwner) { expense ->
-            tvTotalPengeluaran.text = viewModel.formatCurrency(expense)
-        }
-
-        // Observe transaksi terakhir
-        viewModel.recentTransactions.observe(viewLifecycleOwner) { transactions ->
-
-            // PERBAIKAN: Konversi Transaction -> TransactionListItem
-            // Karena Dashboard hanya menampilkan list simpel, kita bungkus semua jadi TransactionItem
-            val listItems = transactions.map { transaction ->
-                com.example.catetduls.ui.adapter.TransactionListItem.TransactionItem(transaction)
-            }
-
-            transactionAdapter.submitList(listItems)
+            requireActivity()
+                    .findViewById<
+                            com.google.android.material.bottomnavigation.BottomNavigationView>(
+                            R.id.bottom_navigation
+                    )
+                    ?.selectedItemId = R.id.nav_transaksi
         }
     }
 }

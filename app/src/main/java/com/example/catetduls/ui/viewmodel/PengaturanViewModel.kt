@@ -23,27 +23,10 @@ constructor(
         private val transactionRepository: TransactionRepository,
         private val categoryRepository: CategoryRepository,
         private val walletRepository: WalletRepository,
+        private val bookRepository: BookRepository,
         private val userRepository: UserRepository,
         @ApplicationContext private val context: Context
 ) : ViewModel() {
-
-    // ========================================
-    // Auth State
-    // ========================================
-    private val _isLoggedIn = MutableStateFlow(false)
-    val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
-
-    private val _userName = MutableStateFlow("Tamu")
-    val userName: StateFlow<String> = _userName.asStateFlow()
-
-    private val activeBookId: Int by lazy {
-        try {
-            context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-                    .getInt("active_book_id", 1)
-        } catch (e: Exception) {
-            1
-        }
-    }
 
     // ========================================
     // State Management
@@ -58,19 +41,58 @@ constructor(
     val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
 
     // ========================================
+    // Auth State
+    // ========================================
+    private val _isLoggedIn = MutableStateFlow(false)
+    val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
+
+    private val _userName = MutableStateFlow("Tamu")
+    val userName: StateFlow<String> = _userName.asStateFlow()
+
+    // ========================================
     // Theme Settings
     // ========================================
     private val _isDarkMode = MutableStateFlow(false)
     val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
 
-    init {
-        // ✅ PERBAIKAN: Panggil loadThemePreference() LANGSUNG (bukan di launch)
-        loadThemePreference()
+    fun getActiveBookId(): Int {
+        return try {
+            context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                    .getInt("active_book_id", 1)
+        } catch (e: Exception) {
+            1
+        }
+    }
 
-        // ✅ Fungsi async tetap di launch
+    init {
+        loadThemePreference()
+        // Check login status on init
         viewModelScope.launch { checkLoginStatus() }
     }
 
+    // ========================================
+    // Currency & Book
+    // ========================================
+    fun updateActiveBookCurrency(currencyCode: String, currencySymbol: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val bookId = getActiveBookId()
+                // Hanya update metadata buku, nilai transaksi TIDAK diubah (Rupiah di database)
+                bookRepository.updateBookCurrency(bookId, currencyCode, currencySymbol)
+                _successMessage.value =
+                        "Mata uang diperbarui: $currencyCode (Nilai transaksi tetap IDR di database)"
+            } catch (e: Exception) {
+                _errorMessage.value = "Gagal memperbarui mata uang: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    // ========================================
+    // Theme Functions
+    // ========================================
     private fun loadThemePreference() {
         try {
             val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
@@ -92,6 +114,9 @@ constructor(
         }
     }
 
+    // ========================================
+    // Auth Functions
+    // ========================================
     fun checkLoginStatus() {
         try {
             val token = TokenManager.getToken(context)
@@ -121,15 +146,12 @@ constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-
                 val result = userRepository.logout()
-
                 if (result.isSuccess) {
                     _isLoggedIn.value = false
                     _userName.value = "Tamu"
                     _successMessage.value = "Berhasil keluar"
                 } else {
-
                     throw result.exceptionOrNull() ?: Exception("Gagal logout")
                 }
             } catch (e: Exception) {
@@ -147,7 +169,7 @@ constructor(
 
     suspend fun exportToJson(): String? {
         return try {
-            // TODO: Implement your export logic
+            // TODO: Implement actual export logic
             null
         } catch (e: Exception) {
             _errorMessage.value = "Gagal export JSON: ${e.message}"
@@ -157,7 +179,7 @@ constructor(
 
     suspend fun exportToCsv(): String? {
         return try {
-            // TODO: Implement your export logic
+            // TODO: Implement actual export logic
             null
         } catch (e: Exception) {
             _errorMessage.value = "Gagal export CSV: ${e.message}"
@@ -167,7 +189,7 @@ constructor(
 
     fun saveBackupToFile(data: String): File? {
         return try {
-            // TODO: Implement your backup logic
+            // TODO: Implement actual backup file saving logic
             null
         } catch (e: Exception) {
             _errorMessage.value = "Gagal simpan backup: ${e.message}"
@@ -175,6 +197,14 @@ constructor(
         }
     }
 
+    fun getBackupFileName(ext: String): String {
+        val timestamp = System.currentTimeMillis()
+        return "backup_$timestamp.$ext"
+    }
+
+    // ========================================
+    // Reset Data
+    // ========================================
     fun resetAllData() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -193,7 +223,7 @@ constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // TODO: Implement reset categories
+                // TODO: Implement reset categories logic
                 _successMessage.value = "Kategori berhasil direset"
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal reset kategori: ${e.message}"
@@ -203,6 +233,9 @@ constructor(
         }
     }
 
+    // ========================================
+    // Info & Util Functions
+    // ========================================
     fun getAppVersion(): String = "1.0.0"
 
     fun getAppStatistics(): Map<String, String> {
@@ -211,11 +244,6 @@ constructor(
         } catch (e: Exception) {
             mapOf("Total Transaksi" to "-", "Total Kategori" to "-")
         }
-    }
-
-    fun getBackupFileName(ext: String): String {
-        val timestamp = System.currentTimeMillis()
-        return "backup_$timestamp.$ext"
     }
 
     fun forceSync() {

@@ -20,6 +20,7 @@ import com.example.catetduls.R
 import com.example.catetduls.data.Category
 import com.example.catetduls.data.TransactionType
 import com.example.catetduls.data.Wallet
+import com.example.catetduls.data.getBookRepository
 import com.example.catetduls.data.getCategoryRepository
 import com.example.catetduls.data.getTransactionRepository
 import com.example.catetduls.data.getWalletRepository
@@ -28,9 +29,9 @@ import com.example.catetduls.viewmodel.TambahViewModelFactory
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import kotlinx.coroutines.launch
-import java.util.*
 import java.io.File
+import java.util.*
+import kotlinx.coroutines.launch
 
 class TambahTransaksiPage : Fragment() {
 
@@ -64,6 +65,7 @@ class TambahTransaksiPage : Fragment() {
     private lateinit var spinnerWalletTarget: Spinner // Dompet Tujuan
 
     private lateinit var etAmount: EditText
+    private lateinit var tvCurrencySymbol: TextView
     private lateinit var tvDate: TextView
     private lateinit var cardSelectDate: MaterialCardView
     private lateinit var etNotes: com.google.android.material.textfield.TextInputEditText
@@ -92,40 +94,49 @@ class TambahTransaksiPage : Fragment() {
 
     // Launcher untuk Galeri
     private val galleryLauncher: ActivityResultLauncher<String> =
-        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-            uri?.let {
-                setImageProof(it)
+            registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+                uri?.let { setImageProof(it) }
             }
-        }
 
     // Launcher untuk Kamera
     private val cameraLauncher: ActivityResultLauncher<Uri> =
-        registerForActivityResult(ActivityResultContracts.TakePicture()) { success: Boolean ->
-            if (success) {
-                imageUri?.let { setImageProof(it) }
-            } else {
-                // Jika pengambilan gambar gagal atau dibatalkan, reset imageUri jika itu adalah temp uri
-                if (imageUri?.scheme == "content" && imageUri?.authority?.endsWith(".fileprovider") == true) {
-                    // Hapus file sementara jika ada
-                    try { requireContext().contentResolver.delete(imageUri!!, null, null) } catch (_: Exception) {}
+            registerForActivityResult(ActivityResultContracts.TakePicture()) { success: Boolean ->
+                if (success) {
+                    imageUri?.let { setImageProof(it) }
+                } else {
+                    // Jika pengambilan gambar gagal atau dibatalkan, reset imageUri jika itu adalah
+                    // temp uri
+                    if (imageUri?.scheme == "content" &&
+                                    imageUri?.authority?.endsWith(".fileprovider") == true
+                    ) {
+                        // Hapus file sementara jika ada
+                        try {
+                            requireContext().contentResolver.delete(imageUri!!, null, null)
+                        } catch (_: Exception) {}
+                    }
+                    imageUri = null
                 }
-                imageUri = null
             }
-        }
 
     private val requestCameraPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
-            if (isGranted) {
-                startCameraProcess()
-            } else {
-                Toast.makeText(requireContext(), "Izin kamera diperlukan untuk mengambil foto", Toast.LENGTH_SHORT).show()
+            registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+                    isGranted: Boolean ->
+                if (isGranted) {
+                    startCameraProcess()
+                } else {
+                    Toast.makeText(
+                                    requireContext(),
+                                    "Izin kamera diperlukan untuk mengambil foto",
+                                    Toast.LENGTH_SHORT
+                            )
+                            .show()
+                }
             }
-        }
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
+            inflater: LayoutInflater,
+            container: ViewGroup?,
+            savedInstanceState: Bundle?
     ): View? {
         return inflater.inflate(R.layout.fragment_tambah_transaksi, container, false)
     }
@@ -138,28 +149,44 @@ class TambahTransaksiPage : Fragment() {
         val walletRepo = requireContext().getWalletRepository()
 
         val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        val activeWalletId: Int = try {
-            prefs.getInt("active_wallet_id", 1)
-        } catch (e: Exception) {
-            1
-        }
+        val activeWalletId: Int =
+                try {
+                    prefs.getInt("active_wallet_id", 1)
+                } catch (e: Exception) {
+                    1
+                }
 
-        val activeBookId: Int = try {
-            prefs.getInt("active_book_id", 1)
-        } catch (e: Exception) {
-            1
-        }
+        val activeBookId: Int =
+                try {
+                    prefs.getInt("active_book_id", 1)
+                } catch (e: Exception) {
+                    1
+                }
 
-        val factory = TambahViewModelFactory(
-            transactionRepo,
-            categoryRepo,
-            walletRepo,
-            activeWalletId,
-            activeBookId
-        )
+        val factory =
+                TambahViewModelFactory(
+                        transactionRepo,
+                        categoryRepo,
+                        walletRepo,
+                        requireContext().getBookRepository(), // Add this
+                        activeWalletId,
+                        activeBookId
+                )
         viewModel = ViewModelProvider(this, factory)[TambahViewModel::class.java]
 
         initViews(view)
+
+        // --- Update Currency Symbol ---
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val bookSame = requireContext().getBookRepository().getBookByIdSync(activeBookId)
+                if (bookSame != null) {
+                    tvCurrencySymbol.text = bookSame.currencySymbol
+                }
+            } catch (e: Exception) {
+                // Ignore, default to Rp (already set in XML)
+            }
+        }
 
         val transactionId = arguments?.getInt("ARG_TRANSACTION_ID", -1) ?: -1
 
@@ -169,7 +196,12 @@ class TambahTransaksiPage : Fragment() {
 
             // Nonaktifkan pengeditan transfer
             if (viewModel.selectedType.value == TransactionType.TRANSFER) {
-                Toast.makeText(requireContext(), "Edit Transfer tidak didukung. Hapus dan buat baru.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                                requireContext(),
+                                "Edit Transfer tidak didukung. Hapus dan buat baru.",
+                                Toast.LENGTH_LONG
+                        )
+                        .show()
                 btnSimpan.isEnabled = false
             }
 
@@ -187,9 +219,7 @@ class TambahTransaksiPage : Fragment() {
 
         // Inisialisasi awal UI berdasarkan ViewModel state
         viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.selectedType.collect {
-                updateCardSelection()
-            }
+            viewModel.selectedType.collect { updateCardSelection() }
         }
 
         observeData()
@@ -210,13 +240,18 @@ class TambahTransaksiPage : Fragment() {
     private fun checkCameraPermissionAndLaunch() {
         when {
             ContextCompat.checkSelfPermission(
-                requireContext(),
-                android.Manifest.permission.CAMERA
+                    requireContext(),
+                    android.Manifest.permission.CAMERA
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED -> {
                 startCameraProcess()
             }
             shouldShowRequestPermissionRationale(android.Manifest.permission.CAMERA) -> {
-                Toast.makeText(requireContext(), "Aplikasi butuh akses kamera untuk memotret bukti transaksi.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                                requireContext(),
+                                "Aplikasi butuh akses kamera untuk memotret bukti transaksi.",
+                                Toast.LENGTH_LONG
+                        )
+                        .show()
                 requestCameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
             }
             else -> {
@@ -229,25 +264,22 @@ class TambahTransaksiPage : Fragment() {
         try {
             val context = requireContext()
             // Menggunakan File.createTempFile untuk memastikan file sementara
-            val photoFile = File.createTempFile(
-                "IMG_TEMP_",
-                ".jpg",
-                context.cacheDir
-            )
+            val photoFile = File.createTempFile("IMG_TEMP_", ".jpg", context.cacheDir)
 
             val authority = "${context.packageName}.fileprovider"
-            val uri = androidx.core.content.FileProvider.getUriForFile(
-                context,
-                authority,
-                photoFile
-            )
+            val uri =
+                    androidx.core.content.FileProvider.getUriForFile(context, authority, photoFile)
 
             imageUri = uri
             cameraLauncher.launch(uri)
-
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(requireContext(), "Gagal membuka kamera: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                            requireContext(),
+                            "Gagal membuka kamera: ${e.message}",
+                            Toast.LENGTH_SHORT
+                    )
+                    .show()
         }
     }
 
@@ -283,6 +315,7 @@ class TambahTransaksiPage : Fragment() {
         spinnerWalletTarget = view.findViewById(R.id.spinner_wallet_target) // TUJUAN
 
         etAmount = view.findViewById(R.id.et_amount)
+        tvCurrencySymbol = view.findViewById(R.id.tv_currency_symbol) // Initialize Currency Symbol
         tvDate = view.findViewById(R.id.tv_date)
         cardSelectDate = view.findViewById(R.id.card_select_date)
         etNotes = view.findViewById(R.id.et_notes)
@@ -309,10 +342,13 @@ class TambahTransaksiPage : Fragment() {
 
     private fun showCalculatorDialog() {
         // Ambil nilai yang sudah ada dari ViewModel/EditText, bersihkan dari pemisah
-        val cleanAmount = viewModel.amount.value.replace(Regex("[^0-9]"), "")
+        // ALLOW COMMA
+        val cleanAmount = viewModel.amount.value.replace(Regex("[^0-9,]"), "")
 
         // Reset state kalkulator
-        currentInput = if (cleanAmount.isNotEmpty() && cleanAmount.toLongOrNull() != 0L) cleanAmount else "0"
+        currentInput =
+                if (cleanAmount.isNotEmpty() && (cleanAmount != "0")) cleanAmount
+                else "0"
         operator = ""
         firstValue = ""
         isNewInput = true
@@ -329,17 +365,29 @@ class TambahTransaksiPage : Fragment() {
         tvDisplay.text = formatAmount(currentInput)
 
         // Number buttons
-        val numberButtons = mapOf(
-            R.id.calc_btn_0 to "0", R.id.calc_btn_1 to "1", R.id.calc_btn_2 to "2",
-            R.id.calc_btn_3 to "3", R.id.calc_btn_4 to "4", R.id.calc_btn_5 to "5",
-            R.id.calc_btn_6 to "6", R.id.calc_btn_7 to "7", R.id.calc_btn_8 to "8",
-            R.id.calc_btn_9 to "9"
-        )
+        val numberButtons =
+                mapOf(
+                        R.id.calc_btn_0 to "0",
+                        R.id.calc_btn_1 to "1",
+                        R.id.calc_btn_2 to "2",
+                        R.id.calc_btn_3 to "3",
+                        R.id.calc_btn_4 to "4",
+                        R.id.calc_btn_5 to "5",
+                        R.id.calc_btn_6 to "6",
+                        R.id.calc_btn_7 to "7",
+                        R.id.calc_btn_8 to "8",
+                        R.id.calc_btn_9 to "9"
+                )
 
         numberButtons.forEach { (id, number) ->
             dialogView.findViewById<MaterialButton>(id)?.setOnClickListener {
                 handleNumberClick(number, tvDisplay)
             }
+        }
+
+        // Decimal button
+        dialogView.findViewById<MaterialButton>(R.id.calc_btn_decimal)?.setOnClickListener {
+            handleDecimalClick(tvDisplay)
         }
 
         // Operator buttons
@@ -360,21 +408,9 @@ class TambahTransaksiPage : Fragment() {
         dialogView.findViewById<MaterialButton>(R.id.calc_btn_backspace)?.setOnClickListener {
             handleBackspace(tvDisplay)
         }
-
-        // Clear button (C)
-        dialogView.findViewById<MaterialButton>(R.id.calc_btn_clear)?.setOnClickListener {
-            currentInput = "0"
-            operator = ""
-            firstValue = ""
-            isNewInput = true
-            isCalculated = false
-            tvDisplay.text = formatAmount(currentInput)
-        }
-
+        
         // Close button
-        btnClose?.setOnClickListener {
-            calculatorDialog?.dismiss()
-        }
+        btnClose?.setOnClickListener { calculatorDialog?.dismiss() }
 
         // Done button (Selesai)
         btnDone?.setOnClickListener {
@@ -382,15 +418,19 @@ class TambahTransaksiPage : Fragment() {
             if (operator.isNotEmpty() && firstValue.isNotEmpty() && !isNewInput) {
                 calculateResult()
             }
+            
+            // Format result: remove trailing comma if any
+            var finalResult = currentInput
+            if (finalResult.endsWith(",")) {
+                finalResult = finalResult.dropLast(1)
+            }
 
-            val finalAmount = currentInput.toLongOrNull()?.toString() ?: "0"
-            etAmount.setText(formatAmount(finalAmount)) // Tampilkan dalam format (misal: 1.000.000)
-            viewModel.setAmount(finalAmount) // Simpan nilai bersih ke ViewModel
+            etAmount.setText(formatAmount(finalResult))
+            viewModel.setAmount(finalResult)
             calculatorDialog?.dismiss()
         }
 
         calculatorDialog?.setOnDismissListener {
-            // Hilangkan focus dari etAmount agar tidak memicu dialog lagi saat fragment resumed
             etAmount.clearFocus()
         }
 
@@ -407,12 +447,10 @@ class TambahTransaksiPage : Fragment() {
         }
 
         if (isNewInput) {
-            // Handle kasus 0 di awal
             currentInput = if (number == "0" && currentInput == "0") "0" else number
             isNewInput = false
         } else {
-            // Batasi input agar tidak terlalu panjang (misal: max 15 digit)
-            if (currentInput.length < 15) {
+            if (currentInput.replace(",", "").length < 15) {
                 if (currentInput == "0") {
                     currentInput = number
                 } else {
@@ -420,18 +458,29 @@ class TambahTransaksiPage : Fragment() {
                 }
             }
         }
+        updateDisplay(display)
+    }
 
-        val displayValue = if (firstValue.isNotEmpty() && operator.isNotEmpty()) {
-            "${formatAmount(firstValue)} $operator ${formatAmount(currentInput)}"
+    private fun handleDecimalClick(display: TextView) {
+        if (isCalculated) {
+            currentInput = "0,"
+            operator = ""
+            firstValue = ""
+            isCalculated = false
+            isNewInput = false
+        } else if (isNewInput) {
+            currentInput = "0,"
+            isNewInput = false
         } else {
-            formatAmount(currentInput)
+            if (!currentInput.contains(",")) {
+                currentInput += ","
+            }
         }
-        display.text = displayValue
+        updateDisplay(display)
     }
 
     private fun handleOperatorClick(op: String, display: TextView) {
         if (operator.isNotEmpty() && firstValue.isNotEmpty() && !isNewInput) {
-            // Hitung hasil sebelum operator baru
             calculateResult()
         }
 
@@ -439,45 +488,57 @@ class TambahTransaksiPage : Fragment() {
         operator = op
         isNewInput = true
         isCalculated = false
-
-        display.text = "${formatAmount(firstValue)} $op"
+        updateDisplay(display)
     }
 
     private fun handleBackspace(display: TextView) {
-        if (isCalculated) return // Tidak bisa backspace setelah perhitungan final
+        if (isCalculated) return
 
         if (currentInput.length > 1) {
             currentInput = currentInput.dropLast(1)
+            if (currentInput.isEmpty()) currentInput = "0" // Safety
         } else {
             currentInput = "0"
-            isNewInput = true // Memastikan bisa mengetik angka lain setelah kembali ke 0
+            isNewInput = true
         }
+        updateDisplay(display)
+    }
 
-        val displayValue = if (firstValue.isNotEmpty() && operator.isNotEmpty() && !isNewInput) {
-            "${formatAmount(firstValue)} $operator ${formatAmount(currentInput)}"
-        } else if (firstValue.isNotEmpty() && operator.isNotEmpty() && isNewInput) {
-            "${formatAmount(firstValue)} $operator"
-        } else {
-            formatAmount(currentInput)
-        }
+    private fun updateDisplay(display: TextView) {
+        val displayValue =
+            if (firstValue.isNotEmpty() && operator.isNotEmpty()) {
+                "${formatAmount(firstValue)} $operator ${formatAmount(currentInput)}"
+            } else {
+                formatAmount(currentInput)
+            }
         display.text = displayValue
     }
 
     private fun calculateResult(display: TextView? = null) {
         if (firstValue.isEmpty() || operator.isEmpty() || currentInput.isEmpty()) return
 
-        val first = firstValue.toLongOrNull() ?: 0L
-        val second = currentInput.toLongOrNull() ?: 0L
+        val first = parseToDouble(firstValue)
+        val second = parseToDouble(currentInput)
 
-        val result: Long = when (operator) {
-            "+" -> first + second
-            "-" -> first - second
-            "×" -> first * second
-            "÷" -> if (second != 0L) first / second else 0L
-            else -> second
+        val result: Double =
+                when (operator) {
+                    "+" -> first + second
+                    "-" -> first - second
+                    "×" -> first * second
+                    "÷" -> if (second != 0.0) first / second else 0.0
+                    else -> second
+                }
+
+        // Format result back to String with comma
+        // If result is integer (ends with .0), removing decimal part
+        currentInput = if (result % 1.0 == 0.0) {
+             String.format(Locale("in", "ID"), "%.0f", result)
+        } else {
+             // Limit decimals to 2 or 3 digits
+             val formatted = String.format(Locale.US, "%.2f", result) // Use US for dot then replace
+             formatted.replace('.', ',')
         }
-
-        currentInput = result.toString()
+        
         operator = ""
         firstValue = ""
         isNewInput = true
@@ -486,10 +547,38 @@ class TambahTransaksiPage : Fragment() {
         display?.text = formatAmount(currentInput)
     }
 
+    private fun parseToDouble(value: String): Double {
+        // "1.000,50" -> "1000.50"
+        var clean = value.replace(".", "") // Remove thousands separator
+        clean = clean.replace(",", ".") // Replace decimal separator
+        return clean.toDoubleOrNull() ?: 0.0
+    }
+
     private fun formatAmount(amount: String): String {
-        val number = amount.toLongOrNull() ?: return "0"
-        // Menggunakan Locale Indonesia untuk format titik sebagai pemisah ribuan
-        return String.format(Locale("in", "ID"), "%,d", number).replace(',', '.')
+        // Input: "1000,50" -> Output "1.000,50"
+        
+        var clean = amount.replace(".", "") // Ensure clean raw string
+        val parts = clean.split(",")
+        val integerPart = parts[0]
+        val decimalPart = if (parts.size > 1) parts[1] else null
+        
+        val number = integerPart.toLongOrNull() ?: 0L
+        
+        // Use explicit naming for symbols to avoid Locale issues
+        val symbols = java.text.DecimalFormatSymbols(Locale.US)
+        symbols.groupingSeparator = '.'
+        symbols.decimalSeparator = ','
+        val decimalFormat = java.text.DecimalFormat("#,###", symbols)
+        
+        val formattedInt = decimalFormat.format(number)
+        
+        return if (decimalPart != null) {
+            "$formattedInt,$decimalPart"
+        } else if (clean.endsWith(",")) {
+            "$formattedInt,"
+        } else {
+            formattedInt
+        }
     }
 
     // --- SETUP LISTENERS ---
@@ -497,30 +586,42 @@ class TambahTransaksiPage : Fragment() {
     private fun setupWalletSpinnerListener(wallets: List<Wallet>) {
         spinnerWallet.onItemSelectedListener = null
 
-        spinnerWallet.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (position < wallets.size) {
-                    val selectedWalletId = wallets[position].id
-                    viewModel.setWallet(selectedWalletId)
+        spinnerWallet.onItemSelectedListener =
+                object : AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(
+                            parent: AdapterView<*>?,
+                            view: View?,
+                            position: Int,
+                            id: Long
+                    ) {
+                        if (position < wallets.size) {
+                            val selectedWalletId = wallets[position].id
+                            viewModel.setWallet(selectedWalletId)
+                        }
+                    }
+                    override fun onNothingSelected(parent: AdapterView<*>?) {}
                 }
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
-        }
     }
 
     private fun setupTargetWalletSpinnerListener(wallets: List<Wallet>) {
         spinnerWalletTarget.onItemSelectedListener = null
 
-        spinnerWalletTarget.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (position < wallets.size) {
-                    val selectedWalletId = wallets[position].id
-                    viewModel.setTargetWallet(selectedWalletId)
-                    btnLanjut.visibility = View.GONE
+        spinnerWalletTarget.onItemSelectedListener =
+                object : AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(
+                            parent: AdapterView<*>?,
+                            view: View?,
+                            position: Int,
+                            id: Long
+                    ) {
+                        if (position < wallets.size) {
+                            val selectedWalletId = wallets[position].id
+                            viewModel.setTargetWallet(selectedWalletId)
+                            btnLanjut.visibility = View.GONE
+                        }
+                    }
+                    override fun onNothingSelected(parent: AdapterView<*>?) {}
                 }
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
-        }
     }
 
     private fun setupPhotoPicker() {
@@ -544,27 +645,27 @@ class TambahTransaksiPage : Fragment() {
     private fun showImageSourceDialog() {
         val options = arrayOf("Ambil Foto", "Pilih dari Galeri")
         android.app.AlertDialog.Builder(requireContext())
-            .setTitle("Pilih Sumber Foto")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> checkCameraPermissionAndLaunch()
-                    1 -> galleryLauncher.launch("image/*")
+                .setTitle("Pilih Sumber Foto")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> checkCameraPermissionAndLaunch()
+                        1 -> galleryLauncher.launch("image/*")
+                    }
                 }
-            }
-            .setNegativeButton("Batal", null)
-            .show()
+                .setNegativeButton("Batal", null)
+                .show()
     }
 
     private fun showClearImageDialog() {
         android.app.AlertDialog.Builder(requireContext())
-            .setTitle("Hapus Foto")
-            .setMessage("Apakah Anda ingin menghapus bukti foto ini?")
-            .setPositiveButton("Ya, Hapus") { _, _ ->
-                resetImageProof()
-                Toast.makeText(requireContext(), "Foto dihapus", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Batal", null)
-            .show()
+                .setTitle("Hapus Foto")
+                .setMessage("Apakah Anda ingin menghapus bukti foto ini?")
+                .setPositiveButton("Ya, Hapus") { _, _ ->
+                    resetImageProof()
+                    Toast.makeText(requireContext(), "Foto dihapus", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("Batal", null)
+                .show()
     }
 
     private fun setImageProof(uri: Uri) {
@@ -588,37 +689,44 @@ class TambahTransaksiPage : Fragment() {
     }
 
     private fun setupRadioGroup() {
-        val typeClickListener = View.OnClickListener { v ->
-            val type = when (v.id) {
-                R.id.card_pemasukan -> TransactionType.PEMASUKAN
-                R.id.card_transfer -> TransactionType.TRANSFER
-                R.id.card_pengeluaran -> TransactionType.PENGELUARAN
-                else -> viewModel.selectedType.value // Mempertahankan nilai saat ini jika id tidak dikenal
-            }
+        val typeClickListener =
+                View.OnClickListener { v ->
+                    val type =
+                            when (v.id) {
+                                R.id.card_pemasukan -> TransactionType.PEMASUKAN
+                                R.id.card_transfer -> TransactionType.TRANSFER
+                                R.id.card_pengeluaran -> TransactionType.PENGELUARAN
+                                else ->
+                                        viewModel
+                                                .selectedType
+                                                .value // Mempertahankan nilai saat ini jika id
+                            // tidak dikenal
+                            }
 
-            // Set radio button berdasarkan klik card
-            when (type) {
-                TransactionType.PEMASUKAN -> radioPemasukan.isChecked = true
-                TransactionType.PENGELUARAN -> radioPengeluaran.isChecked = true
-                TransactionType.TRANSFER -> radioTransfer.isChecked = true
-            }
+                    // Set radio button berdasarkan klik card
+                    when (type) {
+                        TransactionType.PEMASUKAN -> radioPemasukan.isChecked = true
+                        TransactionType.PENGELUARAN -> radioPengeluaran.isChecked = true
+                        TransactionType.TRANSFER -> radioTransfer.isChecked = true
+                    }
 
-            viewModel.setType(type)
-            updateCardSelection()
-            btnLanjut.visibility = View.GONE
-        }
+                    viewModel.setType(type)
+                    updateCardSelection()
+                    btnLanjut.visibility = View.GONE
+                }
 
         cardPemasukan.setOnClickListener(typeClickListener)
         cardPengeluaran.setOnClickListener(typeClickListener)
         cardTransfer.setOnClickListener(typeClickListener)
 
         radioGroupType.setOnCheckedChangeListener { _, checkedId ->
-            val type = when (checkedId) {
-                R.id.radio_pemasukan -> TransactionType.PEMASUKAN
-                R.id.radio_transfer -> TransactionType.TRANSFER
-                R.id.radio_pengeluaran -> TransactionType.PENGELUARAN
-                else -> TransactionType.PENGELUARAN // Default
-            }
+            val type =
+                    when (checkedId) {
+                        R.id.radio_pemasukan -> TransactionType.PEMASUKAN
+                        R.id.radio_transfer -> TransactionType.TRANSFER
+                        R.id.radio_pengeluaran -> TransactionType.PENGELUARAN
+                        else -> TransactionType.PENGELUARAN // Default
+                    }
             viewModel.setType(type)
             updateCardSelection()
             btnLanjut.visibility = View.GONE
@@ -628,11 +736,12 @@ class TambahTransaksiPage : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.selectedType.collect { type ->
-                    val checkedId = when (type) {
-                        TransactionType.PEMASUKAN -> R.id.radio_pemasukan
-                        TransactionType.TRANSFER -> R.id.radio_transfer
-                        TransactionType.PENGELUARAN -> R.id.radio_pengeluaran
-                    }
+                    val checkedId =
+                            when (type) {
+                                TransactionType.PEMASUKAN -> R.id.radio_pemasukan
+                                TransactionType.TRANSFER -> R.id.radio_transfer
+                                TransactionType.PENGELUARAN -> R.id.radio_pengeluaran
+                            }
                     if (radioGroupType.checkedRadioButtonId != checkedId) {
                         // Mencegah loop tak terbatas dengan hanya mengatur jika berbeda
                         radioGroupType.check(checkedId)
@@ -659,8 +768,12 @@ class TambahTransaksiPage : Fragment() {
                 cardElevation = 2f
             }
         }
-        listOf(tvLabelPemasukan, tvLabelPengeluaran, tvLabelTransfer).forEach { it.setTypeface(null, android.graphics.Typeface.NORMAL) }
-        listOf(tvIconPemasukan, tvIconPengeluaran, tvIconTransfer).forEach { it.setTypeface(null, android.graphics.Typeface.NORMAL) }
+        listOf(tvLabelPemasukan, tvLabelPengeluaran, tvLabelTransfer).forEach {
+            it.setTypeface(null, android.graphics.Typeface.NORMAL)
+        }
+        listOf(tvIconPemasukan, tvIconPengeluaran, tvIconTransfer).forEach {
+            it.setTypeface(null, android.graphics.Typeface.NORMAL)
+        }
 
         // Highlight selected card
         when (viewModel.selectedType.value) {
@@ -722,15 +835,16 @@ class TambahTransaksiPage : Fragment() {
             calendar.timeInMillis = viewModel.date.value
 
             DatePickerDialog(
-                requireContext(),
-                { _, year, month, dayOfMonth ->
-                    calendar.set(year, month, dayOfMonth)
-                    viewModel.setDate(calendar.timeInMillis)
-                },
-                calendar.get(Calendar.YEAR),
-                calendar.get(Calendar.MONTH),
-                calendar.get(Calendar.DAY_OF_MONTH)
-            ).show()
+                            requireContext(),
+                            { _, year, month, dayOfMonth ->
+                                calendar.set(year, month, dayOfMonth)
+                                viewModel.setDate(calendar.timeInMillis)
+                            },
+                            calendar.get(Calendar.YEAR),
+                            calendar.get(Calendar.MONTH),
+                            calendar.get(Calendar.DAY_OF_MONTH)
+                    )
+                    .show()
         }
     }
 
@@ -739,7 +853,8 @@ class TambahTransaksiPage : Fragment() {
             btnLanjut.visibility = View.GONE
 
             // Ambil input dari UI
-            val rawAmount = etAmount.text.toString().replace(Regex("[^0-9]"), "")
+            // Ambil input dari UI
+            val rawAmount = etAmount.text.toString().replace(Regex("[^0-9,]"), "")
             val notes = etNotes.text.toString()
 
             // Update ViewModel dengan input terbaru
@@ -755,7 +870,8 @@ class TambahTransaksiPage : Fragment() {
                     viewModel.setImagePath(newPath)
                 } else {
                     viewModel.setImagePath(null)
-                    Toast.makeText(requireContext(), "Gagal menyimpan foto", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "Gagal menyimpan foto", Toast.LENGTH_SHORT)
+                            .show()
                 }
             } else if (imageUri == null) {
                 viewModel.setImagePath(null)
@@ -765,7 +881,12 @@ class TambahTransaksiPage : Fragment() {
             if (viewModel.isFormValid()) {
                 viewModel.saveTransaction()
             } else {
-                Toast.makeText(requireContext(), "Form belum lengkap atau Dompet Sumber/Tujuan sama!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                                requireContext(),
+                                "Form belum lengkap atau Dompet Sumber/Tujuan sama!",
+                                Toast.LENGTH_SHORT
+                        )
+                        .show()
             }
         }
 
@@ -777,7 +898,12 @@ class TambahTransaksiPage : Fragment() {
 
             etAmount.setText("") // Clear the visible amount
             etAmount.requestFocus()
-            Toast.makeText(requireContext(), "Siap mencatat transaksi ${viewModel.selectedType.value} berikutnya!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                            requireContext(),
+                            "Siap mencatat transaksi ${viewModel.selectedType.value} berikutnya!",
+                            Toast.LENGTH_SHORT
+                    )
+                    .show()
         }
 
         btnReset.setOnClickListener {
@@ -790,7 +916,6 @@ class TambahTransaksiPage : Fragment() {
     private fun observeData() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-
                 launch {
                     viewModel.date.collect { timestamp ->
                         tvDate.text = viewModel.formatDate(timestamp)
@@ -799,17 +924,11 @@ class TambahTransaksiPage : Fragment() {
 
                 launch {
                     viewModel.amount.collect { amountString ->
-                        // Hapus pemformatan angka yang ada jika pengguna mengetik saat observasi
-                        val cleanString = amountString.replace(Regex("[^0-9]"), "")
+                        // Hapus pemformatan angka yang ada jika pengguna mengetik saat observasi (tapi biarkan koma)
+                        val cleanString = amountString.replace(Regex("[^0-9,]"), "")
 
-                        val formattedAmount = try {
-                            formatAmount(cleanString)
-                        } catch (e: Exception) {
-                            cleanString
-                        }
-
-                        if (etAmount.text.toString().replace(Regex("[^0-9]"), "") != cleanString) {
-                            etAmount.setText(formattedAmount)
+                        if (etAmount.text.toString() != amountString) {
+                            etAmount.setText(amountString)
                         }
                     }
                 }
@@ -838,7 +957,11 @@ class TambahTransaksiPage : Fragment() {
                             Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
                             triggerImmediateSync()
                             // Reset setelah sukses menyimpan, namun pertahankan tipe
-                            viewModel.resetForm(keepType = true, keepCategory = false, setTodayDate = true)
+                            viewModel.resetForm(
+                                    keepType = true,
+                                    keepCategory = false,
+                                    setTodayDate = true
+                            )
 
                             btnLanjut.visibility = View.VISIBLE
                             resetImageProof()
@@ -876,13 +999,16 @@ class TambahTransaksiPage : Fragment() {
                                 resetImageProof()
                             }
                         } else {
-                            // PERBAIKAN: Mengganti isEditMode.value dengan pemanggilan fungsi isEditMode()
+                            // PERBAIKAN: Mengganti isEditMode.value dengan pemanggilan fungsi
+                            // isEditMode()
                             if (imageUri != null && isEditing == false) {
                                 // Jika path di ViewModel null dan ini bukan proses edit
                                 resetImageProof()
                             } else if (imageUri != null) {
-                                // Jika imageUri masih ada tapi path null (misal imageUri adalah temp uri)
-                                // Biarkan UI tetap menampilkan imageUri, namun path akan di-set null saat simpan
+                                // Jika imageUri masih ada tapi path null (misal imageUri adalah
+                                // temp uri)
+                                // Biarkan UI tetap menampilkan imageUri, namun path akan di-set
+                                // null saat simpan
                             } else {
                                 resetImageProof()
                             }
@@ -891,7 +1017,6 @@ class TambahTransaksiPage : Fragment() {
                 }
             }
         }
-
 
         viewModel.categories.observe(viewLifecycleOwner) { categories: List<Category> ->
             categoriesList = categories
@@ -902,18 +1027,24 @@ class TambahTransaksiPage : Fragment() {
             // Hanya tampilkan dan proses kategori jika bukan Transfer
             if (!isTransfer) {
                 if (categories.isEmpty()) {
-                    Toast.makeText(requireContext(), "Tidak ada kategori tersedia!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                                    requireContext(),
+                                    "Tidak ada kategori tersedia!",
+                                    Toast.LENGTH_LONG
+                            )
+                            .show()
                     spinnerKategori.adapter = null
                     viewModel.setCategory(0) // Set ke ID tidak valid
                     return@observe
                 }
 
                 val categoryNames = categories.map { "${it.icon} ${it.name}" }
-                val adapter = ArrayAdapter(
-                    requireContext(),
-                    android.R.layout.simple_spinner_item,
-                    categoryNames
-                )
+                val adapter =
+                        ArrayAdapter(
+                                requireContext(),
+                                android.R.layout.simple_spinner_item,
+                                categoryNames
+                        )
                 adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
                 spinnerKategori.adapter = adapter
 
@@ -933,15 +1064,21 @@ class TambahTransaksiPage : Fragment() {
                     viewModel.setCategory(categories[selectedIndex].id)
                 }
 
-                spinnerKategori.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                    override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                        if (position < categories.size) {
-                            viewModel.setCategory(categories[position].id)
-                            btnLanjut.visibility = View.GONE
+                spinnerKategori.onItemSelectedListener =
+                        object : AdapterView.OnItemSelectedListener {
+                            override fun onItemSelected(
+                                    parent: AdapterView<*>?,
+                                    view: View?,
+                                    position: Int,
+                                    id: Long
+                            ) {
+                                if (position < categories.size) {
+                                    viewModel.setCategory(categories[position].id)
+                                    btnLanjut.visibility = View.GONE
+                                }
+                            }
+                            override fun onNothingSelected(parent: AdapterView<*>?) {}
                         }
-                    }
-                    override fun onNothingSelected(parent: AdapterView<*>?) {}
-                }
             }
         }
 
@@ -949,7 +1086,12 @@ class TambahTransaksiPage : Fragment() {
             walletsList = wallets
 
             if (wallets.isEmpty()) {
-                Toast.makeText(requireContext(), "Tidak ada dompet tersedia untuk Buku ini!", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                                requireContext(),
+                                "Tidak ada dompet tersedia untuk Buku ini!",
+                                Toast.LENGTH_LONG
+                        )
+                        .show()
                 spinnerWallet.adapter = null
                 spinnerWalletTarget.adapter = null
                 viewModel.setWallet(0) // Set ke ID tidak valid
@@ -958,11 +1100,12 @@ class TambahTransaksiPage : Fragment() {
             }
 
             val walletNames = wallets.map { "${it.icon} ${it.name}" }
-            val adapter = ArrayAdapter(
-                requireContext(),
-                android.R.layout.simple_spinner_item,
-                walletNames
-            )
+            val adapter =
+                    ArrayAdapter(
+                            requireContext(),
+                            android.R.layout.simple_spinner_item,
+                            walletNames
+                    )
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             spinnerWallet.adapter = adapter
             spinnerWalletTarget.adapter = adapter // Atur adapter untuk Dompet Tujuan
@@ -981,7 +1124,6 @@ class TambahTransaksiPage : Fragment() {
                 viewModel.setWallet(wallets[selectedSourceIndex].id)
             }
             setupWalletSpinnerListener(walletsList)
-
 
             // --- Logika Dompet Tujuan (spinnerWalletTarget) ---
             var selectedTargetIndex = -1
@@ -1005,7 +1147,9 @@ class TambahTransaksiPage : Fragment() {
             } else {
                 // Jika tidak ada dompet tujuan yang valid atau hanya satu dompet
                 spinnerWalletTarget.setSelection(0, false)
-                viewModel.setTargetWallet(if (wallets.isNotEmpty()) wallets[0].id else null) // Set default
+                viewModel.setTargetWallet(
+                        if (wallets.isNotEmpty()) wallets[0].id else null
+                ) // Set default
             }
 
             setupTargetWalletSpinnerListener(walletsList)
@@ -1041,7 +1185,6 @@ class TambahTransaksiPage : Fragment() {
                 file.delete()
                 null
             }
-
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -1050,11 +1193,15 @@ class TambahTransaksiPage : Fragment() {
     }
 
     private fun triggerImmediateSync() {
-        val workRequest = androidx.work.OneTimeWorkRequest.Builder(com.example.catetduls.data.sync.DataSyncWorker::class.java)
-            .setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-            .build()
+        val workRequest =
+                androidx.work.OneTimeWorkRequest.Builder(
+                                com.example.catetduls.data.sync.DataSyncWorker::class.java
+                        )
+                        .setExpedited(
+                                androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST
+                        )
+                        .build()
 
-        androidx.work.WorkManager.getInstance(requireContext())
-            .enqueue(workRequest)
+        androidx.work.WorkManager.getInstance(requireContext()).enqueue(workRequest)
     }
 }

@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
  */
 @Database(
         entities = [Book::class, Wallet::class, Category::class, Transaction::class, User::class],
-        version = 2,
+        version = 3,
         exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -49,100 +49,92 @@ abstract class AppDatabase : RoomDatabase() {
                     override fun migrate(database: SupportSQLiteDatabase) {
                         val currentTime = System.currentTimeMillis()
 
+                        // Function to safely add column
+                        fun safeAddColumn(tableName: String, columnName: String, columnDef: String) {
+                            try {
+                                database.execSQL("ALTER TABLE $tableName ADD COLUMN $columnName $columnDef")
+                            } catch (e: Exception) {
+                                // Ignore duplicate column error
+                                // Log it ideally, but for now just proceed
+                            }
+                        }
+
                         // ========================================
                         // USER TABLE
                         // ========================================
-                        database.execSQL(
-                                "ALTER TABLE users ADD COLUMN created_at INTEGER NOT NULL DEFAULT $currentTime"
-                        )
-                        database.execSQL(
-                                "ALTER TABLE users ADD COLUMN updated_at INTEGER NOT NULL DEFAULT $currentTime"
-                        )
-                        database.execSQL("ALTER TABLE users ADD COLUMN server_id TEXT")
-                        database.execSQL(
-                                "ALTER TABLE users ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0"
-                        )
-                        database.execSQL(
-                                "ALTER TABLE users ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0"
-                        )
-                        database.execSQL("ALTER TABLE users ADD COLUMN last_sync_at INTEGER")
-                        database.execSQL("ALTER TABLE users ADD COLUMN sync_action TEXT")
+                        safeAddColumn("users", "created_at", "INTEGER NOT NULL DEFAULT $currentTime")
+                        safeAddColumn("users", "updated_at", "INTEGER NOT NULL DEFAULT $currentTime")
+                        safeAddColumn("users", "server_id", "TEXT")
+                        safeAddColumn("users", "is_synced", "INTEGER NOT NULL DEFAULT 0")
+                        safeAddColumn("users", "is_deleted", "INTEGER NOT NULL DEFAULT 0")
+                        safeAddColumn("users", "last_sync_at", "INTEGER")
+                        safeAddColumn("users", "sync_action", "TEXT")
 
                         // ========================================
                         // BOOKS TABLE
                         // ========================================
-                        database.execSQL(
-                                "ALTER TABLE books ADD COLUMN created_at INTEGER NOT NULL DEFAULT $currentTime"
-                        )
-                        database.execSQL(
-                                "ALTER TABLE books ADD COLUMN updated_at INTEGER NOT NULL DEFAULT $currentTime"
-                        )
-                        database.execSQL("ALTER TABLE books ADD COLUMN server_id TEXT")
-                        database.execSQL(
-                                "ALTER TABLE books ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0"
-                        )
-                        database.execSQL(
-                                "ALTER TABLE books ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0"
-                        )
-                        database.execSQL("ALTER TABLE books ADD COLUMN last_sync_at INTEGER")
-                        database.execSQL("ALTER TABLE books ADD COLUMN sync_action TEXT")
+                        safeAddColumn("books", "created_at", "INTEGER NOT NULL DEFAULT $currentTime")
+                        safeAddColumn("books", "updated_at", "INTEGER NOT NULL DEFAULT $currentTime")
+                        safeAddColumn("books", "server_id", "TEXT")
+                        safeAddColumn("books", "is_synced", "INTEGER NOT NULL DEFAULT 0")
+                        safeAddColumn("books", "is_deleted", "INTEGER NOT NULL DEFAULT 0")
+                        safeAddColumn("books", "last_sync_at", "INTEGER")
+                        safeAddColumn("books", "sync_action", "TEXT")
 
                         // ========================================
                         // WALLETS TABLE
                         // ========================================
-                        database.execSQL(
-                                "ALTER TABLE wallets ADD COLUMN created_at INTEGER NOT NULL DEFAULT $currentTime"
-                        )
-                        database.execSQL(
-                                "ALTER TABLE wallets ADD COLUMN updated_at INTEGER NOT NULL DEFAULT $currentTime"
-                        )
-                        database.execSQL("ALTER TABLE wallets ADD COLUMN server_id TEXT")
-                        database.execSQL(
-                                "ALTER TABLE wallets ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0"
-                        )
-                        database.execSQL(
-                                "ALTER TABLE wallets ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0"
-                        )
-                        database.execSQL("ALTER TABLE wallets ADD COLUMN last_sync_at INTEGER")
-                        database.execSQL("ALTER TABLE wallets ADD COLUMN sync_action TEXT")
+                        safeAddColumn("wallets", "created_at", "INTEGER NOT NULL DEFAULT $currentTime")
+                        safeAddColumn("wallets", "updated_at", "INTEGER NOT NULL DEFAULT $currentTime")
+                        safeAddColumn("wallets", "server_id", "TEXT")
+                        safeAddColumn("wallets", "is_synced", "INTEGER NOT NULL DEFAULT 0")
+                        safeAddColumn("wallets", "is_deleted", "INTEGER NOT NULL DEFAULT 0")
+                        safeAddColumn("wallets", "last_sync_at", "INTEGER")
+                        safeAddColumn("wallets", "sync_action", "TEXT")
 
                         // ========================================
                         // CATEGORIES TABLE
                         // ========================================
-                        database.execSQL(
-                                "ALTER TABLE categories ADD COLUMN created_at INTEGER NOT NULL DEFAULT $currentTime"
-                        )
-                        database.execSQL(
-                                "ALTER TABLE categories ADD COLUMN updated_at INTEGER NOT NULL DEFAULT $currentTime"
-                        )
-                        database.execSQL("ALTER TABLE categories ADD COLUMN server_id TEXT")
-                        database.execSQL(
-                                "ALTER TABLE categories ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0"
-                        )
-                        database.execSQL(
-                                "ALTER TABLE categories ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0"
-                        )
-                        database.execSQL("ALTER TABLE categories ADD COLUMN last_sync_at INTEGER")
-                        database.execSQL("ALTER TABLE categories ADD COLUMN sync_action TEXT")
+                        safeAddColumn("categories", "created_at", "INTEGER NOT NULL DEFAULT $currentTime")
+                        safeAddColumn("categories", "updated_at", "INTEGER NOT NULL DEFAULT $currentTime")
+                        safeAddColumn("categories", "server_id", "TEXT")
+                        safeAddColumn("categories", "is_synced", "INTEGER NOT NULL DEFAULT 0")
+                        safeAddColumn("categories", "is_deleted", "INTEGER NOT NULL DEFAULT 0")
+                        safeAddColumn("categories", "last_sync_at", "INTEGER")
+                        safeAddColumn("categories", "sync_action", "TEXT")
 
                         // ========================================
                         // TRANSACTIONS TABLE
                         // ========================================
-                        database.execSQL(
-                                "ALTER TABLE transactions ADD COLUMN created_at INTEGER NOT NULL DEFAULT $currentTime"
-                        )
-                        database.execSQL(
-                                "ALTER TABLE transactions ADD COLUMN updated_at INTEGER NOT NULL DEFAULT $currentTime"
-                        )
-                        database.execSQL("ALTER TABLE transactions ADD COLUMN server_id TEXT")
-                        database.execSQL(
-                                "ALTER TABLE transactions ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0"
-                        )
-                        database.execSQL(
-                                "ALTER TABLE transactions ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0"
-                        )
-                        database.execSQL("ALTER TABLE transactions ADD COLUMN last_sync_at INTEGER")
-                        database.execSQL("ALTER TABLE transactions ADD COLUMN sync_action TEXT")
+                        safeAddColumn("transactions", "created_at", "INTEGER NOT NULL DEFAULT $currentTime")
+                        safeAddColumn("transactions", "updated_at", "INTEGER NOT NULL DEFAULT $currentTime")
+                        safeAddColumn("transactions", "server_id", "TEXT")
+                        safeAddColumn("transactions", "is_synced", "INTEGER NOT NULL DEFAULT 0")
+                        safeAddColumn("transactions", "is_deleted", "INTEGER NOT NULL DEFAULT 0")
+                        safeAddColumn("transactions", "last_sync_at", "INTEGER")
+                        safeAddColumn("transactions", "sync_action", "TEXT")
+                    }
+                }
+
+        /**
+         * ============================================================ MIGRATION DARI VERSION 3 KE
+         * 4 Menambahkan kolom currency_code dan currency_symbol di tabel books
+         * ============================================================
+         */
+        private val MIGRATION_3_4 =
+                object : Migration(3, 4) {
+                    override fun migrate(database: SupportSQLiteDatabase) {
+                        fun safeAddColumn(sql: String) {
+                            try {
+                                database.execSQL(sql)
+                            } catch (e: Exception) {
+                                // Ignore duplicate column error
+                            }
+                        }
+
+                        // Tambahkan kolom default 'IDR' dan 'Rp'
+                        safeAddColumn("ALTER TABLE books ADD COLUMN currency_code TEXT NOT NULL DEFAULT 'IDR'")
+                        safeAddColumn("ALTER TABLE books ADD COLUMN currency_symbol TEXT NOT NULL DEFAULT 'Rp'")
                     }
                 }
 
@@ -155,7 +147,10 @@ abstract class AppDatabase : RoomDatabase() {
                                                 AppDatabase::class.java,
                                                 "finnote_database"
                                         )
-                                        .addMigrations(MIGRATION_2_3) // ← TAMBAHKAN INI
+                                        .addMigrations(
+                                                MIGRATION_2_3,
+                                                MIGRATION_3_4
+                                        ) // ← TAMBAHKAN INI
                                         .addCallback(DatabaseCallback(context))
                                         // COMMENT UNTUK PRODUCTION:
                                         .fallbackToDestructiveMigration()
