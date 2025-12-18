@@ -16,6 +16,15 @@
         android:paddingTop="4dp"
         android:paddingBottom="4dp">
 
+        <View
+            android:id="@+id/view_day_marker"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:background="@drawable/bg_day_marker_blue"
+            android:layout_gravity="center_horizontal"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
         <TextView
             android:id="@+id/tv_day_number"
             android:layout_width="wrap_content"
@@ -27,17 +36,7 @@
             android:paddingEnd="4dp"
             tools:text="19" />
 
-        <View
-            android:id="@+id/view_day_marker"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:background="@drawable/bg_day_marker_blue"
-            android:layout_gravity="center_horizontal"
-            android:visibility="gone"
-            tools:visibility="visible" />
-
     </FrameLayout>
-
 
     <TextView
         android:id="@+id/tv_day_income"

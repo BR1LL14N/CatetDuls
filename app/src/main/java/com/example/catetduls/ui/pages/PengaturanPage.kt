@@ -28,6 +28,7 @@ class PengaturanPage : Fragment() {
     private val viewModel: PengaturanViewModel by viewModels()
 
     // Views
+    private lateinit var cardKelolaBuku: MaterialCardView
     private lateinit var cardKelolaKategori: MaterialCardView
     private lateinit var cardKelolaWallet: MaterialCardView
     private lateinit var btnBackup: MaterialButton
@@ -116,6 +117,7 @@ class PengaturanPage : Fragment() {
     }
 
     private fun initViews(view: View) {
+        cardKelolaBuku = view.findViewById(R.id.card_kelola_buku)
         cardKelolaKategori = view.findViewById(R.id.card_kelola_kategori)
         cardKelolaWallet = view.findViewById(R.id.card_kelola_wallet)
         btnBackup = view.findViewById(R.id.btn_backup)
@@ -137,6 +139,16 @@ class PengaturanPage : Fragment() {
     }
 
     private fun setupButtons() {
+        // Kelola Buku
+        cardKelolaBuku.setOnClickListener {
+            val kelolaFragment = KelolaBukuPage()
+            parentFragmentManager
+                    .beginTransaction()
+                    .replace(R.id.fragment_container, kelolaFragment)
+                    .addToBackStack(null)
+                    .commit()
+        }
+
         // Kelola Kategori
         cardKelolaKategori.setOnClickListener {
             val kelolaFragment = KelolaKategoriPage()
