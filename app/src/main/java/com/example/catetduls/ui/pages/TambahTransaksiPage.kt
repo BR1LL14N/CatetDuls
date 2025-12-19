@@ -902,9 +902,9 @@ class TambahTransaksiPage : Fragment() {
             // Hanya tampilkan dan proses kategori jika bukan Transfer
             if (!isTransfer) {
                 if (categories.isEmpty()) {
-                    Toast.makeText(requireContext(), "Tidak ada kategori tersedia!", Toast.LENGTH_LONG).show()
+                    // Toast DIHAPUS agar tidak muncul berulang-ulang saat sync
                     spinnerKategori.adapter = null
-                    viewModel.setCategory(0) // Set ke ID tidak valid
+                    viewModel.setCategory(0)
                     return@observe
                 }
 
@@ -949,10 +949,10 @@ class TambahTransaksiPage : Fragment() {
             walletsList = wallets
 
             if (wallets.isEmpty()) {
-                Toast.makeText(requireContext(), "Tidak ada dompet tersedia untuk Buku ini!", Toast.LENGTH_LONG).show()
+                // Toast DIHAPUS
                 spinnerWallet.adapter = null
                 spinnerWalletTarget.adapter = null
-                viewModel.setWallet(0) // Set ke ID tidak valid
+                viewModel.setWallet(0)
                 viewModel.setTargetWallet(null)
                 return@observe
             }
