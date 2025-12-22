@@ -109,10 +109,11 @@ interface ApiService {
 
     @GET("books/{id}") suspend fun getBook(@Path("id") bookId: String): Response<Book>
 
-    @POST("books") suspend fun createBook(@Body book: Book): Response<CreateResponse>
+    @POST("books")
+    suspend fun createBook(@Body request: BookRequest): Response<CreateResponse>
 
     @PUT("books/{id}")
-    suspend fun updateBook(@Path("id") serverId: String, @Body book: Book): Response<Unit>
+    suspend fun updateBook(@Path("id") serverId: String, @Body request: BookRequest): Response<Unit>
 
     @DELETE("books/{id}") suspend fun deleteBook(@Path("id") serverId: String): Response<Unit>
 
@@ -137,10 +138,11 @@ interface ApiService {
 
     @GET("wallets/{id}") suspend fun getWallet(@Path("id") walletId: String): Response<Wallet>
 
-    @POST("wallets") suspend fun createWallet(@Body wallet: Wallet): Response<CreateResponse>
+    @POST("wallets")
+    suspend fun createWallet(@Body request: WalletRequest): Response<CreateResponse>
 
     @PUT("wallets/{id}")
-    suspend fun updateWallet(@Path("id") serverId: String, @Body wallet: Wallet): Response<Unit>
+    suspend fun updateWallet(@Path("id") serverId: String, @Body request: WalletRequest): Response<Unit>
 
     @DELETE("wallets/{id}") suspend fun deleteWallet(@Path("id") serverId: String): Response<Unit>
 
@@ -162,13 +164,10 @@ interface ApiService {
     suspend fun getCategory(@Path("id") categoryId: String): Response<Category>
 
     @POST("categories")
-    suspend fun createCategory(@Body category: Category): Response<CreateResponse>
+    suspend fun createCategory(@Body request: CategoryRequest): Response<CreateResponse>
 
     @PUT("categories/{id}")
-    suspend fun updateCategory(
-            @Path("id") serverId: Long,
-            @Body category: Category
-    ): Response<MessageResponse>
+    suspend fun updateCategory(@Path("id") serverId: String, @Body request: CategoryRequest): Response<MessageResponse>
 
     @DELETE("categories/{id}")
     suspend fun deleteCategory(@Path("id") serverId: String): Response<MessageResponse>
@@ -193,12 +192,12 @@ interface ApiService {
     suspend fun getTransaction(@Path("id") transactionId: String): Response<Transaction>
 
     @POST("transactions")
-    suspend fun createTransaction(@Body transaction: Transaction): Response<CreateResponse>
+    suspend fun createTransaction(@Body request: TransactionRequest): Response<CreateResponse>
 
     @PUT("transactions/{id}")
     suspend fun updateTransaction(
-            @Path("id") serverId: Long,
-            @Body transaction: Transaction
+        @Path("id") serverId: Long, // Atau String, sesuaikan dengan server_id di DB lokal Anda
+        @Body request: TransactionRequest
     ): Response<MessageResponse>
 
     @DELETE("transactions/{id}")
@@ -298,10 +297,47 @@ data class ResetPasswordRequest(
         val password_confirmation: String
 )
 
+data class WalletRequest(
+    @SerializedName("book_id") val bookId: String, // Server butuh String UUID/ID Server
+    val name: String,
+    val type: String, // "CASH", "BANK", etc
+    val icon: String,
+    val color: String,
+    @SerializedName("initial_balance") val initialBalance: Double
+)
+
+data class CategoryRequest(
+    @SerializedName("book_id") val bookId: String, // Server butuh String UUID/ID Server
+    val name: String,
+    val type: String, // "PEMASUKAN", "PENGELUARAN", "TRANSFER"
+    val icon: String
+)
+
 data class ChangePasswordRequest(
         val current_password: String,
         val new_password: String,
         val new_password_confirmation: String
+)
+
+data class TransactionRequest(
+    @SerializedName("book_id") val bookId: String,         // Wajib Server ID
+    @SerializedName("wallet_id") val walletId: String,     // Wajib Server ID
+    @SerializedName("category_id") val categoryId: String, // Wajib Server ID
+
+    val amount: Double,
+    val type: String, // "PEMASUKAN", "PENGELUARAN", "TRANSFER"
+
+    // Perhatikan nama field di server Anda.
+    // Jika server minta "note", pakai "note". Jika "notes", pakai "notes".
+    // Berdasarkan logcat sebelumnya, server Anda menerima "note".
+    val note: String,
+
+    // Kirim tanggal. Server biasanya butuh format timestamp atau string date.
+    // Jika server Anda menerima timestamp integer (Long), kirim Long.
+    @SerializedName("created_at") val createdAt: Long,
+
+    // Opsional: Jika ada image
+    // @SerializedName("image_url") val imageUrl: String?
 )
 
 data class UpdateProfileRequest(
@@ -322,6 +358,16 @@ data class UserPreferences(
         val language: String? = null,
         val currency: String? = null,
         val notifications_enabled: Boolean? = null
+)
+
+data class BookRequest(
+    val name: String,
+    val description: String,
+    val icon: String,
+    val color: String,
+    // Kita tidak kirim 'id' (dibuat server)
+    // Kita tidak kirim 'user_id' (diambil dari token)
+    // Kita tidak kirim 'currency' (karena tabel server belum punya kolomnya)
 )
 
 data class UserStatistics(

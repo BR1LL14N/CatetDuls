@@ -1,10 +1,8 @@
 package com.example.catetduls.ui.adapter
 
-import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
@@ -13,17 +11,26 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.catetduls.R
 import com.example.catetduls.data.Transaction
 import com.example.catetduls.data.TransactionType
-import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.Locale
 
 class TransactionAdapter(
-    private val onItemClick: (com.example.catetduls.data.Transaction) -> Unit,
-    private val getCategoryName: (Int) -> String = { "" },
-    private val getCategoryIcon: (Int) -> String = { "💰" },
-    private val getWalletName: (Int) -> String = { "" }
+        private val onItemClick: (com.example.catetduls.data.Transaction) -> Unit,
+        private val getCategoryName: (Int) -> String = { "" },
+        private val getCategoryIcon: (Int) -> String = { "💰" },
+        private val getWalletName: (Int) -> String = { "" },
+        private var currencySymbol: String = "Rp", // Default
+        private var currencyCode: String = "IDR" // Default
 ) : ListAdapter<TransactionListItem, RecyclerView.ViewHolder>(TransactionDiffCallback()) {
+
+    fun setCurrency(code: String, symbol: String) {
+        this.currencyCode = code
+        this.currencySymbol = symbol
+        notifyDataSetChanged()
+    }
+
+
 
     companion object {
         private const val TYPE_HEADER = 0
@@ -39,26 +46,32 @@ class TransactionAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return if (viewType == TYPE_HEADER) {
-            val view = LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_transaction_header, parent, false)
+            val view =
+                    LayoutInflater.from(parent.context)
+                            .inflate(R.layout.item_transaction_header, parent, false)
             HeaderViewHolder(view)
         } else {
-            val view = LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_transaction, parent, false)
+            val view =
+                    LayoutInflater.from(parent.context)
+                            .inflate(R.layout.item_transaction, parent, false)
             TransactionViewHolder(view)
         }
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (val item = getItem(position)) {
-            is TransactionListItem.DateHeader -> (holder as HeaderViewHolder).bind(item)
-            is TransactionListItem.TransactionItem -> (holder as TransactionViewHolder).bind(
-                item.transaction,
-                onItemClick,
-                getCategoryName,
-                getCategoryIcon,
-                getWalletName
-            )
+            is TransactionListItem.DateHeader ->
+                    (holder as HeaderViewHolder).bind(item, currencyCode, currencySymbol)
+            is TransactionListItem.TransactionItem ->
+                    (holder as TransactionViewHolder).bind(
+                            item.transaction,
+                            onItemClick,
+                            getCategoryName,
+                            getCategoryIcon,
+                            getWalletName,
+                            currencyCode,
+                            currencySymbol
+                    )
         }
     }
 
@@ -72,7 +85,11 @@ class TransactionAdapter(
         private val tvDailyIncome: TextView = itemView.findViewById(R.id.tv_daily_income)
         private val tvDailyExpense: TextView = itemView.findViewById(R.id.tv_daily_expense)
 
-        fun bind(header: TransactionListItem.DateHeader) {
+        fun bind(
+                header: TransactionListItem.DateHeader,
+                currencyCode: String,
+                currencySymbol: String
+        ) {
             val date = Date(header.dateTimestamp)
             val localeID = Locale("id", "ID")
 
@@ -80,18 +97,33 @@ class TransactionAdapter(
             tvDateDayName.text = SimpleDateFormat("EEE", localeID).format(date)
             tvDateMonthYear.text = SimpleDateFormat("MM.yyyy", localeID).format(date)
 
-            val formatter = NumberFormat.getCurrencyInstance(localeID)
-            formatter.maximumFractionDigits = 0
-
             if (header.dailyIncome > 0) {
-                tvDailyIncome.text = formatter.format(header.dailyIncome).replace("Rp", "Rp ")
+                val convertedIncome =
+                        com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
+                                header.dailyIncome,
+                                currencyCode
+                        )
+                tvDailyIncome.text =
+                        com.example.catetduls.utils.CurrencyHelper.format(
+                                convertedIncome,
+                                currencySymbol
+                        )
                 tvDailyIncome.visibility = View.VISIBLE
             } else {
                 tvDailyIncome.visibility = View.GONE
             }
 
             if (header.dailyExpense > 0) {
-                tvDailyExpense.text = formatter.format(header.dailyExpense).replace("Rp", "Rp ")
+                val convertedExpense =
+                        com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
+                                header.dailyExpense,
+                                currencyCode
+                        )
+                tvDailyExpense.text =
+                        com.example.catetduls.utils.CurrencyHelper.format(
+                                convertedExpense,
+                                currencySymbol
+                        )
                 tvDailyExpense.visibility = View.VISIBLE
             } else {
                 tvDailyExpense.visibility = View.GONE
@@ -110,14 +142,17 @@ class TransactionAdapter(
         private val tvAmount: TextView = itemView.findViewById(R.id.tv_amount)
 
         private val cardImage: View = itemView.findViewById(R.id.card_image_preview)
-        private val ivThumb: android.widget.ImageView = itemView.findViewById(R.id.iv_transaction_thumb)
+        private val ivThumb: android.widget.ImageView =
+                itemView.findViewById(R.id.iv_transaction_thumb)
 
         fun bind(
-            transaction: com.example.catetduls.data.Transaction,
-            onItemClick: (com.example.catetduls.data.Transaction) -> Unit,
-            getCategoryName: (Int) -> String,
-            getCategoryIcon: (Int) -> String,
-            getWalletName: (Int) -> String
+                transaction: com.example.catetduls.data.Transaction,
+                onItemClick: (com.example.catetduls.data.Transaction) -> Unit,
+                getCategoryName: (Int) -> String,
+                getCategoryIcon: (Int) -> String,
+                getWalletName: (Int) -> String,
+                currencyCode: String,
+                currencySymbol: String
         ) {
             val context = itemView.context
 
@@ -137,17 +172,32 @@ class TransactionAdapter(
             tvWalletName.text = getWalletName(transaction.walletId)
 
             // 4. Set Amount & Warna
-            val formatter = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-            formatter.maximumFractionDigits = 0
+            // Convert IDR to Target Currency
+            val convertedAmount =
+                    com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
+                            transaction.amount,
+                            currencyCode
+                    )
 
-            tvAmount.text = CurrencyUtils.toRupiah(transaction.amount)
+            tvAmount.text =
+                    com.example.catetduls.utils.CurrencyHelper.format(
+                            convertedAmount,
+                            currencySymbol
+                    )
 
             // ✅ FIXED: Tambahkan branch untuk TRANSFER
-            val amountColor = when (transaction.type) {
-                TransactionType.PEMASUKAN -> ContextCompat.getColor(context, R.color.success)
-                TransactionType.PENGELUARAN -> ContextCompat.getColor(context, R.color.danger)
-                TransactionType.TRANSFER -> ContextCompat.getColor(context, R.color.text_secondary) // Abu-abu untuk transfer
-            }
+            val amountColor =
+                    when (transaction.type) {
+                        TransactionType.PEMASUKAN ->
+                                ContextCompat.getColor(context, R.color.success)
+                        TransactionType.PENGELUARAN ->
+                                ContextCompat.getColor(context, R.color.danger)
+                        TransactionType.TRANSFER ->
+                                ContextCompat.getColor(
+                                        context,
+                                        R.color.text_secondary
+                                ) // Abu-abu untuk transfer
+                    }
             tvAmount.setTextColor(amountColor)
 
             // Click Listener
@@ -159,20 +209,18 @@ class TransactionAdapter(
     // DIFF CALLBACK (UPDATED)
     // ==========================================
     class TransactionDiffCallback : DiffUtil.ItemCallback<TransactionListItem>() {
-        override fun areItemsTheSame(oldItem: TransactionListItem, newItem: TransactionListItem): Boolean {
+        override fun areItemsTheSame(
+                oldItem: TransactionListItem,
+                newItem: TransactionListItem
+        ): Boolean {
             return oldItem.id == newItem.id
         }
 
-        override fun areContentsTheSame(oldItem: TransactionListItem, newItem: TransactionListItem): Boolean {
+        override fun areContentsTheSame(
+                oldItem: TransactionListItem,
+                newItem: TransactionListItem
+        ): Boolean {
             return oldItem == newItem
-        }
-    }
-
-    object CurrencyUtils {
-        fun toRupiah(amount: Double): String {
-            val format = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-            format.maximumFractionDigits = 0
-            return format.format(amount).replace("Rp", "Rp ")
         }
     }
 }

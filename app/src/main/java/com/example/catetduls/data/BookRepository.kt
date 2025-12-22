@@ -104,6 +104,21 @@ constructor(
         bookDao.switchActiveBook(newActiveBookId)
     }
 
+    suspend fun updateBookCurrency(bookId: Int, currencyCode: String, currencySymbol: String) {
+        val book = bookDao.getBookByIdSync(bookId)
+        if (book != null) {
+            val updatedBook =
+                    book.copy(
+                            currencyCode = currencyCode,
+                            currencySymbol = currencySymbol,
+                            isSynced = false, // Mark as unsynced so it uploads to server
+                            updatedAt = System.currentTimeMillis(),
+                            syncAction = if (book.syncAction == "CREATE") "CREATE" else "UPDATE"
+                    )
+            bookDao.update(updatedBook)
+        }
+    }
+
     // ===================================
     // DELETE
     // ===================================
@@ -143,14 +158,19 @@ constructor(
     // HELPER
     // ===================================
 
-    suspend fun createDefaultBook(): Long {
+    suspend fun createDefaultBook(
+            currencyCode: String = "IDR",
+            currencySymbol: String = "Rp"
+    ): Long {
         val defaultBook =
                 Book(
                         name = "Buku Baru",
                         description = "Buku keuangan baru",
                         icon = "📖",
                         isActive = false,
-                        lastSyncAt = 0L
+                        lastSyncAt = 0L,
+                        currencyCode = currencyCode,
+                        currencySymbol = currencySymbol
                 )
 
         return insert(defaultBook)

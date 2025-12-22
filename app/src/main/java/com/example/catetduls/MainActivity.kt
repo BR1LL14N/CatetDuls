@@ -16,6 +16,10 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope // ✅ Solusi error lifecycleScope
+import com.example.catetduls.data.Book // ✅ Solusi error infer type
+import com.example.catetduls.data.getBookRepository
+import android.content.Context
 
 // Antarmuka yang didefinisikan di RegisterPage, harus diimplementasikan di Activity
 interface NavigationController {
@@ -38,52 +42,67 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
         setupSyncObserver()
 
         // =========================================================================
+        // --- TAMBAHAN FIX AUTO-UPDATE ID (MULAI) ---
+        // Logika ini memastikan jika ID Buku di database berubah (misal dari server),
+        // SharedPreferences langsung diupdate agar tidak "nyangkut" di ID 1.
+        // =========================================================================
+        val bookRepo = this.getBookRepository()
+        val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+
+        lifecycleScope.launch {
+            // 2. Tambahkan tipe eksplisit 'book: Book?' agar Kotlin tidak bingung
+            bookRepo.getActiveBook().collect { book: Book? ->
+                if (book != null) {
+                    val currentPrefId = prefs.getInt("active_book_id", 1)
+
+                    // Jika ID di Prefs (1) beda dengan ID asli dari Database (misal 2)
+                    if (currentPrefId != book.id) {
+                        prefs.edit().putInt("active_book_id", book.id).apply()
+                        android.util.Log.d("MainActivity", "✅ FIX: Active Book ID updated to ${book.id}")
+
+                        // Opsional: Reload fragment jika sedang di halaman transaksi
+                        // loadFragment(TransaksiPage())
+                    }
+                }
+            }
+        }
+        // --- TAMBAHAN FIX AUTO-UPDATE ID (SELESAI) ---
+
+
+        // =========================================================================
         // Logika Lifecycle Callback Sederhana
-        // Kita hanya perlu memastikan Navbar muncul secara default, dan biarkan
-        // Fragment seperti LoginPage/RegisterPage yang menyembunyikannya.
-        // Jika ada Fragment yang di-replace, kita atur visibilitas default.
         // =========================================================================
         supportFragmentManager.registerFragmentLifecycleCallbacks(
-                object : FragmentManager.FragmentLifecycleCallbacks() {
-                    override fun onFragmentViewCreated(
-                            fm: FragmentManager,
-                            f: Fragment,
-                            v: View,
-                            savedInstanceState: Bundle?
-                    ) {
-                        super.onFragmentViewCreated(fm, f, v, savedInstanceState)
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentViewCreated(
+                    fm: FragmentManager,
+                    f: Fragment,
+                    v: View,
+                    savedInstanceState: Bundle?
+                ) {
+                    super.onFragmentViewCreated(fm, f, v, savedInstanceState)
 
-                        // Jika Fragment yang ditampilkan adalah LoginPage atau RegisterPage,
-                        // sembunyikan Navbar.
-                        if (f is LoginPage || f is RegisterPage) {
-                            bottomNav.visibility = View.GONE
-                        }
-                        // Jika Fragment lain (TransaksiPage, dll.) sedang dimuat, tampilkan.
-                        else {
-                            bottomNav.visibility = View.VISIBLE
-                        }
+                    if (f is LoginPage || f is RegisterPage) {
+                        bottomNav.visibility = View.GONE
+                    } else {
+                        bottomNav.visibility = View.VISIBLE
                     }
-                },
-                true
+                }
+            },
+            true
         )
 
         if (savedInstanceState == null) {
-            // Cek Status User
             val isFirstRun = AppPreferences.isFirstRun(this)
             val isLoggedIn = TokenManager.isLoggedIn(this)
 
             if (isFirstRun && !isLoggedIn) {
-                // User Baru -> Login Page (Navbar akan disembunyikan oleh callback)
                 loadFragment(LoginPage())
             } else {
-                // User Lama -> Halaman Utama (Navbar akan ditampilkan oleh callback)
                 loadFragment(TransaksiPage())
 
-                // OTOMATIS SYNC SAAT APP DIBUKA (Jika Login)
                 if (isLoggedIn) {
-                    // Force sync immediately
                     com.example.catetduls.data.sync.SyncManager.forceOneTimeSync(this)
-                    // Ensure periodic sync is scheduled (KEEP policy won't duplicate)
                     com.example.catetduls.data.sync.SyncManager.schedulePeriodicSync(this)
                 }
             }

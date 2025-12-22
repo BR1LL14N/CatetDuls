@@ -15,10 +15,12 @@ import androidx.fragment.app.viewModels // Import Hilt ktx
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
 import com.example.catetduls.R
+import com.example.catetduls.data.getBookRepository // Import Extension
 import com.example.catetduls.viewmodel.PengaturanViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint // WAJIB: Anotasi agar Hilt bekerja di Fragment ini
@@ -47,6 +49,8 @@ class PengaturanPage : Fragment() {
     private lateinit var btnAuthAction: MaterialButton
     private lateinit var tvUserStatus: TextView
     private lateinit var btnSyncNow: MaterialButton
+    private lateinit var tvActiveBookName: TextView
+    private lateinit var tvActiveCurrency: TextView
 
     // ===============================================
     // LAUNCHER UNTUK EXPORT FILE
@@ -104,7 +108,7 @@ class PengaturanPage : Fragment() {
         initViews(view)
 
         // Setup
-        setupButtons()
+        setupButtons(view)
 
         // Observe data
         observeData()
@@ -134,11 +138,13 @@ class PengaturanPage : Fragment() {
         btnAuthAction = view.findViewById(R.id.btn_auth_action)
         tvUserStatus = view.findViewById(R.id.tv_user_status)
         btnSyncNow = view.findViewById(R.id.btn_sync_now)
+        tvActiveBookName = view.findViewById(R.id.tv_active_book_name)
+        tvActiveCurrency = view.findViewById(R.id.tv_active_currency)
 
         btnEditProfile = view.findViewById(R.id.btn_edit_profile)
     }
 
-    private fun setupButtons() {
+    private fun setupButtons(view: View) {
         // Kelola Buku
         cardKelolaBuku.setOnClickListener {
             val kelolaFragment = KelolaBukuPage()
@@ -166,6 +172,21 @@ class PengaturanPage : Fragment() {
                     .replace(R.id.fragment_container, kelolaFragment)
                     .addToBackStack(null)
                     .commit()
+        }
+
+        // Mata Uang Buku
+        val cardMataUang = view.findViewById<MaterialCardView>(R.id.card_mata_uang_buku)
+        cardMataUang.setOnClickListener { showCurrencySelectionDialog() }
+
+        // Show current currency validation
+        viewLifecycleOwner.lifecycleScope.launch {
+            val bookRepository = requireContext().getBookRepository()
+            bookRepository.getActiveBook().collect { book ->
+                if (book != null) {
+                    tvActiveBookName.text = book.name
+                    tvActiveCurrency.text = "${book.currencyCode} (${book.currencySymbol})"
+                }
+            }
         }
 
         // Backup
@@ -234,7 +255,18 @@ class PengaturanPage : Fragment() {
                     .commit()
         }
 
-        btnSyncNow.setOnClickListener { viewModel.forceSync() }
+        btnSyncNow.setOnClickListener {
+            if (viewModel.isLoggedIn.value) {
+                viewModel.forceSync()
+            } else {
+                Toast.makeText(
+                                requireContext(),
+                                "Harap login terlebih dahulu untuk menggunakan fitur sinkronisasi",
+                                Toast.LENGTH_SHORT
+                        )
+                        .show()
+            }
+        }
     }
 
     // ===============================================
@@ -324,6 +356,36 @@ class PengaturanPage : Fragment() {
                 .setPositiveButton("Keluar") { _, _ -> viewModel.logout() }
                 .setNegativeButton("Batal", null)
                 .show()
+    }
+
+    private fun showCurrencySelectionDialog() {
+        val currencies = com.example.catetduls.utils.CurrencyHelper.getAvailableCurrencies()
+        val items = currencies.map { it.toString() }.toTypedArray()
+
+        // Fetch current active code effectively using a one-shot fetch or observing activeBook in
+        // VM
+        // Since we are in Fragment, we can launch a coroutine to get it before showing dialog,
+        // OR just show dialog without pre-selection if lazy.
+        // But user asked for "kasih mark selected".
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            val bookRepository = requireContext().getBookRepository()
+            val activeBook = bookRepository.getBookByIdSync(viewModel.getActiveBookId())
+            val currentCode = activeBook?.currencyCode ?: "IDR"
+
+            // Find index
+            val checkedItem = currencies.indexOfFirst { it.code == currentCode }
+
+            AlertDialog.Builder(requireContext())
+                    .setTitle("Pilih Mata Uang Buku Aktif")
+                    .setSingleChoiceItems(items, checkedItem) { dialog, which ->
+                        val selected = currencies[which]
+                        viewModel.updateActiveBookCurrency(selected.code, selected.symbol)
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton("Batal", null)
+                    .show()
+        }
     }
 
     // ===============================================

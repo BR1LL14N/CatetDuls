@@ -68,6 +68,7 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
                 walletDao.getTotalBalance(book?.id ?: 1)
             }
 
+
     suspend fun getSingleWalletById(walletId: Int): Wallet? {
         return walletDao.getSingleWalletById(walletId)
     }

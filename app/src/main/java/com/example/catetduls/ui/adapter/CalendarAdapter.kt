@@ -24,7 +24,9 @@ data class CalendarDayCell(
 // Adapter yang menerima List<CalendarDayCell?>
 class CalendarAdapter(
     initialDays: List<CalendarDayCell?>,
-    private val onDayClick: (Long) -> Unit
+    private val onDayClick: (Long) -> Unit,
+    private var currencyCode: String = "IDR",
+    private var currencySymbol: String = "Rp"
 ) : RecyclerView.Adapter<CalendarAdapter.CalendarViewHolder>() {
 
     // PROPERTI DIPERBAIKI: Mendeklarasikan data sebagai Mutable List dari awal
@@ -40,6 +42,12 @@ class CalendarAdapter(
         calendarDays.addAll(newDays)
         notifyDataSetChanged()
     }
+    
+    fun updateCurrency(code: String, symbol: String) {
+        this.currencyCode = code
+        this.currencySymbol = symbol
+        notifyDataSetChanged()
+    }
 
     override fun getItemCount() = calendarDays.size
 
@@ -52,7 +60,7 @@ class CalendarAdapter(
     override fun onBindViewHolder(holder: CalendarViewHolder, position: Int) {
         // Akses item langsung dari list internal
         val item = calendarDays[position]
-        holder.bind(item, onDayClick)
+        holder.bind(item, onDayClick, currencyCode, currencySymbol)
     }
 
     class CalendarViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -62,12 +70,7 @@ class CalendarAdapter(
         private val tvDayTotal: TextView = itemView.findViewById(R.id.tv_day_total)
         private val viewDayMarker: View = itemView.findViewById(R.id.view_day_marker)
 
-        private val currencyFormat: NumberFormat = NumberFormat.getNumberInstance(Locale("id", "ID")).apply {
-            maximumFractionDigits = 0
-            minimumFractionDigits = 0
-        }
-
-        fun bind(cell: CalendarDayCell?, onDayClick: (Long) -> Unit) {
+        fun bind(cell: CalendarDayCell?, onDayClick: (Long) -> Unit, currencyCode: String, currencySymbol: String) {
             val context = itemView.context
 
             // Reset visibility & Style
@@ -120,23 +123,32 @@ class CalendarAdapter(
                 val income = summary.totalIncome
                 val expense = summary.totalExpense
                 val total = income - expense
+                
+                // Convert Values
+                val convertedIncome = com.example.catetduls.utils.CurrencyHelper.convertIdrTo(income, currencyCode)
+                val convertedExpense = com.example.catetduls.utils.CurrencyHelper.convertIdrTo(expense, currencyCode)
+                val convertedTotal = com.example.catetduls.utils.CurrencyHelper.convertIdrTo(total, currencyCode)
 
                 // Pemasukan
                 if (income > 0) {
-                    tvDayIncome.text = currencyFormat.format(income)
+                    tvDayIncome.text = com.example.catetduls.utils.CurrencyHelper.format(convertedIncome, currencySymbol)
                     tvDayIncome.visibility = View.VISIBLE
                 }
 
                 // Pengeluaran
                 if (expense > 0) {
-                    tvDayExpense.text = currencyFormat.format(expense)
+                    tvDayExpense.text = com.example.catetduls.utils.CurrencyHelper.format(convertedExpense, currencySymbol)
                     tvDayExpense.visibility = View.VISIBLE
                 }
 
                 // Total/Saldo
                 if (total != 0.0) {
-                    val totalSign = if (total >= 0) "" else "-"
-                    tvDayTotal.text = "$totalSign${currencyFormat.format(abs(total))}"
+                     // Use helper format directly, handles negative sign too
+                    tvDayTotal.text = com.example.catetduls.utils.CurrencyHelper.format(abs(convertedTotal), currencySymbol)
+                    if (total < 0) {
+                        tvDayTotal.text = "-" + tvDayTotal.text
+                    }
+                    
                     tvDayTotal.visibility = View.VISIBLE
 
                     val totalColor = if (total >= 0) R.color.success else R.color.danger

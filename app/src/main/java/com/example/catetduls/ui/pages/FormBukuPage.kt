@@ -27,7 +27,11 @@ class FormBukuPage : Fragment() {
     private lateinit var etName: TextInputEditText
     private lateinit var etDescription: TextInputEditText
     private lateinit var etIcon: TextInputEditText
+    private lateinit var etCurrencySelection: android.widget.AutoCompleteTextView
     private lateinit var btnSimpan: MaterialButton
+
+    private var selectedCurrencyCode: String = "IDR"
+    private var selectedCurrencySymbol: String = "Rp"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,6 +50,7 @@ class FormBukuPage : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         initViews(view)
+        setupCurrencyDropdown()
         populateData()
         setupListeners()
         observeEvents()
@@ -55,7 +60,25 @@ class FormBukuPage : Fragment() {
         etName = view.findViewById(R.id.et_name)
         etDescription = view.findViewById(R.id.et_description)
         etIcon = view.findViewById(R.id.et_icon)
+        etCurrencySelection = view.findViewById(R.id.et_currency_selection)
         btnSimpan = view.findViewById(R.id.btn_simpan)
+    }
+
+    private fun setupCurrencyDropdown() {
+        val currencies = com.example.catetduls.utils.CurrencyHelper.getAvailableCurrencies()
+        val adapter =
+                android.widget.ArrayAdapter(
+                        requireContext(),
+                        android.R.layout.simple_dropdown_item_1line,
+                        currencies
+                )
+        etCurrencySelection.setAdapter(adapter)
+
+        etCurrencySelection.setOnItemClickListener { _, _, position, _ ->
+            val selected = currencies[position]
+            selectedCurrencyCode = selected.code
+            selectedCurrencySymbol = selected.symbol
+        }
     }
 
     private fun populateData() {
@@ -63,6 +86,27 @@ class FormBukuPage : Fragment() {
             etName.setText(book.name)
             etDescription.setText(book.description)
             etIcon.setText(book.icon)
+
+            // Set Selection based on book currency
+            val currencies = com.example.catetduls.utils.CurrencyHelper.getAvailableCurrencies()
+            val savedCurrency = currencies.find { it.code == book.currencyCode }
+
+            if (savedCurrency != null) {
+                etCurrencySelection.setText(savedCurrency.toString(), false)
+                selectedCurrencyCode = savedCurrency.code
+                selectedCurrencySymbol = savedCurrency.symbol
+            } else {
+                // Fallback if custom currency (or not in list)
+
+                // ✅ PERBAIKAN: Gunakan nilai default jika null
+                val code = book.currencyCode ?: "IDR"
+                val symbol = book.currencySymbol ?: "Rp"
+
+                etCurrencySelection.setText("$code - $symbol", false)
+                selectedCurrencyCode = code
+                selectedCurrencySymbol = symbol
+            }
+
             btnSimpan.text = "Update Buku"
         }
     }
@@ -78,6 +122,8 @@ class FormBukuPage : Fragment() {
                     name = name,
                     description = description,
                     icon = icon.ifBlank { "📖" },
+                    currencyCode = selectedCurrencyCode,
+                    currencySymbol = selectedCurrencySymbol,
                     existingBook = existingBook
             )
         }
@@ -88,8 +134,18 @@ class FormBukuPage : Fragment() {
             viewModel.uiEvent.collectLatest { event ->
                 when (event) {
                     is FormBukuViewModel.UiEvent.Success -> {
-                        Toast.makeText(requireContext(), "Berhasil disimpan", Toast.LENGTH_SHORT)
-                                .show()
+                        // 1. Beritahu user
+                        Toast.makeText(requireContext(), "Berhasil disimpan", Toast.LENGTH_SHORT).show()
+
+                        // 2. [PENTING] Panggil SyncManager untuk kirim data ke server SEKARANG JUGA
+                        // Pastikan import com.example.catetduls.data.sync.SyncManager
+                        try {
+                            com.example.catetduls.data.sync.SyncManager.forceOneTimeSync(requireContext())
+                        } catch (e: Exception) {
+                            android.util.Log.e("FormBukuPage", "Gagal trigger sync: ${e.message}")
+                        }
+
+                        // 3. Tutup Halaman
                         parentFragmentManager.popBackStack()
                     }
                     is FormBukuViewModel.UiEvent.Error -> {

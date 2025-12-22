@@ -10,12 +10,18 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.catetduls.R
 import com.example.catetduls.data.getCategoryRepository
 import com.example.catetduls.data.getTransactionRepository
+import com.example.catetduls.data.getBookRepository
 import com.example.catetduls.ui.adapter.TransactionAdapter
 import com.example.catetduls.utils.Formatters
 import com.example.catetduls.ui.viewmodel.DetailStatistikViewModel
@@ -57,7 +63,8 @@ class DetailStatistikPage : Fragment() {
         // 1. Init ViewModel
         val transactionRepo = requireContext().getTransactionRepository()
         val categoryRepo = requireContext().getCategoryRepository()
-        val factory = DetailStatistikViewModelFactory(transactionRepo, categoryRepo)
+        val bookRepo = requireContext().getBookRepository() // Get BookRepository
+        val factory = DetailStatistikViewModelFactory(transactionRepo, categoryRepo, bookRepo)
         viewModel = ViewModelProvider(this, factory)[DetailStatistikViewModel::class.java]
 
         initViews(view)
@@ -185,29 +192,37 @@ class DetailStatistikPage : Fragment() {
             }
         }
 
-        // 2. Bulan Header (Mengambil dari _selectedMonthYear di VM)
-        // Note: Kita perlu expose livedata untuk ini di VM jika ingin dinamis,
-        // tapi sementara kita bisa format manual di sini atau tambahkan di VM.
-        // Asumsi: ViewModel punya helper 'formatMonthYear'
-        // (Akan saya update di instruksi tambahan jika VM belum punya)
-
-        // 3. Total Bulanan
-        viewModel.currentMonthTotal.observe(viewLifecycleOwner) { total ->
-            tvTotalAmount.text = Formatters.toRupiah(total)
-        }
-
         // 4. List Transaksi
         viewModel.transactionHistory.observe(viewLifecycleOwner) { list ->
             transactionAdapter.submitList(list)
-
-            // Update Header Tanggal (Manual triggger karena observe combine)
-            // Di VM: _selectedMonthYear berubah -> transactionHistory berubah.
-            // Kita bisa ambil timestamp dari item pertama list (jika ada) atau simpan state di VM.
         }
 
         // 5. Data Chart
         viewModel.lineChartData.observe(viewLifecycleOwner) { data ->
             updateChartData(data)
+        }
+
+        // 6. Currency (New)
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.currencyCode.collect { code ->
+                        val symbol = viewModel.currencySymbol.value
+                        transactionAdapter.setCurrency(code, symbol)
+                    }
+                }
+                launch {
+                    viewModel.currencySymbol.collect { symbol ->
+                        val total = viewModel.currentMonthTotal.value ?: 0.0
+                        tvTotalAmount.text = com.example.catetduls.utils.CurrencyHelper.format(total, symbol)
+                    }
+                }
+            }
+        }
+
+        // 3. Total Bulanan (Update text when amount changes)
+        viewModel.currentMonthTotal.observe(viewLifecycleOwner) { total ->
+            tvTotalAmount.text = com.example.catetduls.utils.CurrencyHelper.format(total, viewModel.currencySymbol.value)
         }
     }
 

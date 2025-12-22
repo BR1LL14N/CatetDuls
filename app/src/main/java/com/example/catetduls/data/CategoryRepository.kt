@@ -96,6 +96,10 @@ constructor(private val categoryDao: CategoryDao, private val bookRepository: Bo
         categoryDao.insertAll(categoriesToInsert)
     }
 
+    suspend fun getCategoryByIdSync(id: Int): Category? {
+        return categoryDao.getCategoryByIdSync(id) // Anda perlu buat query ini di DAO
+    }
+
     // ===================================
     // UPDATE
     // ===================================

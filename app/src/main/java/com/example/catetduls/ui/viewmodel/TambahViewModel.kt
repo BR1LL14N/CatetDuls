@@ -1,20 +1,22 @@
 package com.example.catetduls.viewmodel
 
 import androidx.lifecycle.*
-import com.example.catetduls.data.* // Asumsi ini berisi kelas Transaction, Category, Wallet, dan TransactionType
+import com.example.catetduls.data.* // Asumsi ini berisi kelas Transaction, Category, Wallet, dan
+// TransactionType
+import java.util.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import java.util.*
 
 class TambahViewModel(
-    private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository,
-    private val walletRepository: WalletRepository,
-    private val activeWalletId: Int,
-    private val activeBookId: Int // Ensure this is passed correctly via Factory
+        private val transactionRepository: TransactionRepository,
+        private val categoryRepository: CategoryRepository,
+        private val walletRepository: WalletRepository,
+        private val bookRepository: BookRepository, // Add BookRepository
+        private val activeWalletId: Int,
+        private val activeBookId: Int
 ) : ViewModel() {
 
     // === State Management ===
@@ -59,6 +61,7 @@ class TambahViewModel(
     val notes: StateFlow<String> = _notes.asStateFlow()
 
     private val _transferCategoryId = MutableStateFlow<Int?>(null)
+    private var activeCurrencyCode: String = "IDR" // Default
 
     private suspend fun getWalletNameById(walletId: Int): String {
         val wallet = walletRepository.getSingleWalletById(walletId)
@@ -66,27 +69,40 @@ class TambahViewModel(
     }
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 // Get Transfer Category ID on init
-                val id = categoryRepository.getCategoryIdByType(TransactionType.TRANSFER, activeBookId)
+                val id = categoryRepository.getCategoryIdByType(
+                    TransactionType.TRANSFER,
+                    activeBookId
+                )
                 _transferCategoryId.value = id
+
+                // Fetch Active Book Currency Code
+                val book = bookRepository.getBookByIdSync(activeBookId)
+                if (book != null) {
+                    // ✅ PERBAIKAN: Gunakan Elvis Operator (?:)
+                    // Jika book.currencyCode null, gunakan "IDR" sebagai default
+                    activeCurrencyCode = book.currencyCode ?: "IDR"
+                }
             } catch (e: Exception) {
-                android.util.Log.e("TambahViewModel", "Failed to fetch Transfer Category ID: ${e.message}")
+                android.util.Log.e("TambahViewModel", "Failed to fetch Init Data: ${e.message}")
             }
         }
     }
 
     // === Data Observation ===
-    val categories: LiveData<List<Category>> = _selectedType.asLiveData().switchMap { type ->
-        if (type != TransactionType.TRANSFER) {
-            categoryRepository.getCategoriesByBookIdAndType(activeBookId, type).asLiveData()
-        } else {
-            MutableLiveData(emptyList())
-        }
-    }
+    val categories: LiveData<List<Category>> =
+            _selectedType.asLiveData().switchMap { type ->
+                if (type != TransactionType.TRANSFER) {
+                    categoryRepository.getCategoriesByBookIdAndType(activeBookId, type).asLiveData()
+                } else {
+                    MutableLiveData(emptyList())
+                }
+            }
 
-    val wallets: LiveData<List<Wallet>> = walletRepository.getWalletsByBook(activeBookId).asLiveData()
+    val wallets: LiveData<List<Wallet>> =
+            walletRepository.getWalletsByBook(activeBookId).asLiveData()
 
     // === Computed Properties ===
     fun isEditMode(): Boolean = _transactionId.value != null
@@ -155,7 +171,19 @@ class TambahViewModel(
     }
 
     private fun parseAmount(): Double? {
-        val cleaned = _amount.value.replace(",", "").replace(".", "")
+        val raw = _amount.value
+        if (raw.isBlank()) return null
+        
+        // Asumsi format input mengikuti Locale Indonesia (Titik = Ribuan, Koma = Desimal)
+        // Contoh: "1.000.000" -> 1000000
+        // Contoh: "10,50" -> 10.5
+        
+        // 1. Hapus titik (ribuan)
+        var cleaned = raw.replace(".", "")
+        
+        // 2. Ganti koma dengan titik (untuk format Double standar program)
+        cleaned = cleaned.replace(",", ".")
+        
         return cleaned.toDoubleOrNull()
     }
 
@@ -169,16 +197,29 @@ class TambahViewModel(
                 val isEdit = isEditMode()
                 val currentTime = System.currentTimeMillis()
 
+                // --- CONVERSION LOGIC ---
+                // Convert Input Amount (Displayed Currency) -> IDR (Database Currency)
+                val amountInIdr =
+                        com.example.catetduls.utils.CurrencyHelper.convertToIdr(
+                                amountValue!!,
+                                activeCurrencyCode
+                        )
+
                 // --- INITIAL VALIDATION ---
-                if (amountValue == null || amountValue <= 0 || !isFormValid()) {
-                    if (amountValue == null || amountValue <= 0) {
+                if (amountInIdr <= 0 || !isFormValid()) {
+                    if (amountInIdr <= 0) {
                         _errorMessage.value = "Jumlah harus lebih dari 0"
-                    } else if (currentType == TransactionType.TRANSFER && _transferCategoryId.value == null) {
-                        _errorMessage.value = "Kategori Transfer belum tersedia. Coba restart aplikasi."
+                    } else if (currentType == TransactionType.TRANSFER &&
+                                    _transferCategoryId.value == null
+                    ) {
+                        _errorMessage.value =
+                                "Kategori Transfer belum tersedia. Coba restart aplikasi."
                     } else if (currentType == TransactionType.TRANSFER) {
-                        _errorMessage.value = "Transfer tidak valid: Pastikan Dompet Sumber dan Tujuan berbeda dan jumlah diisi."
+                        _errorMessage.value =
+                                "Transfer tidak valid: Pastikan Dompet Sumber dan Tujuan berbeda dan jumlah diisi."
                     } else {
-                        _errorMessage.value = "Transaksi tidak valid: Kategori dan Dompet harus dipilih."
+                        _errorMessage.value =
+                                "Transaksi tidak valid: Kategori dan Dompet harus dipilih."
                     }
                     _isSaving.value = false
                     return@launch
@@ -193,9 +234,10 @@ class TambahViewModel(
                 // --- Sync Metadata Preparation ---
                 val syncAction = if (isEdit) "UPDATE" else "CREATE"
 
-                val existingTransaction = if (isEdit) {
-                    transactionRepository.getSingleTransactionById(_transactionId.value!!)
-                } else null
+                val existingTransaction =
+                        if (isEdit) {
+                            transactionRepository.getSingleTransactionById(_transactionId.value!!)
+                        } else null
                 val existingServerId = existingTransaction?.serverId
 
                 // --- TRANSFER LOGIC (Dual Transaction) ---
@@ -212,81 +254,88 @@ class TambahViewModel(
                     val targetWalletName = getWalletNameById(targetWalletId)
 
                     // 1. EXPENSE Transaction (From Source Wallet)
-                    val expenseTransaction = Transaction(
-                        id = 0,
-                        type = TransactionType.PENGELUARAN,
-                        amount = amountValue!!,
-                        categoryId = transferCategoryId,
-                        date = timestamp,
-                        notes = "[TRANSFER OUT: dari ${sourceWalletName} ke ${targetWalletName}], $notes",
-                        walletId = sourceWalletId,
-                        // ✅ FIX: Added bookId
-                        bookId = activeBookId,
-                        imagePath = imagePath,
-                        // === SYNC FIELDS ===
-                        createdAt = currentTime,
-                        updatedAt = currentTime,
-                        lastSyncAt = 0,
-                        isSynced = false,
-                        syncAction = "CREATE",
-                        serverId = null,
-                        isDeleted = false
-                    )
+                    val expenseTransaction =
+                            Transaction(
+                                    id = 0,
+                                    type = TransactionType.PENGELUARAN,
+                                    amount = amountInIdr, // Save IDR
+                                    categoryId = transferCategoryId,
+                                    date = timestamp,
+                                    notes =
+                                            "[TRANSFER OUT: dari ${sourceWalletName} ke ${targetWalletName}], $notes",
+                                    walletId = sourceWalletId,
+                                    // ✅ FIX: Added bookId
+                                    bookId = activeBookId,
+                                    imagePath = imagePath,
+                                    // === SYNC FIELDS ===
+                                    createdAt = currentTime,
+                                    updatedAt = currentTime,
+                                    lastSyncAt = 0,
+                                    isSynced = false,
+                                    syncAction = "CREATE",
+                                    serverId = null,
+                                    isDeleted = false
+                            )
 
                     // 2. INCOME Transaction (To Target Wallet)
-                    val incomeTransaction = Transaction(
-                        id = 0,
-                        type = TransactionType.PEMASUKAN,
-                        amount = amountValue,
-                        categoryId = transferCategoryId,
-                        date = timestamp,
-                        notes = "[TRANSFER IN: dari ${sourceWalletName} ke ${targetWalletName}], $notes",
-                        walletId = targetWalletId,
-                        // ✅ FIX: Added bookId
-                        bookId = activeBookId,
-                        imagePath = imagePath,
-                        // === SYNC FIELDS ===
-                        createdAt = currentTime,
-                        updatedAt = currentTime,
-                        lastSyncAt = 0,
-                        isSynced = false,
-                        syncAction = "CREATE",
-                        serverId = null,
-                        isDeleted = false
-                    )
+                    val incomeTransaction =
+                            Transaction(
+                                    id = 0,
+                                    type = TransactionType.PEMASUKAN,
+                                    amount = amountInIdr, // Save IDR
+                                    categoryId = transferCategoryId,
+                                    date = timestamp,
+                                    notes =
+                                            "[TRANSFER IN: dari ${sourceWalletName} ke ${targetWalletName}], $notes",
+                                    walletId = targetWalletId,
+                                    // ✅ FIX: Added bookId
+                                    bookId = activeBookId,
+                                    imagePath = imagePath,
+                                    // === SYNC FIELDS ===
+                                    createdAt = currentTime,
+                                    updatedAt = currentTime,
+                                    lastSyncAt = 0,
+                                    isSynced = false,
+                                    syncAction = "CREATE",
+                                    serverId = null,
+                                    isDeleted = false
+                            )
 
                     transactionRepository.insertTransaction(expenseTransaction)
                     transactionRepository.insertTransaction(incomeTransaction)
 
-                    _successMessage.value = "Transfer Rp ${formatAmountDisplay(amountValue.toLong().toString())} berhasil dilakukan"
-
+                    _successMessage.value =
+                            "Transfer Rp ${formatAmountDisplay(amountValue.toLong().toString())} berhasil dilakukan"
                 } else {
 
                     // --- INCOME/EXPENSE LOGIC (Single Transaction) ---
                     val categoryId = _selectedCategoryId.value
                     val walletId = _selectedWalletId.value
 
-                    val transaction = Transaction(
-                        id = _transactionId.value ?: 0,
-                        type = currentType,
-                        amount = amountValue!!,
-                        categoryId = categoryId!!,
-                        date = _date.value,
-                        notes = _notes.value,
-                        walletId = walletId,
-                        // ✅ FIX: Added bookId
-                        bookId = activeBookId,
-                        imagePath = _imagePath.value,
+                    val transaction =
+                            Transaction(
+                                    id = _transactionId.value ?: 0,
+                                    type = currentType,
+                                    amount = amountInIdr, // Save IDR
+                                    categoryId = categoryId!!,
+                                    date = _date.value,
+                                    notes = _notes.value,
+                                    walletId = walletId,
+                                    // ✅ FIX: Added bookId
+                                    bookId = activeBookId,
+                                    imagePath = _imagePath.value,
 
-                        // === SYNC FIELDS ===
-                        createdAt = if (isEdit) existingTransaction?.createdAt ?: 0 else currentTime,
-                        updatedAt = currentTime,
-                        lastSyncAt = 0,
-                        isSynced = false,
-                        syncAction = syncAction,
-                        serverId = if (isEdit) existingServerId else null,
-                        isDeleted = false
-                    )
+                                    // === SYNC FIELDS ===
+                                    createdAt =
+                                            if (isEdit) existingTransaction?.createdAt ?: 0
+                                            else currentTime,
+                                    updatedAt = currentTime,
+                                    lastSyncAt = 0,
+                                    isSynced = false,
+                                    syncAction = syncAction,
+                                    serverId = if (isEdit) existingServerId else null,
+                                    isDeleted = false
+                            )
 
                     if (isEdit) {
                         transactionRepository.updateTransaction(transaction)
@@ -298,7 +347,6 @@ class TambahViewModel(
                 }
 
                 _isSaving.value = false
-
             } catch (e: Exception) {
                 _isSaving.value = false
                 _errorMessage.value = "Gagal menyimpan transaksi: ${e.message}"
@@ -312,19 +360,43 @@ class TambahViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                transactionRepository.getTransactionById(transactionId).asLiveData().observeForever { transaction ->
-                    if (transaction != null) {
-                        _transactionId.value = transaction.id
-                        _selectedType.value = transaction.type
-                        _selectedCategoryId.value = transaction.categoryId
-                        _selectedWalletId.value = transaction.walletId
-                        _amount.value = java.math.BigDecimal(transaction.amount).toPlainString().replace(".00", "").replace(".0", "")
-                        _date.value = transaction.date
-                        _notes.value = transaction.notes
-                        _imagePath.value = transaction.imagePath
-                    }
-                    _isLoading.value = false
+                // Ensure we have the correct active currency code first
+                val book = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    bookRepository.getBookByIdSync(activeBookId)
                 }
+                if (book != null) {
+                    // ✅ PERBAIKAN: Gunakan Elvis Operator (?:)
+                    activeCurrencyCode = book.currencyCode ?: "IDR"
+                }
+
+                transactionRepository
+                    .getTransactionById(transactionId)
+                    .asLiveData()
+                    .observeForever { transaction ->
+                        if (transaction != null) {
+                            _transactionId.value = transaction.id
+                            _selectedType.value = transaction.type
+                            _selectedCategoryId.value = transaction.categoryId
+
+                            // Convert IDR -> Active Currency
+                            val converted = com.example.catetduls.utils.CurrencyHelper.convertIdrTo(transaction.amount, activeCurrencyCode)
+
+                            // Format strictly with COMMA as decimal separator to match parseAmount logic
+                            // Use US locale to ensure dot is decimal, then swap to comma
+                            val formatted = if (converted % 1.0 == 0.0) {
+                                String.format(java.util.Locale.US, "%.0f", converted)
+                            } else {
+                                String.format(java.util.Locale.US, "%.2f", converted).replace('.', ',')
+                            }
+                            // android.util.Log.d("TambahViewModel", "Formatted Strings: $formatted")
+
+                            _amount.value = formatted
+                            _date.value = transaction.date
+                            _notes.value = transaction.notes
+                            _imagePath.value = transaction.imagePath
+                        }
+                        _isLoading.value = false
+                    }
             } catch (e: Exception) {
                 _isLoading.value = false
                 _errorMessage.value = "Gagal memuat transaksi: ${e.message}"
@@ -333,9 +405,9 @@ class TambahViewModel(
     }
 
     fun resetForm(
-        keepType: Boolean = false,
-        keepCategory: Boolean = false,
-        setTodayDate: Boolean = true
+            keepType: Boolean = false,
+            keepCategory: Boolean = false,
+            setTodayDate: Boolean = true
     ) {
         _transactionId.value = null
 
@@ -392,37 +464,58 @@ class TambahViewModel(
     }
 
     fun formatAmountDisplay(value: String): String {
-        val cleaned = value.replace(Regex("[^0-9]"), "")
+        // Allow digits and comma
+        val cleaned = value.replace(Regex("[^0-9,]"), "")
         if (cleaned.isEmpty()) return ""
 
-        val number = cleaned.toLongOrNull() ?: return value
-        return String.format(Locale("in", "ID"), "%,d", number).replace(',', '.')
+        val parts = cleaned.split(",")
+        val integerPart = parts[0]
+        val decimalPart = if (parts.size > 1) parts[1] else null
+
+        val number = integerPart.toLongOrNull() ?: return value
+        
+        // Consistent formatting with Fragment
+        val symbols = java.text.DecimalFormatSymbols(Locale.US)
+        symbols.groupingSeparator = '.'
+        symbols.decimalSeparator = ','
+        val decimalFormat = java.text.DecimalFormat("#,###", symbols)
+        
+        val formattedInteger = decimalFormat.format(number)
+
+        return if (decimalPart != null) {
+            "$formattedInteger,$decimalPart"
+        } else {
+            formattedInteger
+        }
     }
 
     fun getCategoryName(categoryId: Int): LiveData<String> {
-        return categoryRepository.getCategoryById(categoryId)
-            .asLiveData()
-            .map { it?.name ?: "Unknown" }
+        return categoryRepository.getCategoryById(categoryId).asLiveData().map {
+            it?.name ?: "Unknown"
+        }
     }
 }
 
 class TambahViewModelFactory(
-    private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository,
-    private val walletRepository: WalletRepository,
-    private val activeWalletId: Int,
-    private val activeBookId: Int
+        private val transactionRepository: TransactionRepository,
+        private val categoryRepository: CategoryRepository,
+        private val walletRepository: WalletRepository,
+        private val bookRepository: BookRepository, // Add Book Repo
+        private val activeWalletId: Int,
+        private val activeBookId: Int
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(TambahViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return TambahViewModel(
-                transactionRepository,
-                categoryRepository,
-                walletRepository,
-                activeWalletId,
-                activeBookId
-            ) as T
+                    transactionRepository,
+                    categoryRepository,
+                    walletRepository,
+                    bookRepository,
+                    activeWalletId,
+                    activeBookId
+            ) as
+                    T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

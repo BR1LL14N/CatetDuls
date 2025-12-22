@@ -15,9 +15,13 @@ import com.example.catetduls.data.*
 import com.example.catetduls.data.local.TokenManager
 import com.example.catetduls.data.remote.ApiResponse
 import com.example.catetduls.data.remote.ApiService
+import com.example.catetduls.data.remote.BookRequest
+import com.example.catetduls.data.remote.CategoryRequest
 import com.example.catetduls.data.remote.CreateResponse
 import com.example.catetduls.data.remote.MessageResponse
 import com.example.catetduls.data.remote.PaginatedData
+import com.example.catetduls.data.remote.TransactionRequest
+import com.example.catetduls.data.remote.WalletRequest
 import com.example.catetduls.utils.ConnectionManager
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -113,36 +117,156 @@ constructor(
         try {
             pushUnitChanges<Book>(
                     repository = bookRepository as SyncRepository<Book>,
-                    createApi = { book -> apiService.createBook(book) },
-                    updateApi = { book -> apiService.updateBook(book.serverId!!, book) },
-                    deleteApi = { book -> apiService.deleteBook(book.serverId!!) }
+                createApi = { book ->
+                    val request = BookRequest(
+                        name = book.name,
+                        description = book.description ?: "", // Safety: Handle null description
+                        icon = book.icon ?: "📖", // Safety
+                        color = book.color ?: "#000000" // Safety
+                    )
+                    apiService.createBook(request)
+                },// UPDATE: Mapping sama seperti create
+                updateApi = { book ->
+                    // Cek ServerID sebelum kirim request
+                    val safeServerId = book.serverId
+                        ?: throw IOException("Cannot update Book ID ${book.id}: Server ID is missing (NULL)")
+
+                    val request = BookRequest(
+                        name = book.name,
+                        description = book.description ?: "",
+                        icon = book.icon ?: "📖",
+                        color = book.color ?: "#000000"
+                    )
+                    apiService.updateBook(safeServerId, request)
+                },
+
+                deleteApi = { book ->
+                    val safeServerId = book.serverId
+                        ?: throw IOException("Cannot delete Book ID ${book.id}: Server ID is missing")
+                    apiService.deleteBook(safeServerId)
+                }
             )
 
             pushUnitChanges<Wallet>(
                     repository = walletRepository as SyncRepository<Wallet>,
-                    createApi = { wallet -> apiService.createWallet(wallet) },
-                    updateApi = { wallet -> apiService.updateWallet(wallet.serverId!!, wallet) },
-                    deleteApi = { wallet -> apiService.deleteWallet(wallet.serverId!!) }
+                createApi = { wallet ->
+                    // Cari Buku Induknya dulu untuk dapatkan Server ID
+                    val book = bookRepository.getBookByIdSync(wallet.bookId)
+                    // Jika Buku belum naik ke server (serverId null), Wallet JANGAN dikirim dulu (Tunda)
+                    val serverBookId = book?.serverId ?: throw IOException("Induk Buku belum ter-sync, tunda sync Wallet")
+
+                    val request = WalletRequest(
+                        bookId = serverBookId, // KIRIM SERVER ID!
+                        name = wallet.name,
+                        type = wallet.type.name, // Enum to String
+                        icon = wallet.icon,
+                        color = wallet.color ?: "#000000",
+                        initialBalance = wallet.initialBalance
+                    )
+                    apiService.createWallet(request)
+                }, updateApi = { wallet ->
+                    val book = bookRepository.getBookByIdSync(wallet.bookId)
+                    val serverBookId = book?.serverId ?: throw IOException("Induk Buku belum ter-sync")
+
+                    val request = WalletRequest(
+                        bookId = serverBookId,
+                        name = wallet.name,
+                        type = wallet.type.name,
+                        icon = wallet.icon,
+                        color = wallet.color ?: "#000000",
+                        initialBalance = wallet.initialBalance
+                    )
+                    apiService.updateWallet(wallet.serverId!!, request)
+                },
+                deleteApi = { wallet -> apiService.deleteWallet(wallet.serverId!!) }
             )
 
             pushComplexChanges<Category>(
                     repository = categoryRepository as SyncRepository<Category>,
-                    createApi = { category -> apiService.createCategory(category) },
-                    updateApi = { category ->
-                        apiService.updateCategory(category.serverId!!.toLong(), category)
-                    },
-                    deleteApi = { category -> apiService.deleteCategory(category.serverId!!) }
+                createApi = { category ->
+                    val book = bookRepository.getBookByIdSync(category.bookId)
+                    val serverBookId = book?.serverId ?: throw IOException("Induk Buku belum ter-sync")
+
+                    val request = CategoryRequest(
+                        bookId = serverBookId, // KIRIM SERVER ID!
+                        name = category.name,
+                        type = category.type.name, // Enum to String
+                        icon = category.icon
+                    )
+                    apiService.createCategory(request)
+                },
+                updateApi = { category ->
+                    val book = bookRepository.getBookByIdSync(category.bookId)
+                    val serverBookId = book?.serverId ?: throw IOException("Induk Buku belum ter-sync")
+
+                    val request = CategoryRequest(
+                        bookId = serverBookId,
+                        name = category.name,
+                        type = category.type.name,
+                        icon = category.icon
+                    )
+                    // Hati-hati: serverId di DB lokal String, tapi updateCategory minta Long di ApiService lama?
+                    // Sebaiknya samakan jadi String di ApiService (Langkah 5 di atas sudah pakai String)
+                    apiService.updateCategory(category.serverId!!, request)
+                },
+                deleteApi = { category -> apiService.deleteCategory(category.serverId!!) }
             )
 
             pushComplexChanges<Transaction>(
                     repository = transactionRepository as SyncRepository<Transaction>,
-                    createApi = { transaction -> apiService.createTransaction(transaction) },
-                    updateApi = { transaction ->
-                        apiService.updateTransaction(transaction.serverId!!.toLong(), transaction)
-                    },
-                    deleteApi = { transaction ->
-                        apiService.deleteTransaction(transaction.serverId!!)
-                    }
+                createApi = { transaction ->
+                    // 1. Cari ID Server untuk BUKU
+                    val book = bookRepository.getBookByIdSync(transaction.bookId)
+                    val serverBookId = book?.serverId ?: throw IOException("Parent Book belum sync")
+
+                    // 2. Cari ID Server untuk WALLET
+                    val wallet = walletRepository.getWalletByIdSync(transaction.walletId) // Pastikan fungsi ini ada di Repo
+                    val serverWalletId = wallet?.serverId ?: throw IOException("Parent Wallet belum sync")
+
+                    // 3. Cari ID Server untuk CATEGORY
+                    val category = categoryRepository.getCategoryByIdSync(transaction.categoryId) // Pastikan fungsi ini ada di Repo
+                    val serverCategoryId = category?.serverId ?: throw IOException("Parent Category belum sync")
+
+                    // 4. Bungkus dalam DTO
+                    val request = TransactionRequest(
+                        bookId = serverBookId,
+                        walletId = serverWalletId,
+                        categoryId = serverCategoryId,
+                        amount = transaction.amount,
+                        type = transaction.type.name, // Enum ke String
+                        note = transaction.notes,
+                        createdAt = transaction.date // Pastikan field tanggal sesuai
+                    )
+
+                    apiService.createTransaction(request)
+                },
+                updateApi = { transaction ->
+                    // Logic lookup ID sama persis dengan createApi di atas
+                    val book = bookRepository.getBookByIdSync(transaction.bookId)
+                    val serverBookId = book?.serverId ?: throw IOException("Parent Book belum sync")
+
+                    val wallet = walletRepository.getWalletByIdSync(transaction.walletId)
+                    val serverWalletId = wallet?.serverId ?: throw IOException("Parent Wallet belum sync")
+
+                    val category = categoryRepository.getCategoryByIdSync(transaction.categoryId)
+                    val serverCategoryId = category?.serverId ?: throw IOException("Parent Category belum sync")
+
+                    val request = TransactionRequest(
+                        bookId = serverBookId,
+                        walletId = serverWalletId,
+                        categoryId = serverCategoryId,
+                        amount = transaction.amount,
+                        type = transaction.type.name,
+                        note = transaction.notes,
+                        createdAt = transaction.date
+                    )
+
+                    // Pastikan konversi ServerID (String -> Long) aman jika server minta Long
+                    apiService.updateTransaction(transaction.serverId!!.toLong(), request)
+                },
+                deleteApi = { transaction ->
+                    apiService.deleteTransaction(transaction.serverId!!)
+                }
             )
 
             Log.i(TAG, "[PUSH] ✅ PUSH sync berhasil diselesaikan.")
@@ -154,10 +278,10 @@ constructor(
     }
 
     private suspend inline fun <reified T : SyncableEntity> pushUnitChanges(
-            repository: SyncRepository<T>,
-            createApi: suspend (T) -> Response<CreateResponse>,
-            updateApi: suspend (T) -> Response<Unit>,
-            deleteApi: suspend (T) -> Response<Unit>
+        repository: SyncRepository<T>,
+        createApi: suspend (T) -> Response<CreateResponse>,
+        updateApi: suspend (T) -> Response<Unit>,
+        deleteApi: suspend (T) -> Response<Unit>
     ) {
 
         val unsyncedItems = repository.getAllUnsynced()
@@ -165,38 +289,65 @@ constructor(
 
         for (item in unsyncedItems) {
             try {
+                Log.d(TAG, "[PUSH] Processing item ID: ${item.id}, Action: ${item.syncAction}")
+
                 when (item.syncAction) {
                     "CREATE" -> {
                         val response = createApi(item)
-                        if (response.isSuccessful && response.body() != null) {
-                            val serverId =
-                                    response.body()!!.data?.server_id
-                                            ?: item.serverId
-                                                    ?: throw IOException(
-                                                    "Server ID missing in response"
-                                            )
-                            repository.updateSyncStatus(item.id.toLong(), serverId, currentSyncTime)
-                        } else throw IOException("CREATE failed: ${response.code()}")
+
+                        if (response.isSuccessful) {
+                            val body = response.body()
+
+                            if (body == null) {
+                                Log.e(TAG, "[PUSH] ❌ Response Body NULL untuk item ID ${item.id}")
+                                throw IOException("Response Body is NULL")
+                            }
+
+                            Log.d(TAG, "[PUSH] ✅ CREATE Success. Data: $body")
+
+                            // === PERBAIKAN DI SINI ===
+                            // Kita panggil .server_id (sesuai class CreatedData Anda)
+                            // Gson sudah otomatis memasukkan nilai JSON "id" ke dalam variabel .server_id ini
+                            val finalServerId = body.data?.server_id
+                                ?: item.serverId
+                                ?: throw IOException("Server ID tidak ditemukan di respon API")
+                            // ========================
+
+                            repository.updateSyncStatus(item.id.toLong(), finalServerId, currentSyncTime)
+
+                        } else {
+                            val errorMsg = response.errorBody()?.string()
+                            Log.e(TAG, "[PUSH] ❌ CREATE Gagal. Code: ${response.code()}, Error: $errorMsg")
+                            throw IOException("CREATE failed: ${response.code()} - $errorMsg")
+                        }
                     }
                     "UPDATE" -> {
                         val response = updateApi(item)
                         if (response.isSuccessful) {
+                            val sId = item.serverId ?: throw IOException("Item lokal tidak punya Server ID saat UPDATE")
                             repository.updateSyncStatus(
-                                    item.id.toLong(),
-                                    item.serverId!!,
-                                    currentSyncTime
+                                item.id.toLong(),
+                                sId,
+                                currentSyncTime
                             )
-                        } else throw IOException("UPDATE failed: ${response.code()}")
+                        } else {
+                            val errorMsg = response.errorBody()?.string()
+                            Log.e(TAG, "[PUSH] ❌ UPDATE Gagal. Code: ${response.code()}, Error: $errorMsg")
+                            throw IOException("UPDATE failed: ${response.code()}")
+                        }
                     }
                     "DELETE" -> {
                         val response = deleteApi(item)
                         if (response.isSuccessful) {
                             repository.deleteByIdPermanently(item.id.toLong())
-                        } else throw IOException("DELETE failed: ${response.code()}")
+                        } else {
+                            Log.e(TAG, "[PUSH] ❌ DELETE Gagal. Code: ${response.code()}")
+                            throw IOException("DELETE failed: ${response.code()}")
+                        }
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "[PUSH] ❌ Aksi PUSH gagal untuk item ID ${item.id}: ${e.message}")
+                Log.e(TAG, "[PUSH] ❌ Exception processing item ID ${item.id}: ${e.message}", e)
                 throw e
             }
         }
