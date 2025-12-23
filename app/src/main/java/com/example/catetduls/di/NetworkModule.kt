@@ -1,20 +1,21 @@
 package com.example.catetduls.di
 
 import android.content.Context
-import com.example.catetduls.data.remote.ApiService
-import okhttp3.Interceptor
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import java.util.concurrent.TimeUnit
 import com.example.catetduls.data.local.TokenManager
+import com.example.catetduls.data.remote.ApiService
+import com.example.catetduls.data.remote.JsonCorrectionInterceptor
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
+import okhttp3.Interceptor
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -25,15 +26,16 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(@ApplicationContext context: Context): OkHttpClient {
-        val loggingInterceptor = HttpLoggingInterceptor().apply {
-            setLevel(HttpLoggingInterceptor.Level.BODY)
-        }
+        val loggingInterceptor =
+                HttpLoggingInterceptor().apply { setLevel(HttpLoggingInterceptor.Level.BODY) }
 
         val authInterceptor = Interceptor { chain ->
             val token = TokenManager.getToken(context)
-            val requestBuilder = chain.request().newBuilder()
-                .addHeader("Accept", "application/json")
-                .addHeader("Content-Type", "application/json")
+            val requestBuilder =
+                    chain.request()
+                            .newBuilder()
+                            .addHeader("Accept", "application/json")
+                            .addHeader("Content-Type", "application/json")
 
             if (!token.isNullOrEmpty()) {
                 requestBuilder.addHeader("Authorization", "Bearer $token")
@@ -42,12 +44,13 @@ object NetworkModule {
         }
 
         return OkHttpClient.Builder()
-            .addInterceptor(authInterceptor)
-            .addInterceptor(loggingInterceptor)
-            .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .build()
+                .addInterceptor(JsonCorrectionInterceptor()) // Add Fix Interceptor first
+                .addInterceptor(authInterceptor)
+                .addInterceptor(loggingInterceptor)
+                .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .build()
     }
 
     // ===========================================
@@ -57,12 +60,16 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        val gson =
+                com.google.gson.GsonBuilder()
+                        .setLenient() // Keep lenient as safety net
+                        .create()
+
         return Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .client(okHttpClient)
-            // Menggunakan Gson Converter. Pastikan dependensi sudah ada.
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
+                .baseUrl(BASE_URL)
+                .client(okHttpClient)
+                .addConverterFactory(GsonConverterFactory.create(gson))
+                .build()
     }
 
     // ===========================================
@@ -74,10 +81,10 @@ object NetworkModule {
     fun provideApiService(retrofit: Retrofit): ApiService {
         return retrofit.create(ApiService::class.java)
     }
-//    val apiService: ApiService by lazy {
-//        val client = provideOkHttpClient()
-//        val retrofit = provideRetrofit(client)
-//        provideApiService(retrofit)
-//    }
+    //    val apiService: ApiService by lazy {
+    //        val client = provideOkHttpClient()
+    //        val retrofit = provideRetrofit(client)
+    //        provideApiService(retrofit)
+    //    }
 
 }

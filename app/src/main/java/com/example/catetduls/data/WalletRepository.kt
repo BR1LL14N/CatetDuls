@@ -226,6 +226,10 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
         return walletDao.getByServerId(serverId)
     }
 
+    override suspend fun markAsUnsynced(id: Long, action: String) {
+        walletDao.markAsUnsynced(id.toInt(), action, System.currentTimeMillis())
+    }
+
     // ===================================
     // HELPER
     // ===================================

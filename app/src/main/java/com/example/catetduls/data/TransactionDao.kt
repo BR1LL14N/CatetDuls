@@ -20,11 +20,9 @@ interface TransactionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(transactions: List<Transaction>)
 
-    @Update
-    suspend fun updateTransaction(transaction: Transaction)
+    @Update suspend fun updateTransaction(transaction: Transaction)
 
-    @Delete
-    suspend fun deleteTransaction(transaction: Transaction)
+    @Delete suspend fun deleteTransaction(transaction: Transaction)
 
     @Query("DELETE FROM transactions WHERE id = :transactionId")
     suspend fun deleteById(transactionId: Int)
@@ -32,8 +30,7 @@ interface TransactionDao {
     @Query("DELETE FROM transactions WHERE book_id = :bookId")
     suspend fun deleteTransactionsByBook(bookId: Int)
 
-    @Query("DELETE FROM transactions")
-    suspend fun deleteAllTransactions()
+    @Query("DELETE FROM transactions") suspend fun deleteAllTransactions()
 
     // FILTER UI WAJIB PAKAI book_id (Sudah Benar)
     @Query("SELECT * FROM transactions WHERE book_id = :bookId ORDER BY date DESC")
@@ -44,6 +41,9 @@ interface TransactionDao {
 
     @Query("SELECT COUNT(*) FROM transactions WHERE book_id = :bookId")
     suspend fun getTransactionCount(bookId: Int): Int
+
+    @Query("SELECT COUNT(*) FROM transactions WHERE book_id = :bookId")
+    suspend fun getTransactionCountByBookId(bookId: Int): Int
 
     // ========================================
     // SYNC OPERATIONS (Background Worker)
@@ -56,26 +56,30 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE server_id = :serverId LIMIT 1")
     suspend fun getByServerId(serverId: String): Transaction?
 
-    @Query("""
+    @Query(
+            """
         UPDATE transactions 
         SET server_id = :serverId, 
             is_synced = 1, 
             last_sync_at = :lastSyncAt,
             sync_action = NULL
         WHERE id = :localId
-    """)
+    """
+    )
     suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long)
 
     @Query("DELETE FROM transactions WHERE is_deleted = 1 AND is_synced = 1")
     suspend fun cleanupSyncedDeletes(): Unit
 
-    @Query("""
+    @Query(
+            """
         UPDATE transactions 
         SET is_synced = 0, 
             sync_action = :action, 
             updated_at = :updatedAt 
         WHERE id = :id
-    """)
+    """
+    )
     suspend fun markAsUnsynced(id: Int, action: String, updatedAt: Long)
 
     @Query("SELECT * FROM transactions WHERE is_deleted = 1 AND is_synced = 0")
@@ -88,138 +92,161 @@ interface TransactionDao {
     // Dashboard Queries (UI)
     // ========================================
 
-    @Query("""
+    @Query(
+            """
         SELECT 
             COALESCE(SUM(CASE WHEN type = 'PEMASUKAN' THEN amount ELSE -amount END), 0) 
         FROM transactions
         WHERE is_deleted = 0 AND book_id = :bookId
-    """)
+    """
+    )
     fun getTotalBalance(bookId: Int): Flow<Double?>
 
-    @Query("""
+    @Query(
+            """
         SELECT * FROM transactions 
         WHERE is_deleted = 0 AND book_id = :bookId
         ORDER BY date DESC 
         LIMIT :limit
-    """)
+    """
+    )
     fun getRecentTransactions(bookId: Int, limit: Int = 5): Flow<List<Transaction>>
 
-    @Query("""
+    @Query(
+            """
         SELECT COALESCE(SUM(amount), 0) 
         FROM transactions 
         WHERE type = :type 
         AND date BETWEEN :startDate AND :endDate
         AND is_deleted = 0 AND book_id = :bookId
-    """)
+    """
+    )
     fun getTotalByTypeAndDateRange(
-        bookId: Int,
-        type: TransactionType,
-        startDate: Long,
-        endDate: Long
+            bookId: Int,
+            type: TransactionType,
+            startDate: Long,
+            endDate: Long
     ): Flow<Double?>
 
     // ========================================
     // Filter Queries (Halaman Transaksi)
     // ========================================
 
-    @Query("""
+    @Query(
+            """
         SELECT * FROM transactions 
         WHERE type = :type 
         AND is_deleted = 0 AND book_id = :bookId
         ORDER BY date DESC
-    """)
+    """
+    )
     fun getTransactionsByType(bookId: Int, type: TransactionType): Flow<List<Transaction>>
 
-    @Query("""
+    @Query(
+            """
         SELECT * FROM transactions 
         WHERE categoryId = :categoryId 
         AND is_deleted = 0 AND book_id = :bookId
         ORDER BY date DESC
-    """)
+    """
+    )
     fun getTransactionsByCategory(bookId: Int, categoryId: Int): Flow<List<Transaction>>
 
-    @Query("""
+    @Query(
+            """
         SELECT * FROM transactions 
         WHERE date BETWEEN :startDate AND :endDate 
         AND is_deleted = 0 AND book_id = :bookId
         ORDER BY date DESC
-    """)
+    """
+    )
     fun getTransactionsByDateRange(
-        bookId: Int,
-        startDate: Long,
-        endDate: Long
+            bookId: Int,
+            startDate: Long,
+            endDate: Long
     ): Flow<List<Transaction>>
 
-    @Query("""
+    @Query(
+            """
     SELECT * FROM transactions 
     WHERE categoryId = :categoryId 
     AND date BETWEEN :startDate AND :endDate 
     AND is_deleted = 0 AND book_id = :bookId
     ORDER BY date DESC
-""")
+"""
+    )
     fun getTransactionsByCategoryAndDateRange(
-        bookId: Int,
-        categoryId: Int,
-        startDate: Long,
-        endDate: Long
+            bookId: Int,
+            categoryId: Int,
+            startDate: Long,
+            endDate: Long
     ): Flow<List<Transaction>>
 
-    @Query("""
+    @Query(
+            """
         SELECT * FROM transactions 
         WHERE notes LIKE :query 
         AND is_deleted = 0 AND book_id = :bookId
         ORDER BY date DESC
-    """)
+    """
+    )
     fun searchTransactions(bookId: Int, query: String): Flow<List<Transaction>>
 
-    @Query("""
+    @Query(
+            """
         SELECT * FROM transactions 
         WHERE type = :type 
         AND categoryId = :categoryId 
         AND is_deleted = 0 AND book_id = :bookId
         ORDER BY date DESC
-    """)
+    """
+    )
     fun getTransactionsByTypeAndCategory(
-        bookId: Int,
-        type: TransactionType,
-        categoryId: Int
+            bookId: Int,
+            type: TransactionType,
+            categoryId: Int
     ): Flow<List<Transaction>>
 
-    @Query("""
+    @Query(
+            """
         SELECT * FROM transactions 
         WHERE type = :type 
         AND date BETWEEN :startDate AND :endDate 
         AND is_deleted = 0 AND book_id = :bookId
         ORDER BY date DESC
-    """)
+    """
+    )
     fun getTransactionsByTypeAndDateRange(
-        bookId: Int,
-        type: TransactionType,
-        startDate: Long,
-        endDate: Long
+            bookId: Int,
+            type: TransactionType,
+            startDate: Long,
+            endDate: Long
     ): Flow<List<Transaction>>
 
-    @Query("""
+    @Query(
+            """
         SELECT * FROM transactions 
         WHERE type = :type 
         AND categoryId = :categoryId 
         AND date BETWEEN :startDate AND :endDate 
         AND is_deleted = 0 AND book_id = :bookId
         ORDER BY date DESC
-    """)
+    """
+    )
     fun getTransactionsByTypeAndCategoryAndDateRange(
-        bookId: Int,
-        type: TransactionType,
-        categoryId: Int,
-        startDate: Long,
-        endDate: Long
+            bookId: Int,
+            type: TransactionType,
+            categoryId: Int,
+            startDate: Long,
+            endDate: Long
     ): Flow<List<Transaction>>
 
     // ========================================
     // Statistik Queries
     // ========================================
 
-    @Query("""
+    @Query(
+            """
         SELECT 
             t.categoryId,
             c.name as categoryName,
@@ -231,11 +258,13 @@ interface TransactionDao {
         AND t.is_deleted = 0 AND t.book_id = :bookId
         GROUP BY t.categoryId, c.name
         ORDER BY total DESC
-    """)
+    """
+    )
     fun getTotalExpenseByCategory(bookId: Int): Flow<List<CategoryExpense>>
 
     // Sudah benar pakai 'localtime'
-    @Query("""
+    @Query(
+            """
         SELECT 
             CAST(strftime('%d', datetime(date/1000, 'unixepoch', 'localtime')) AS INTEGER) AS dayOfMonth,
             SUM(CASE WHEN type = 'PEMASUKAN' THEN amount ELSE 0 END) AS totalIncome,
@@ -244,10 +273,12 @@ interface TransactionDao {
         WHERE date BETWEEN :startDate AND :endDate
         AND is_deleted = 0 AND book_id = :bookId
         GROUP BY dayOfMonth
-    """)
+    """
+    )
     fun getDailySummaries(bookId: Int, startDate: Long, endDate: Long): Flow<List<DailySummary>>
 
-    @Query("""
+    @Query(
+            """
         SELECT 
             t.categoryId,
             c.name as categoryName,
@@ -260,11 +291,13 @@ interface TransactionDao {
         GROUP BY t.categoryId, c.name
         ORDER BY total DESC
         LIMIT 1
-    """)
+    """
+    )
     fun getTopExpenseCategory(bookId: Int): Flow<CategoryExpense?>
 
     // PERBAIKAN: Menambahkan 'localtime' agar konsisten dengan getDailySummaries
-    @Query("""
+    @Query(
+            """
         SELECT 
             CAST(strftime('%m', datetime(date/1000, 'unixepoch', 'localtime')) as INTEGER) as month,
             CAST(strftime('%Y', datetime(date/1000, 'unixepoch', 'localtime')) as INTEGER) as year,
@@ -276,10 +309,12 @@ interface TransactionDao {
         AND is_deleted = 0 AND book_id = :bookId
         GROUP BY month, year
         ORDER BY month ASC
-    """)
+    """
+    )
     fun getMonthlyTotals(bookId: Int, year: Int): Flow<List<MonthlyTotal>>
 
-    @Query("""
+    @Query(
+            """
         SELECT 
             date,
             SUM(CASE WHEN type = 'PEMASUKAN' THEN amount ELSE 0 END) as income,
@@ -289,10 +324,12 @@ interface TransactionDao {
         AND is_deleted = 0 AND book_id = :bookId
         GROUP BY date
         ORDER BY date ASC
-    """)
+    """
+    )
     fun getDailyTotals(bookId: Int, startDate: Long, endDate: Long): Flow<List<DailyTotal>>
 
-    @Query("""
+    @Query(
+            """
         SELECT 
             t.categoryId,
             c.name as categoryName,
@@ -305,7 +342,8 @@ interface TransactionDao {
         AND t.is_deleted = 0 AND t.book_id = :bookId
         GROUP BY t.categoryId, c.name
         ORDER BY total DESC
-    """)
+    """
+    )
     fun getCategoryStats(bookId: Int, type: TransactionType): Flow<List<CategoryStats>>
 
     // ========================================
@@ -313,39 +351,47 @@ interface TransactionDao {
     // ========================================
 
     // PERBAIKAN: Menambahkan 'suspend' karena return type bukan Flow/LiveData
-    @Query("""
+    @Query(
+            """
         SELECT COUNT(*) > 0 
         FROM transactions 
         WHERE date BETWEEN :startDate AND :endDate
         AND is_deleted = 0 AND book_id = :bookId
-    """)
+    """
+    )
     suspend fun hasTransactionsInDateRange(bookId: Int, startDate: Long, endDate: Long): Boolean
 
-    @Query("""
+    @Query(
+            """
         SELECT MIN(date) 
         FROM transactions
         WHERE is_deleted = 0 AND book_id = :bookId
-    """)
+    """
+    )
     suspend fun getFirstTransactionDate(bookId: Int): Long?
 
-    @Query("""
+    @Query(
+            """
         SELECT MAX(date) 
         FROM transactions
         WHERE is_deleted = 0 AND book_id = :bookId
-    """)
+    """
+    )
     suspend fun getLastTransactionDate(bookId: Int): Long?
 
-    @Query("""
+    @Query(
+            """
         SELECT COALESCE(SUM(amount), 0)
         FROM transactions
         WHERE categoryId = :categoryId
         AND date BETWEEN :startDate AND :endDate
         AND is_deleted = 0 AND book_id = :bookId
-    """)
+    """
+    )
     suspend fun getTotalByCategoryAndDateRange(
-        bookId: Int,
-        categoryId: Int,
-        startDate: Long,
-        endDate: Long
+            bookId: Int,
+            categoryId: Int,
+            startDate: Long,
+            endDate: Long
     ): Double
 }

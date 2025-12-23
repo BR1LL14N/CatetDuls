@@ -197,6 +197,10 @@ constructor(private val categoryDao: CategoryDao, private val bookRepository: Bo
         return categoryDao.getByServerId(serverId)
     }
 
+    override suspend fun markAsUnsynced(id: Long, action: String) {
+        categoryDao.markAsUnsynced(id.toInt(), action, System.currentTimeMillis())
+    }
+
     suspend fun getCategoryIdByType(type: TransactionType, bookId: Int): Int? {
         return categoryDao.getCategoryIdByType(type, bookId)
     }

@@ -41,6 +41,10 @@ constructor(
         return transactionDao.getTransactionById(id).firstOrNull()
     }
 
+    suspend fun getTransactionCountByBookId(bookId: Int): Int {
+        return transactionDao.getTransactionCountByBookId(bookId)
+    }
+
     // ========================================
     // CREATE (Penandaan Sync: CREATE)
     // ========================================
@@ -201,6 +205,10 @@ constructor(
 
     override suspend fun getByServerId(serverId: String): Transaction? {
         return transactionDao.getByServerId(serverId)
+    }
+
+    override suspend fun markAsUnsynced(id: Long, action: String) {
+        transactionDao.markAsUnsynced(id.toInt(), action, System.currentTimeMillis())
     }
 
     /** Membersihkan transaksi yang sudah berhasil di-sync delete ke server */

@@ -196,6 +196,8 @@ abstract class AppDatabase : RoomDatabase() {
                             icon = "📖",
                             color = "#4CAF50",
                             isActive = true,
+                            isSynced = false,
+                            syncAction = "CREATE",
                             lastSyncAt = 0L
                     )
             val bookId = bookDao.insert(defaultBook).toInt()
@@ -222,6 +224,8 @@ abstract class AppDatabase : RoomDatabase() {
                                     color = "#4CAF50",
                                     initialBalance = 0.0,
                                     isActive = true,
+                                    isSynced = false,
+                                    syncAction = "CREATE",
                                     lastSyncAt = 0L
                             ),
                             Wallet(
@@ -232,6 +236,8 @@ abstract class AppDatabase : RoomDatabase() {
                                     color = "#2196F3",
                                     initialBalance = 0.0,
                                     isActive = true,
+                                    isSynced = false,
+                                    syncAction = "CREATE",
                                     lastSyncAt = 0L
                             ),
                             Wallet(
@@ -242,6 +248,8 @@ abstract class AppDatabase : RoomDatabase() {
                                     color = "#FF9800",
                                     initialBalance = 0.0,
                                     isActive = true,
+                                    isSynced = false,
+                                    syncAction = "CREATE",
                                     lastSyncAt = 0L
                             )
                     )
@@ -400,6 +408,8 @@ abstract class AppDatabase : RoomDatabase() {
                                     icon = "🔄️",
                                     type = TransactionType.TRANSFER,
                                     isDefault = true,
+                                    isSynced = false,
+                                    syncAction = "CREATE",
                                     lastSyncAt = 0L
                             )
                     )

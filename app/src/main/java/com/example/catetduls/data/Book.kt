@@ -11,6 +11,7 @@ import kotlinx.parcelize.Parcelize
 @Entity(tableName = "books")
 data class Book(
         @PrimaryKey(autoGenerate = true)
+        @SerializedName("local_id") // Biar tidak tertimpa server id (int)
         override val id: Int = 0,
 
         val name: String,
@@ -44,6 +45,7 @@ data class Book(
         override val updatedAt: Long = System.currentTimeMillis(),
 
         @ColumnInfo(name = "server_id")
+        @SerializedName("id") // Mapping ID server yang benar
         override val serverId: String? = null,
 
         @ColumnInfo(name = "is_synced")

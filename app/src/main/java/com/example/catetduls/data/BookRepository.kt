@@ -404,4 +404,8 @@ constructor(
     override suspend fun getByServerId(serverId: String): Book? {
         return bookDao.getByServerId(serverId)
     }
+
+    override suspend fun markAsUnsynced(id: Long, action: String) {
+        bookDao.markAsUnsynced(id.toInt(), action, System.currentTimeMillis())
+    }
 }

@@ -7,4 +7,5 @@ interface SyncRepository<T : SyncableEntity> {
     suspend fun updateSyncStatus(id: Long, serverId: String, syncedAt: Long)
     suspend fun deleteByIdPermanently(id: Long)
     suspend fun saveFromRemote(entity: T)
+    suspend fun markAsUnsynced(id: Long, action: String)
 }
