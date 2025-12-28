@@ -70,7 +70,7 @@ constructor(private val categoryDao: CategoryDao, private val bookRepository: Bo
                         createdAt = System.currentTimeMillis(),
                         updatedAt = System.currentTimeMillis()
                 )
-        // Ensure bookId is set
+
         val currentBookId =
                 if (categoryToInsert.bookId == 0) getActiveBookId() else categoryToInsert.bookId
         val finalCategory = categoryToInsert.copy(bookId = currentBookId)
@@ -97,7 +97,7 @@ constructor(private val categoryDao: CategoryDao, private val bookRepository: Bo
     }
 
     suspend fun getCategoryByIdSync(id: Int): Category? {
-        return categoryDao.getCategoryByIdSync(id) // Anda perlu buat query ini di DAO
+        return categoryDao.getCategoryByIdSync(id)
     }
 
     // ===================================

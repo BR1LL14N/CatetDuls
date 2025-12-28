@@ -44,7 +44,7 @@ object NetworkModule {
         }
 
         return OkHttpClient.Builder()
-                .addInterceptor(JsonCorrectionInterceptor()) // Add Fix Interceptor first
+                .addInterceptor(JsonCorrectionInterceptor())
                 .addInterceptor(authInterceptor)
                 .addInterceptor(loggingInterceptor)
                 .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -54,16 +54,13 @@ object NetworkModule {
     }
 
     // ===========================================
-    // 2. Menyediakan Retrofit Instance
+
     // ===========================================
 
     @Provides
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
-        val gson =
-                com.google.gson.GsonBuilder()
-                        .setLenient() // Keep lenient as safety net
-                        .create()
+        val gson = com.google.gson.GsonBuilder().setLenient().create()
 
         return Retrofit.Builder()
                 .baseUrl(BASE_URL)
@@ -73,7 +70,7 @@ object NetworkModule {
     }
 
     // ===========================================
-    // 3. Menyediakan ApiService (Contract Retrofit)
+
     // ===========================================
 
     @Provides
@@ -81,10 +78,4 @@ object NetworkModule {
     fun provideApiService(retrofit: Retrofit): ApiService {
         return retrofit.create(ApiService::class.java)
     }
-    //    val apiService: ApiService by lazy {
-    //        val client = provideOkHttpClient()
-    //        val retrofit = provideRetrofit(client)
-    //        provideApiService(retrofit)
-    //    }
-
 }

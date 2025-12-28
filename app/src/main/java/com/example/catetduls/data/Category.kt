@@ -6,17 +6,15 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.google.gson.annotations.SerializedName
 import kotlinx.parcelize.Parcelize
 
-import com.google.gson.annotations.SerializedName
-
 enum class TransactionType {
-    @SerializedName("PEMASUKAN") PEMASUKAN,
-    @SerializedName("PENGELUARAN") PENGELUARAN,
-    @SerializedName("TRANSFER") TRANSFER
+        @SerializedName("PEMASUKAN") PEMASUKAN,
+        @SerializedName("PENGELUARAN") PENGELUARAN,
+        @SerializedName("TRANSFER") TRANSFER
 }
 
-/** Entity untuk Kategori Sekarang setiap kategori terikat pada satu buku */
 @Parcelize
 @Entity(
         tableName = "categories",
@@ -31,7 +29,9 @@ enum class TransactionType {
         indices = [Index(value = ["bookId"]), Index(value = ["type"])]
 )
 data class Category(
-        @PrimaryKey(autoGenerate = true) @com.google.gson.annotations.SerializedName("local_id") override val id: Int = 0,
+        @PrimaryKey(autoGenerate = true)
+        @com.google.gson.annotations.SerializedName("local_id")
+        override val id: Int = 0,
         @com.google.gson.annotations.SerializedName("book_id") val bookId: Int,
         val name: String,
         val icon: String = "⚙️",
@@ -41,7 +41,9 @@ data class Category(
         @ColumnInfo(name = "created_at")
         val createdAt: Long = System.currentTimeMillis(),
         @ColumnInfo(name = "updated_at") override val updatedAt: Long = System.currentTimeMillis(),
-        @ColumnInfo(name = "server_id") @com.google.gson.annotations.SerializedName("id") override val serverId: String? = null,
+        @ColumnInfo(name = "server_id")
+        @com.google.gson.annotations.SerializedName("id")
+        override val serverId: String? = null,
         @ColumnInfo(name = "is_synced") override val isSynced: Boolean = false,
         @ColumnInfo(name = "is_deleted") override val isDeleted: Boolean = false,
         @ColumnInfo(name = "last_sync_at") override val lastSyncAt: Long,

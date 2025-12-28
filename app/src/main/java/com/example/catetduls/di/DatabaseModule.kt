@@ -1,7 +1,7 @@
 package com.example.catetduls.di
 
 import android.content.Context
-import com.example.catetduls.data.* // Import semua data class/interface
+import com.example.catetduls.data.*
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -20,7 +20,7 @@ object DatabaseModule {
     }
 
     // ==========================================
-    // PENYEDIA (PROVIDER) UNTUK SEMUA DAO
+
     // ==========================================
 
     @Provides

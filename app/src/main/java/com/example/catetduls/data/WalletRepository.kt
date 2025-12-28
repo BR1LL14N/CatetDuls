@@ -9,9 +9,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 
-/**
- * Repository untuk operasi Dompet Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
- */
 class WalletRepository
 @Inject
 constructor(private val walletDao: WalletDao, private val bookRepository: BookRepository) :
@@ -22,7 +19,7 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
     }
 
     // ===================================
-    // READ
+
     // ===================================
 
     fun getWalletsByBook(bookId: Int): Flow<List<Wallet>> = walletDao.getWalletsByBook(bookId)
@@ -74,7 +71,7 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
     }
 
     // ===================================
-    // CREATE
+
     // ===================================
 
     suspend fun insert(wallet: Wallet): Long {
@@ -113,7 +110,7 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
     }
 
     // ===================================
-    // UPDATE
+
     // ===================================
 
     suspend fun update(wallet: Wallet) {
@@ -132,30 +129,19 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
     }
 
     suspend fun updateBalance(walletId: Int, balance: Double) {
-        // Logika updateBalance ini biasanya dipanggil setelah transaksi
-        // Karena ini update balance secara langsung, kita harus menandainya sebagai unsynced.
-
-        // Catatan: Jika updateBalance ini dipanggil internal setelah insert/update transaksi,
-        // pastikan logic di sync worker menangani ini agar tidak terjadi konflik sync.
-
         if (balance < 0) {
             throw IllegalArgumentException("Saldo tidak boleh negatif")
         }
 
-        // Kita tidak bisa langsung memanggil walletDao.updateBalance
-        // karena kita perlu mendapatkan action dan updatedAt untuk markAsUnsynced
         walletDao.updateBalance(walletId, balance, System.currentTimeMillis())
         walletDao.markAsUnsynced(walletId, "UPDATE", System.currentTimeMillis())
     }
 
     // ===================================
-    // DELETE
+
     // ===================================
 
-    /**
-     * Menandai dompet sebagai terhapus (soft delete) untuk disinkronkan ke server. Jika dompet
-     * belum pernah disinkronkan (server_id null), maka hapus permanen lokal.
-     */
+
     suspend fun delete(wallet: Wallet) {
         if (wallet.serverId == null) {
             walletDao.delete(wallet)
@@ -172,7 +158,7 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
         }
     }
 
-    /** Menghapus dompet secara permanen berdasarkan ID (Dipanggil setelah sync DELETE berhasil) */
+
     suspend fun deleteByIdPermanently(walletId: Int) {
         walletDao.deleteById(walletId)
     }
@@ -182,26 +168,18 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
     }
 
     suspend fun deleteByBookId(bookId: Int) {
-        // Ini adalah hard delete massal (biasanya setelah buku dihapus)
-        // Pastikan Buku sudah disinkronkan/dihapus di server terlebih dahulu
         walletDao.deleteByBookId(bookId)
     }
 
     // ===================================
-    // SYNC METHODS
+
     // ===================================
 
-    /**
-     * Mengambil semua dompet yang perlu disinkronisasi (CREATE, UPDATE, DELETE). Termasuk yang baru
-     * dibuat/diubah (is_synced = 0) dan yang ditandai untuk dihapus (is_deleted = 1).
-     */
     override suspend fun getAllUnsynced(): List<Wallet> {
-        // Menggabungkan logika unsynced (is_synced = 0) dan deleted (is_deleted = 1 & is_synced =
-        // 0)
-        return walletDao.getUnsyncedWallets() // Asumsi DAO ini mengambil semua yang is_synced = 0
+        return walletDao.getUnsyncedWallets()
     }
 
-    /** Memperbarui status sinkronisasi setelah operasi server berhasil (CREATE/UPDATE). */
+
     override suspend fun updateSyncStatus(id: Long, serverId: String, syncedAt: Long) {
         walletDao.updateSyncStatus(id.toInt(), serverId, syncedAt)
     }
@@ -210,7 +188,7 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
         walletDao.updateSyncStatus(id, serverId, syncedAt)
     }
 
-    /** Menyimpan data dompet yang diterima dari server (untuk operasi PULL/READ dari server) */
+
     override suspend fun saveFromRemote(entity: Wallet) {
         walletDao.insert(
                 entity.copy(
@@ -231,7 +209,7 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
     }
 
     // ===================================
-    // HELPER
+
     // ===================================
 
     suspend fun createDefaultWalletsForBook(bookId: Int) {
@@ -256,7 +234,6 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
                                 lastSyncAt = 0L
                         )
                 )
-        // Memanggil fungsi insertAll() di repository yang sudah menangani logic sync
         insertAll(defaultWallets)
     }
 }

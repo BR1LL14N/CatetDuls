@@ -3,34 +3,30 @@ package com.example.catetduls.data
 import android.content.Context
 import com.example.catetduls.data.local.TokenManager
 import com.example.catetduls.data.remote.*
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import kotlinx.coroutines.flow.Flow
-
-import javax.inject.Inject
+import com.example.catetduls.utils.ErrorUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
+import javax.inject.Inject
+import kotlinx.coroutines.flow.Flow
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
-import com.example.catetduls.utils.ErrorUtils
-
 import okhttp3.RequestBody.Companion.asRequestBody
-import java.io.File
 
-class UserRepository @Inject constructor(
-    private val userDao: UserDao,
-    private val apiService: ApiService,
-    @ApplicationContext private val context: Context
+class UserRepository
+@Inject
+constructor(
+        private val userDao: UserDao,
+        private val apiService: ApiService,
+        @ApplicationContext private val context: Context
 ) {
 
     // ===================================
-    // LOCAL OPERATIONS
+
     // ===================================
 
     fun getCurrentUserFlow(): Flow<User?> = userDao.getCurrentUserFlow()
 
-
     suspend fun getLocalUser(): User? = userDao.getCurrentUser()
-
 
     fun isLoggedIn(): Boolean {
         return TokenManager.isLoggedIn(context)
@@ -40,13 +36,10 @@ class UserRepository @Inject constructor(
 
     suspend fun updateUser(user: User) = userDao.updateUser(user)
 
-
     suspend fun logoutLocalOnly() {
         val user = getLocalUser()
 
-        user?.let {
-            userDao.clearToken(it.id)
-        }
+        user?.let { userDao.clearToken(it.id) }
     }
 
     suspend fun logoutAll() {
@@ -56,22 +49,18 @@ class UserRepository @Inject constructor(
     suspend fun deleteAccount() {
         val user = getLocalUser()
 
-        user?.let {
-            userDao.deleteUserById(it.id)
-        }
+        user?.let { userDao.deleteUserById(it.id) }
     }
 
     // ===================================
-    // AUTH OPERATIONS
+
     // ===================================
-    /**
-     * REGISTER dengan Refresh Token
-     */
+
     suspend fun register(
-        name: String,
-        email: String,
-        password: String,
-        passwordConfirmation: String
+            name: String,
+            email: String,
+            password: String,
+            passwordConfirmation: String
     ): Result<User> {
         return try {
             val request = RegisterRequest(name, email, password, passwordConfirmation)
@@ -86,31 +75,32 @@ class UserRepository @Inject constructor(
                     val authData = apiResponse.data
                     val remoteUser = authData.user
 
-
-                    val localUser = User(
-                        id = remoteUser.id.toString(),
-                        name = remoteUser.name,
-                        email = remoteUser.email,
-                        photo_url = remoteUser.photo_url,
-                        email_verified_at = remoteUser.email_verified_at,
-                        created_at = remoteUser.created_at ?: "",
-                        updated_at = remoteUser.updated_at ?: "",
-                        access_token = authData.token,
-                        token_expires_at = System.currentTimeMillis() + (authData.expires_in * 1000),
-                        last_synced_at = System.currentTimeMillis(),
-                        is_synced = true
-                    )
+                    val localUser =
+                            User(
+                                    id = remoteUser.id.toString(),
+                                    name = remoteUser.name,
+                                    email = remoteUser.email,
+                                    photo_url = remoteUser.photo_url,
+                                    email_verified_at = remoteUser.email_verified_at,
+                                    created_at = remoteUser.created_at ?: "",
+                                    updated_at = remoteUser.updated_at ?: "",
+                                    access_token = authData.token,
+                                    token_expires_at =
+                                            System.currentTimeMillis() +
+                                                    (authData.expires_in * 1000),
+                                    last_synced_at = System.currentTimeMillis(),
+                                    is_synced = true
+                            )
 
                     userDao.deleteAllUsers()
                     userDao.insertUser(localUser)
 
-
                     if (authData.refresh_token != null) {
                         TokenManager.saveTokens(
-                            context = context,
-                            accessToken = authData.token,
-                            refreshToken = authData.refresh_token,
-                            expiresIn = authData.expires_in
+                                context = context,
+                                accessToken = authData.token,
+                                refreshToken = authData.refresh_token,
+                                expiresIn = authData.expires_in
                         )
                     } else {
 
@@ -130,10 +120,6 @@ class UserRepository @Inject constructor(
         }
     }
 
-
-    /**
-     * LOGIN dengan Refresh Token
-     */
     suspend fun login(email: String, password: String): Result<User> {
         return try {
             val request = LoginRequest(email, password)
@@ -146,29 +132,32 @@ class UserRepository @Inject constructor(
                     val authData = apiResponse.data
                     val remoteUser = authData.user
 
-                    val localUser = User(
-                        id = remoteUser.id.toString(),
-                        name = remoteUser.name,
-                        email = remoteUser.email,
-                        photo_url = remoteUser.photo_url,
-                        email_verified_at = remoteUser.email_verified_at,
-                        created_at = remoteUser.created_at ?: "",
-                        updated_at = remoteUser.updated_at ?: "",
-                        access_token = authData.token,
-                        token_expires_at = System.currentTimeMillis() + (authData.expires_in * 1000),
-                        last_synced_at = System.currentTimeMillis(),
-                        is_synced = true
-                    )
+                    val localUser =
+                            User(
+                                    id = remoteUser.id.toString(),
+                                    name = remoteUser.name,
+                                    email = remoteUser.email,
+                                    photo_url = remoteUser.photo_url,
+                                    email_verified_at = remoteUser.email_verified_at,
+                                    created_at = remoteUser.created_at ?: "",
+                                    updated_at = remoteUser.updated_at ?: "",
+                                    access_token = authData.token,
+                                    token_expires_at =
+                                            System.currentTimeMillis() +
+                                                    (authData.expires_in * 1000),
+                                    last_synced_at = System.currentTimeMillis(),
+                                    is_synced = true
+                            )
 
                     userDao.deleteAllUsers()
                     userDao.insertUser(localUser)
 
                     if (authData.refresh_token != null) {
                         TokenManager.saveTokens(
-                            context = context,
-                            accessToken = authData.token,
-                            refreshToken = authData.refresh_token,
-                            expiresIn = authData.expires_in
+                                context = context,
+                                accessToken = authData.token,
+                                refreshToken = authData.refresh_token,
+                                expiresIn = authData.expires_in
                         )
                     } else {
 
@@ -188,9 +177,6 @@ class UserRepository @Inject constructor(
         }
     }
 
-    /**
-     * LOGOUT
-     */
     suspend fun logout(): Result<Unit> {
         return try {
             try {
@@ -198,12 +184,9 @@ class UserRepository @Inject constructor(
                 if (token != null) {
                     apiService.logout("Bearer $token")
                 }
-            } catch (e: Exception) {
-            }
-
+            } catch (e: Exception) {}
 
             TokenManager.clearTokens(context)
-
 
             userDao.deleteAllUsers()
 
@@ -212,7 +195,6 @@ class UserRepository @Inject constructor(
             Result.failure(e)
         }
     }
-
 
     suspend fun getCurrentUser(): User? {
         return userDao.getCurrentUser()
@@ -244,10 +226,13 @@ class UserRepository @Inject constructor(
 
                 if (currentUser != null) {
 
-                    val updatedUser = currentUser.copy(
-                        access_token = authResponse.access_token,
-                        token_expires_at = System.currentTimeMillis() + (authResponse.expires_in * 1000)
-                    )
+                    val updatedUser =
+                            currentUser.copy(
+                                    access_token = authResponse.access_token,
+                                    token_expires_at =
+                                            System.currentTimeMillis() +
+                                                    (authResponse.expires_in * 1000)
+                            )
                     userDao.updateUser(updatedUser)
                     Result.success(updatedUser)
                 } else {
@@ -263,9 +248,8 @@ class UserRepository @Inject constructor(
     }
 
     // ===================================
-    // PASSWORD OPERATIONS
-    // ===================================
 
+    // ===================================
 
     suspend fun forgotPassword(email: String): Result<String> {
         return try {
@@ -283,10 +267,10 @@ class UserRepository @Inject constructor(
     }
 
     suspend fun resetPassword(
-        email: String,
-        token: String,
-        password: String,
-        passwordConfirmation: String
+            email: String,
+            token: String,
+            password: String,
+            passwordConfirmation: String
     ): Result<String> {
         return try {
             val request = ResetPasswordRequest(email, token, password, passwordConfirmation)
@@ -304,12 +288,13 @@ class UserRepository @Inject constructor(
     }
 
     suspend fun changePassword(
-        currentPassword: String,
-        newPassword: String,
-        newPasswordConfirmation: String
+            currentPassword: String,
+            newPassword: String,
+            newPasswordConfirmation: String
     ): Result<String> {
         return try {
-            val request = ChangePasswordRequest(currentPassword, newPassword, newPasswordConfirmation)
+            val request =
+                    ChangePasswordRequest(currentPassword, newPassword, newPasswordConfirmation)
             val response = apiService.changePassword(request)
 
             if (response.isSuccessful) {
@@ -324,12 +309,12 @@ class UserRepository @Inject constructor(
     }
 
     // ===================================
-    // PROFILE OPERATIONS
+
     // ===================================
 
     suspend fun fetchUserProfile(): Result<User> {
         return try {
-            val response = apiService.getUserProfile() // Return RemoteUser
+            val response = apiService.getUserProfile()
 
             if (response.isSuccessful && response.body() != null) {
                 val remoteUser = response.body()!!
@@ -337,11 +322,12 @@ class UserRepository @Inject constructor(
 
                 if (currentUser != null) {
 
-                    val updatedUser = currentUser.copy(
-                        name = remoteUser.name,
-                        email = remoteUser.email,
-                        photo_url = remoteUser.photo_url
-                    )
+                    val updatedUser =
+                            currentUser.copy(
+                                    name = remoteUser.name,
+                                    email = remoteUser.email,
+                                    photo_url = remoteUser.photo_url
+                            )
                     userDao.updateUser(updatedUser)
                     Result.success(updatedUser)
                 } else {
@@ -357,44 +343,39 @@ class UserRepository @Inject constructor(
     }
 
     suspend fun updateProfile(
-        name: String? = null,
-        email: String? = null,
-        phone: String? = null,
-        bio: String? = null
+            name: String? = null,
+            email: String? = null,
+            phone: String? = null,
+            bio: String? = null
     ): Result<User> {
         return try {
             val request = UpdateProfileRequest(name, email, phone, bio)
             val response = apiService.updateUserProfile(request)
 
-            // 1. Cek HTTP Success
             if (response.isSuccessful && response.body() != null) {
-                val apiResponse = response.body()!! // Ini ApiResponse<User>
+                val apiResponse = response.body()!!
 
-                // 2. Cek Logic Success (flag dari backend)
                 if (apiResponse.success && apiResponse.data != null) {
-                    val remoteUser = apiResponse.data // Ambil user dari dalam 'data'
+                    val remoteUser = apiResponse.data
                     val currentUser = getCurrentUser()
 
                     if (currentUser != null) {
                         // Update data user lokal dengan data baru dari remote
-                        val updatedUser = currentUser.copy(
-                            name = remoteUser.name,
-                            email = remoteUser.email,
-                            photo_url = remoteUser.photo_url,
-                            updated_at = remoteUser.updated_at ?: currentUser.updated_at
-                            // Tambahkan field lain jika ada (phone/bio jika didukung DB lokal)
-                        )
+                        val updatedUser =
+                                currentUser.copy(
+                                        name = remoteUser.name,
+                                        email = remoteUser.email,
+                                        photo_url = remoteUser.photo_url,
+                                        updated_at = remoteUser.updated_at ?: currentUser.updated_at
+                                )
 
-                        // Simpan ke Room
                         userDao.updateUser(updatedUser)
 
-                        // Return sukses
                         Result.success(updatedUser)
                     } else {
                         Result.failure(Exception("No local user found to update"))
                     }
                 } else {
-                    // API mengembalikan success: false
                     Result.failure(Exception(apiResponse.message ?: "Update failed"))
                 }
             } else {
@@ -419,19 +400,19 @@ class UserRepository @Inject constructor(
 
             // 4. Cek Response
             if (response.isSuccessful && response.body() != null) {
-                val apiResponse = response.body()!! // ApiResponse<PhotoUploadData>
+                val apiResponse = response.body()!!
 
                 // Cek flag success dari backend
                 if (apiResponse.success && apiResponse.data != null) {
-                    val photoData = apiResponse.data // ✅ Ini PhotoUploadData (hanya photo_url)
+                    val photoData = apiResponse.data
                     val currentUser = getCurrentUser()
 
                     if (currentUser != null) {
-                        // ✅ Update HANYA photo_url di database lokal
-                        val updatedUser = currentUser.copy(
-                            photo_url = photoData.photo_url,  // ✅ Ambil dari photoData
-                            updated_at = System.currentTimeMillis().toString()  // ✅ Update timestamp
-                        )
+                        val updatedUser =
+                                currentUser.copy(
+                                        photo_url = photoData.photo_url,
+                                        updated_at = System.currentTimeMillis().toString()
+                                )
                         userDao.updateUser(updatedUser)
 
                         Result.success(updatedUser)

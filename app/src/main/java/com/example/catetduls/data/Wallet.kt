@@ -6,9 +6,8 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import kotlinx.parcelize.Parcelize
-
 import com.google.gson.annotations.SerializedName
+import kotlinx.parcelize.Parcelize
 
 enum class WalletType {
     @SerializedName("CASH") CASH,
@@ -17,7 +16,6 @@ enum class WalletType {
     @SerializedName("INVESTMENT") INVESTMENT
 }
 
-/** Entity untuk Dompet Setiap dompet terikat pada satu buku */
 @Parcelize
 @Entity(
         tableName = "wallets",

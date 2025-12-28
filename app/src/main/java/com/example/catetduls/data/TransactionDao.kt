@@ -32,7 +32,6 @@ interface TransactionDao {
 
     @Query("DELETE FROM transactions") suspend fun deleteAllTransactions()
 
-    // FILTER UI WAJIB PAKAI book_id (Sudah Benar)
     @Query("SELECT * FROM transactions WHERE book_id = :bookId ORDER BY date DESC")
     fun getAllTransactions(bookId: Int): Flow<List<Transaction>>
 
@@ -47,7 +46,7 @@ interface TransactionDao {
 
     // ========================================
     // SYNC OPERATIONS (Background Worker)
-    // Worker tidak peduli book_id, dia sync semua data pending. (Sudah Benar)
+
     // ========================================
 
     @Query("SELECT * FROM transactions WHERE is_synced = 0")
@@ -262,7 +261,6 @@ interface TransactionDao {
     )
     fun getTotalExpenseByCategory(bookId: Int): Flow<List<CategoryExpense>>
 
-    // Sudah benar pakai 'localtime'
     @Query(
             """
         SELECT 
@@ -295,7 +293,6 @@ interface TransactionDao {
     )
     fun getTopExpenseCategory(bookId: Int): Flow<CategoryExpense?>
 
-    // PERBAIKAN: Menambahkan 'localtime' agar konsisten dengan getDailySummaries
     @Query(
             """
         SELECT 
@@ -350,7 +347,6 @@ interface TransactionDao {
     // Utility Queries
     // ========================================
 
-    // PERBAIKAN: Menambahkan 'suspend' karena return type bukan Flow/LiveData
     @Query(
             """
         SELECT COUNT(*) > 0 

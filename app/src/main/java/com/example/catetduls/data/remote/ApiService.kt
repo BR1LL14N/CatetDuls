@@ -8,16 +8,15 @@ import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.*
 
-// Asumsi model AuthData yang direspons oleh API
 data class AuthData(
-        val user: User, // Ini adalah RemoteUser
-        val token: String, // Diperbaiki dari 'token'
-        val refresh_token: String? = null, // Ditambahkan
-        val expires_in: Long, // Ditambahkan, digunakan untuk menghitung token_expires_at
+        val user: User,
+        val token: String,
+        val refresh_token: String? = null,
+        val expires_in: Long,
         val token_type: String
 )
 
-// Gunakan RemoteUser untuk menghindari konflik dengan model User lokal
+
 data class RemoteUser(
         val id: Int,
         val name: String,
@@ -32,7 +31,7 @@ data class PhotoUploadData(val photo_url: String)
 
 interface ApiService {
     // ===================================
-    // TEST ENDPOINTS
+
     // ===================================
 
     @GET("{endpoint}")
@@ -68,7 +67,7 @@ interface ApiService {
     @GET("books") suspend fun testGetBooks(): Response<ResponseBody>
 
     // ===================================
-    // AUTH ENDPOINTS
+
     // ===================================
 
     @POST("auth/register")
@@ -96,7 +95,7 @@ interface ApiService {
     suspend fun changePassword(@Body request: ChangePasswordRequest): Response<MessageResponse>
 
     // ===================================
-    // BOOK ENDPOINTS
+
     // ===================================
 
     @GET("books")
@@ -124,13 +123,13 @@ interface ApiService {
     suspend fun getBookWallets(@Path("id") bookId: String): Response<List<Wallet>>
 
     // ===================================
-    // WALLET ENDPOINTS
+
     // ===================================
 
     @GET("wallets")
     suspend fun getWallets(@Query("updatedSince") lastSyncAt: Long? = null): Response<List<Wallet>>
 
-    // PULL: Get Updated Wallets
+
     @GET("wallets")
     suspend fun getUpdatedWallets(
             @Query("updatedSince") lastSyncAt: Long
@@ -147,7 +146,7 @@ interface ApiService {
     @DELETE("wallets/{id}") suspend fun deleteWallet(@Path("id") serverId: String): Response<Unit>
 
     // ===================================
-    // CATEGORY ENDPOINTS
+
     // ===================================
 
     @GET("categories")
@@ -175,7 +174,7 @@ interface ApiService {
     @GET("pub-categories") suspend fun getPublicCategories(): Response<List<Category>>
 
     // ===================================
-    // TRANSACTION ENDPOINTS
+
     // ===================================
 
     @GET("transactions")
@@ -196,7 +195,7 @@ interface ApiService {
 
     @PUT("transactions/{id}")
     suspend fun updateTransaction(
-        @Path("id") serverId: Long, // Atau String, sesuaikan dengan server_id di DB lokal Anda
+        @Path("id") serverId: Long,
         @Body request: TransactionRequest
     ): Response<MessageResponse>
 
@@ -226,7 +225,7 @@ interface ApiService {
     ): Response<TransactionSummary>
 
     // ===================================
-    // USER ENDPOINTS
+
     // ===================================
 
     @GET("users") suspend fun getUsers(): Response<List<User>>
@@ -265,8 +264,7 @@ interface ApiService {
 data class CreateResponse(val success: Boolean, val message: String, val data: CreatedData?)
 
 data class CreatedData(
-    // 👇 INI PERBAIKAN UTAMANYA:
-    @SerializedName("id") // Mapping JSON "id" -> Kotlin "server_id"
+    @SerializedName("id")
     val server_id: String
 )
 
@@ -298,18 +296,18 @@ data class ResetPasswordRequest(
 )
 
 data class WalletRequest(
-    @SerializedName("book_id") val bookId: String, // Server butuh String UUID/ID Server
+    @SerializedName("book_id") val bookId: String,
     val name: String,
-    val type: String, // "CASH", "BANK", etc
+    val type: String,
     val icon: String,
     val color: String,
     @SerializedName("initial_balance") val initialBalance: Double
 )
 
 data class CategoryRequest(
-    @SerializedName("book_id") val bookId: String, // Server butuh String UUID/ID Server
+    @SerializedName("book_id") val bookId: String,
     val name: String,
-    val type: String, // "PEMASUKAN", "PENGELUARAN", "TRANSFER"
+    val type: String,
     val icon: String
 )
 
@@ -320,24 +318,13 @@ data class ChangePasswordRequest(
 )
 
 data class TransactionRequest(
-    @SerializedName("book_id") val bookId: String,         // Wajib Server ID
-    @SerializedName("wallet_id") val walletId: String,     // Wajib Server ID
-    @SerializedName("category_id") val categoryId: String, // Wajib Server ID
-
+    @SerializedName("book_id") val bookId: String,
+    @SerializedName("wallet_id") val walletId: String,
+    @SerializedName("category_id") val categoryId: String,
     val amount: Double,
-    val type: String, // "PEMASUKAN", "PENGELUARAN", "TRANSFER"
-
-    // Perhatikan nama field di server Anda.
-    // Jika server minta "note", pakai "note". Jika "notes", pakai "notes".
-    // Berdasarkan logcat sebelumnya, server Anda menerima "note".
+    val type: String,
     val note: String,
-
-    // Kirim tanggal. Server biasanya butuh format timestamp atau string date.
-    // Jika server Anda menerima timestamp integer (Long), kirim Long.
-    @SerializedName("created_at") val createdAt: Long,
-
-    // Opsional: Jika ada image
-    // @SerializedName("image_url") val imageUrl: String?
+    @SerializedName("created_at") val createdAt: Long
 )
 
 data class UpdateProfileRequest(
@@ -364,10 +351,7 @@ data class BookRequest(
     val name: String,
     val description: String,
     val icon: String,
-    val color: String,
-    // Kita tidak kirim 'id' (dibuat server)
-    // Kita tidak kirim 'user_id' (diambil dari token)
-    // Kita tidak kirim 'currency' (karena tabel server belum punya kolomnya)
+    val color: String
 )
 
 data class UserStatistics(
@@ -399,13 +383,13 @@ data class User(
         val name: String,
         val email: String,
         val email_verified_at: String?,
-        val photo_url: String?, // Pastikan ini ada
+        val photo_url: String?,
         val created_at: String?,
         val updated_at: String?,
-// Tambahkan field lainnya jika perlu
+
 )
 
-// Atau buat data class khusus
+
 data class UserProfileData(val user: User, val photo_url: String?)
 
 data class PhotoUrlData(val photo_url: String)

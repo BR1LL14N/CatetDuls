@@ -37,7 +37,6 @@ constructor(
     fun getTransactionById(id: Int): Flow<Transaction?> = transactionDao.getTransactionById(id)
 
     suspend fun getSingleTransactionById(id: Int): Transaction? {
-        // Menggunakan first() atau singleOrNull() untuk mendapatkan nilai pertama/tunggal dari Flow
         return transactionDao.getTransactionById(id).firstOrNull()
     }
 
@@ -56,11 +55,10 @@ constructor(
             )
         }
 
-        // OTOMATIS ISI bookId DARI STATE APLIKASI
         val currentBookId = if (transaction.bookId == 0) getActiveBookId() else transaction.bookId
         val transactionToInsert =
                 transaction.copy(
-                        bookId = currentBookId, // <--- TAMBAHAN PENTING
+                        bookId = currentBookId,
                         isSynced = false,
                         isDeleted = false,
                         syncAction = "CREATE",
@@ -82,7 +80,7 @@ constructor(
                     val currentBookId =
                             if (transaction.bookId == 0) getActiveBookId() else transaction.bookId
                     transaction.copy(
-                            bookId = currentBookId, // <--- TAMBAHAN PENTING
+                            bookId = currentBookId,
                             isSynced = false,
                             isDeleted = false,
                             syncAction = "CREATE",
@@ -105,11 +103,10 @@ constructor(
             )
         }
 
-        // Menentukan status sinkronisasi untuk UPDATE
         val currentBookId = if (transaction.bookId == 0) getActiveBookId() else transaction.bookId
         val transactionToUpdate =
                 transaction.copy(
-                        bookId = currentBookId, // <--- Jaga-jaga jika 0
+                        bookId = currentBookId,
                         isSynced = false,
                         isDeleted = false,
                         syncAction = "UPDATE",
@@ -154,7 +151,6 @@ constructor(
     }
 
     suspend fun deleteAllTransactions() {
-        // Hapus transaksi HANYA untuk buku yang sedang aktif
         transactionDao.deleteTransactionsByBook(getActiveBookId())
     }
 
@@ -196,7 +192,6 @@ constructor(
                         syncAction = null,
                         lastSyncAt = System.currentTimeMillis(),
                         imagePath = existingPath ?: entity.imagePath,
-                        // Handle Nullability 'notes' agar tidak crash
                         notes = entity.notes ?: ""
                 )
 
@@ -460,6 +455,3 @@ constructor(
         }
     }
 }
-
-// Catatan: Anda perlu memastikan `ValidationResult`, `DailySummary`,
-// `CategoryExpense`, dan `MonthlyTotal` didefinisikan di tempat lain dalam proyek Anda.
