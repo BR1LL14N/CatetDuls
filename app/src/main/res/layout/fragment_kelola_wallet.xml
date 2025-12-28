@@ -15,14 +15,13 @@
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/til_search"
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Cari Kategori..."
+        android:hint="Cari Dompet..."
         app:startIconDrawable="@drawable/ic_search"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/spinner_filter_type"
-        app:layout_constraintWidth_percent="0.6">
+        app:layout_constraintEnd_toEndOf="parent">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/et_search"
@@ -31,23 +30,9 @@
             android:inputType="text" />
     </com.google.android.material.textfield.TextInputLayout>
 
-    <!-- Filter Spinner -->
-    <Spinner
-        android:id="@+id/spinner_filter_type"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:minHeight="56dp"
-        android:background="@drawable/bg_spinner"
-        android:entries="@array/category_filter_options"
-        app:layout_constraintTop_toTopOf="@id/til_search"
-        app:layout_constraintBottom_toBottomOf="@id/til_search"
-        app:layout_constraintStart_toEndOf="@id/til_search"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <!-- RecyclerView -->
+    <!-- RecyclerView for Wallets -->
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rv_categories"
+        android:id="@+id/rv_wallets"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginTop="16dp"
@@ -55,7 +40,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        tools:listitem="@layout/item_category" />
+        tools:listitem="@layout/item_wallet" />
 
     <!-- Empty State -->
     <include
@@ -69,7 +54,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- FAB -->
+    <!-- FAB Add -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_add"
         android:layout_width="wrap_content"

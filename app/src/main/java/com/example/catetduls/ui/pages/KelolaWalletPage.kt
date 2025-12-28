@@ -1,13 +1,13 @@
 package com.example.catetduls.ui.pages
 
-import android.app.AlertDialog
 import android.content.Context
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
-import android.widget.Toast
+import android.widget.FrameLayout
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -17,7 +17,14 @@ import com.example.catetduls.data.Wallet
 import com.example.catetduls.data.WalletType
 import com.example.catetduls.data.getWalletRepository
 import com.example.catetduls.ui.adapter.WalletAdapter
+import com.example.catetduls.ui.utils.animateClick
+import com.example.catetduls.ui.utils.showSnackbar
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.textfield.TextInputEditText
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 class KelolaWalletPage : Fragment() {
@@ -25,109 +32,233 @@ class KelolaWalletPage : Fragment() {
     private lateinit var adapter: WalletAdapter
     private var activeBookId: Int = 1
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        // Kita bisa reuse layout fragment_kelola_kategori atau buat baru fragment_kelola_wallet
-        return inflater.inflate(R.layout.fragment_kelola_kategori, container, false)
+    private lateinit var etSearch: TextInputEditText
+    private lateinit var rvWallets: RecyclerView
+    private lateinit var fabAdd: FloatingActionButton
+    private lateinit var emptyState: View
+    private lateinit var loadingOverlay: FrameLayout
+
+    private val searchQuery = MutableStateFlow("")
+    private val allWallets = MutableStateFlow<List<Wallet>>(emptyList())
+
+    override fun onCreateView(
+            inflater: LayoutInflater,
+            container: ViewGroup?,
+            savedInstanceState: Bundle?
+    ): View? {
+        return inflater.inflate(R.layout.fragment_kelola_wallet, container, false)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Hide elemen search/filter kategori yang tidak perlu jika me-reuse layout
-        view.findViewById<View>(R.id.til_search)?.visibility = View.GONE
-        view.findViewById<View>(R.id.spinner_filter_type)?.visibility = View.GONE
-
         val walletRepo = requireContext().getWalletRepository()
         val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
         activeBookId = prefs.getInt("active_book_id", 1)
 
-        val rv = view.findViewById<RecyclerView>(R.id.rv_categories) // Reuse ID
-        val fab = view.findViewById<FloatingActionButton>(R.id.fab_add)
+        initViews(view)
+        setupRecyclerView()
+        setupSearch()
+        setupFAB()
+        observeData(walletRepo)
+    }
 
-        adapter = WalletAdapter { wallet ->
-            showFormDialog(wallet)
+    private fun initViews(view: View) {
+        etSearch = view.findViewById(R.id.et_search)
+        rvWallets = view.findViewById(R.id.rv_wallets)
+        fabAdd = view.findViewById(R.id.fab_add)
+        emptyState = view.findViewById(R.id.empty_state)
+        loadingOverlay = view.findViewById(R.id.loading_overlay)
+    }
+
+    private fun setupRecyclerView() {
+        adapter = WalletAdapter { wallet -> showFormDialog(wallet) }
+
+        rvWallets.apply {
+            adapter = this@KelolaWalletPage.adapter
+            layoutManager = LinearLayoutManager(requireContext())
         }
+    }
 
-        rv.layoutManager = LinearLayoutManager(requireContext())
-        rv.adapter = adapter
+    private fun setupSearch() {
+        etSearch.addTextChangedListener(
+                object : TextWatcher {
+                    override fun beforeTextChanged(
+                            s: CharSequence?,
+                            start: Int,
+                            count: Int,
+                            after: Int
+                    ) {}
+                    override fun onTextChanged(
+                            s: CharSequence?,
+                            start: Int,
+                            before: Int,
+                            count: Int
+                    ) {
+                        searchQuery.value = s.toString()
+                    }
+                    override fun afterTextChanged(s: Editable?) {}
+                }
+        )
+    }
 
-        // Observe Data
+    private fun setupFAB() {
+        fabAdd.setOnClickListener { animateClick(it) { showFormDialog(null) } }
+    }
+
+    private fun observeData(walletRepo: com.example.catetduls.data.WalletRepository) {
         viewLifecycleOwner.lifecycleScope.launch {
             walletRepo.getWalletsByBook(activeBookId).collect { wallets ->
-                adapter.submitList(wallets)
+                allWallets.value = wallets
             }
         }
 
-        fab.setOnClickListener {
-            showFormDialog(null)
+        viewLifecycleOwner.lifecycleScope.launch {
+            combine(allWallets, searchQuery) { wallets, query ->
+                if (query.isBlank()) {
+                    wallets
+                } else {
+                    wallets.filter { it.name.contains(query, ignoreCase = true) }
+                }
+            }
+                    .collect { filtered ->
+                        adapter.submitList(filtered)
+
+                        if (filtered.isEmpty()) {
+                            rvWallets.visibility = View.GONE
+                            emptyState.visibility = View.VISIBLE
+                        } else {
+                            rvWallets.visibility = View.VISIBLE
+                            emptyState.visibility = View.GONE
+                        }
+                    }
         }
     }
 
     private fun showFormDialog(wallet: Wallet?) {
-        val context = requireContext()
-        val builder = AlertDialog.Builder(context)
-        builder.setTitle(if (wallet == null) "Tambah Dompet" else "Edit Dompet")
+        val dialogView = layoutInflater.inflate(R.layout.dialog_form_wallet, null)
+        val dialog =
+                MaterialAlertDialogBuilder(requireContext())
+                        .setView(dialogView)
+                        .setCancelable(true)
+                        .create()
 
-        // Setup Layout Form Sederhana secara Programmatic
-        val layout = android.widget.LinearLayout(context)
-        layout.orientation = android.widget.LinearLayout.VERTICAL
-        layout.setPadding(50, 40, 50, 10)
+        // Don't set transparent background - use default
+        dialog.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
 
-        val inputName = EditText(context)
-        inputName.hint = "Nama Dompet (cth: Bank BCA)"
-        inputName.setText(wallet?.name ?: "")
-        layout.addView(inputName)
+        val tvTitle = dialogView.findViewById<android.widget.TextView>(R.id.tv_dialog_title)
+        val etName = dialogView.findViewById<TextInputEditText>(R.id.et_name)
+        val etBalance = dialogView.findViewById<TextInputEditText>(R.id.et_balance)
+        val etCustomIcon = dialogView.findViewById<TextInputEditText>(R.id.et_custom_icon)
+        val btnCancel = dialogView.findViewById<MaterialButton>(R.id.btn_cancel)
+        val btnSave = dialogView.findViewById<MaterialButton>(R.id.btn_save)
 
-        val inputIcon = EditText(context)
-        inputIcon.hint = "Icon (cth: 🏦)"
-        inputIcon.setText(wallet?.icon ?: "💰")
-        layout.addView(inputIcon)
+        val iconButtons =
+                listOf(
+                        dialogView.findViewById<android.widget.TextView>(R.id.btn_icon_1) to "💰",
+                        dialogView.findViewById<android.widget.TextView>(R.id.btn_icon_2) to "🏦",
+                        dialogView.findViewById<android.widget.TextView>(R.id.btn_icon_3) to "💳",
+                        dialogView.findViewById<android.widget.TextView>(R.id.btn_icon_4) to "👛",
+                        dialogView.findViewById<android.widget.TextView>(R.id.btn_icon_5) to "💵",
+                        dialogView.findViewById<android.widget.TextView>(R.id.btn_icon_6) to "🪙"
+                )
 
-        // Field Saldo Awal (Hanya bisa diedit saat create baru agar aman, atau disable logic ini)
-        val inputBalance = EditText(context)
-        inputBalance.hint = "Saldo Awal"
-        inputBalance.inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+        var selectedIcon = wallet?.icon ?: "💰"
+
         if (wallet != null) {
-            inputBalance.setText(wallet.currentBalance.toString())
-            inputBalance.isEnabled = false // Disable edit saldo langsung di sini demi konsistensi data transaksi
+            tvTitle.text = "Edit Dompet"
+            etName.setText(wallet.name)
+            etBalance.setText(wallet.currentBalance.toString())
+            etBalance.isEnabled = false
+        } else {
+            tvTitle.text = "Tambah Dompet"
+            etBalance.setText("0")
         }
-        layout.addView(inputBalance)
 
-        builder.setView(layout)
-
-        builder.setPositiveButton("Simpan") { _, _ ->
-            val name = inputName.text.toString()
-            val icon = inputIcon.text.toString()
-            val balanceStr = inputBalance.text.toString()
-            val balance = balanceStr.toDoubleOrNull() ?: 0.0
-
-            if (name.isNotBlank()) {
-                val repo = context.getWalletRepository()
-                viewLifecycleOwner.lifecycleScope.launch {
-                    if (wallet == null) {
-                        val newWallet = Wallet(
-                            bookId = activeBookId,
-                            name = name,
-                            icon = icon,
-                            type = WalletType.CASH, // Default type
-                            initialBalance = balance,
-                            currentBalance = balance,
-                            lastSyncAt = 0L
-                        )
-                        repo.insert(newWallet)
-                    } else {
-                        val updatedWallet = wallet.copy(
-                            name = name,
-                            icon = icon
-                            // Jangan update saldo di sini
-                        )
-                        repo.update(updatedWallet)
-                    }
-                    Toast.makeText(context, "Berhasil disimpan", Toast.LENGTH_SHORT).show()
-                }
+        iconButtons.forEach { (button, icon) ->
+            if (icon == selectedIcon) {
+                button.isSelected = true
+            }
+            button.setOnClickListener {
+                selectedIcon = icon
+                iconButtons.forEach { (btn, _) -> btn.isSelected = false }
+                button.isSelected = true
+                etCustomIcon.text = null // Clear custom when preset selected
             }
         }
-        builder.setNegativeButton("Batal", null)
-        builder.show()
+
+        // Custom icon input handler
+        etCustomIcon.addTextChangedListener(
+                object : android.text.TextWatcher {
+                    override fun beforeTextChanged(
+                            s: CharSequence?,
+                            start: Int,
+                            count: Int,
+                            after: Int
+                    ) {}
+                    override fun onTextChanged(
+                            s: CharSequence?,
+                            start: Int,
+                            before: Int,
+                            count: Int
+                    ) {
+                        if (!s.isNullOrBlank()) {
+                            selectedIcon = s.toString()
+                            iconButtons.forEach { (btn, _) -> btn.isSelected = false }
+                        }
+                    }
+                    override fun afterTextChanged(s: android.text.Editable?) {}
+                }
+        )
+
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
+        btnSave.setOnClickListener {
+            val name = etName.text.toString()
+            val balanceStr = etBalance.text.toString()
+            val balance = balanceStr.toDoubleOrNull() ?: 0.0
+
+            if (name.isBlank()) {
+                showSnackbar("Nama dompet tidak boleh kosong", true)
+                return@setOnClickListener
+            }
+
+            val repo = requireContext().getWalletRepository()
+            viewLifecycleOwner.lifecycleScope.launch {
+                if (wallet == null) {
+                    val newWallet =
+                            Wallet(
+                                    bookId = activeBookId,
+                                    name = name,
+                                    icon = selectedIcon,
+                                    type = WalletType.CASH,
+                                    initialBalance = balance,
+                                    currentBalance = balance,
+                                    lastSyncAt = 0L
+                            )
+                    repo.insert(newWallet)
+                    showSnackbar("Dompet $name berhasil ditambahkan")
+                } else {
+                    val updatedWallet = wallet.copy(name = name, icon = selectedIcon)
+                    repo.update(updatedWallet)
+                    showSnackbar("Dompet $name berhasil diupdate")
+                }
+                dialog.dismiss()
+            }
+        }
+
+        dialog.show()
+
+        dialogView.alpha = 0f
+        dialogView.scaleX = 0.9f
+        dialogView.scaleY = 0.9f
+        dialogView
+                .animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(250)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .start()
     }
 }

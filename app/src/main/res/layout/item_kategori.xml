@@ -57,13 +57,15 @@
             app:layout_constraintTop_toTopOf="@id/tv_name"
             app:layout_constraintBottom_toBottomOf="@id/tv_name" />
 
-        <Button
+        <ImageButton
             android:id="@+id/btn_edit"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:text="Edit"
-            android:textSize="12sp"
-            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_edit_24"
+            android:contentDescription="Edit"
+            android:padding="8dp"
+            app:tint="@color/primary"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />

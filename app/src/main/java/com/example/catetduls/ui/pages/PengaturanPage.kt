@@ -1,12 +1,13 @@
 package com.example.catetduls.ui.pages
 
-// Hapus import PengaturanViewModelFactory (sudah tidak ada)
 import android.app.AlertDialog
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,12 +16,19 @@ import androidx.fragment.app.viewModels // Import Hilt ktx
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
 import com.example.catetduls.R
+import com.example.catetduls.data.AppDatabase
 import com.example.catetduls.data.getBookRepository // Import Extension
+import com.example.catetduls.data.getCategoryRepository
+import com.example.catetduls.data.getTransactionRepository
+import com.example.catetduls.data.getWalletRepository
 import com.example.catetduls.viewmodel.PengaturanViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint // WAJIB: Anotasi agar Hilt bekerja di Fragment ini
@@ -51,6 +59,8 @@ class PengaturanPage : Fragment() {
     private lateinit var btnSyncNow: MaterialButton
     private lateinit var tvActiveBookName: TextView
     private lateinit var tvActiveCurrency: TextView
+    private lateinit var loadingOverlay: FrameLayout
+    private lateinit var loadingText: TextView
 
     // ===============================================
     // LAUNCHER UNTUK EXPORT FILE
@@ -109,6 +119,7 @@ class PengaturanPage : Fragment() {
 
         // Setup
         setupButtons(view)
+        setupCardAnimations(view)
 
         // Observe data
         observeData()
@@ -142,17 +153,70 @@ class PengaturanPage : Fragment() {
         tvActiveCurrency = view.findViewById(R.id.tv_active_currency)
 
         btnEditProfile = view.findViewById(R.id.btn_edit_profile)
+        loadingOverlay = view.findViewById(R.id.loading_overlay)
+        loadingText = view.findViewById(R.id.loading_text)
+    }
+
+    private fun setupCardAnimations(view: View) {
+        val cards = listOf(
+            view.findViewById<MaterialCardView>(R.id.card_kelola_buku),
+            view.findViewById<MaterialCardView>(R.id.card_kelola_kategori),
+            view.findViewById<MaterialCardView>(R.id.card_kelola_wallet),
+            view.findViewById<MaterialCardView>(R.id.card_mata_uang_buku)
+        )
+
+        cards.forEachIndexed { index, card: MaterialCardView ->
+            card.alpha = 0f
+            card.translationY = 50f
+            
+            card.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(400)
+                .setStartDelay((index * 100).toLong())
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .start()
+        }
+    }
+
+    private fun animateClick(view: View, action: () -> Unit) {
+        val scaleDown = android.animation.ObjectAnimator.ofPropertyValuesHolder(
+            view,
+            android.animation.PropertyValuesHolder.ofFloat("scaleX", 0.95f),
+            android.animation.PropertyValuesHolder.ofFloat("scaleY", 0.95f)
+        ).apply {
+            duration = 100
+        }
+
+        val scaleUp = android.animation.ObjectAnimator.ofPropertyValuesHolder(
+            view,
+            android.animation.PropertyValuesHolder.ofFloat("scaleX", 1f),
+            android.animation.PropertyValuesHolder.ofFloat("scaleY", 1f)
+        ).apply {
+            duration = 100
+        }
+
+        scaleDown.addListener(object : android.animation.AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: android.animation.Animator) {
+                scaleUp.start()
+                action()
+            }
+        })
+
+        scaleDown.start()
     }
 
     private fun setupButtons(view: View) {
         // Kelola Buku
         cardKelolaBuku.setOnClickListener {
-            val kelolaFragment = KelolaBukuPage()
-            parentFragmentManager
-                    .beginTransaction()
-                    .replace(R.id.fragment_container, kelolaFragment)
-                    .addToBackStack(null)
-                    .commit()
+            animateClick(it) {
+                val kelolaFragment = KelolaBukuPage()
+                parentFragmentManager
+                        .beginTransaction()
+                        .replace(R.id.fragment_container, kelolaFragment)
+                        .addToBackStack(null)
+                        .commit()
+            }
         }
 
         // Kelola Kategori
@@ -225,10 +289,30 @@ class PengaturanPage : Fragment() {
         }
 
         // Reset Data
-        btnResetData.setOnClickListener { showResetDataDialog() }
+        btnResetData.setOnClickListener { 
+            showCustomDialog(
+                icon = R.drawable.ic_delete_24,
+                iconTint = R.color.danger,
+                title = "Reset Semua Data",
+                message = "Apakah Anda yakin ingin menghapus SEMUA transaksi? Tindakan ini tidak dapat dibatalkan!",
+                confirmText = "Ya, Hapus",
+                confirmColor = R.color.danger,
+                onConfirm = { viewModel.resetAllData() }
+            )
+        }
 
         // Reset Kategori
-        btnResetKategori.setOnClickListener { showResetKategoriDialog() }
+        btnResetKategori.setOnClickListener { 
+            showCustomDialog(
+                icon = R.drawable.ic_category_24,
+                iconTint = R.color.warning,
+                title = "Reset Kategori",
+                message = "Apakah Anda yakin ingin mereset kategori ke default?",
+                confirmText = "Ya, Reset",
+                confirmColor = R.color.primary,
+                onConfirm = { viewModel.resetCategoriesToDefault() }
+            )
+        }
 
         // LOGIN / LOGOUT Button Listener
         btnAuthAction.setOnClickListener {
@@ -325,37 +409,112 @@ class PengaturanPage : Fragment() {
 
     // ===============================================
     // DIALOGS
-    // ===============================================
+    // ===============================================    }
+
+    private fun showCustomDialog(
+        icon: Int,
+        iconTint: Int,
+        title: String,
+        message: String,
+        confirmText: String,
+        confirmColor: Int,
+        onConfirm: () -> Unit
+    ) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_confirmation, null)
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        val iconView = dialogView.findViewById<ImageView>(R.id.dialog_icon)
+        val titleView = dialogView.findViewById<TextView>(R.id.dialog_title)
+        val messageView = dialogView.findViewById<TextView>(R.id.dialog_message)
+        val btnCancel = dialogView.findViewById<MaterialButton>(R.id.btn_cancel)
+        val btnConfirm = dialogView.findViewById<MaterialButton>(R.id.btn_confirm)
+
+        iconView.setImageResource(icon)
+        iconView.setColorFilter(resources.getColor(iconTint, null))
+        titleView.text = title
+        messageView.text = message
+        btnConfirm.text = confirmText
+        btnConfirm.setBackgroundColor(resources.getColor(confirmColor, null))
+
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        btnConfirm.setOnClickListener {
+            animateClick(it) {
+                onConfirm()
+                dialog.dismiss()
+            }
+        }
+
+        dialog.show()
+        
+        dialogView.alpha = 0f
+        dialogView.scaleX = 0.8f
+        dialogView.scaleY = 0.8f
+        dialogView.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(250)
+            .setInterpolator(android.view.animation.OvershootInterpolator())
+            .start()
+    }
+
+    private fun showSnackbar(message: String, isError: Boolean = false) {
+        val snackbar = Snackbar.make(requireView(), message, Snackbar.LENGTH_LONG)
+        val snackbarView = snackbar.view
+        
+        snackbarView.setBackgroundColor(
+            resources.getColor(
+                if (isError) R.color.danger else R.color.success,
+                null
+            )
+        )
+        
+        snackbar.setTextColor(resources.getColor(R.color.white, null))
+        snackbar.show()
+    }
 
     private fun showResetDataDialog() {
-        AlertDialog.Builder(requireContext())
-                .setTitle("Reset Semua Data")
-                .setMessage(
-                        "Apakah Anda yakin ingin menghapus SEMUA transaksi? Tindakan ini tidak dapat dibatalkan!"
-                )
-                .setPositiveButton("Ya, Hapus") { _, _ -> viewModel.resetAllData() }
-                .setNegativeButton("Batal", null)
-                .show()
+        showCustomDialog(
+            icon = R.drawable.ic_delete_24,
+            iconTint = R.color.danger,
+            title = "Reset Semua Data",
+            message = "Apakah Anda yakin ingin menghapus SEMUA transaksi? Tindakan ini tidak dapat dibatalkan!",
+            confirmText = "Ya, Hapus",
+            confirmColor = R.color.danger,
+            onConfirm = { viewModel.resetAllData() }
+        )
     }
 
     private fun showResetKategoriDialog() {
-        AlertDialog.Builder(requireContext())
-                .setTitle("Reset Kategori")
-                .setMessage("Apakah Anda yakin ingin mereset kategori ke default?")
-                .setPositiveButton("Ya") { _, _ -> viewModel.resetCategoriesToDefault() }
-                .setNegativeButton("Batal", null)
-                .show()
+        showCustomDialog(
+            icon = R.drawable.ic_category_24,
+            iconTint = R.color.warning,
+            title = "Reset Kategori",
+            message = "Apakah Anda yakin ingin mereset kategori ke default?",
+            confirmText = "Ya, Reset",
+            confirmColor = R.color.primary,
+            onConfirm = { viewModel.resetCategoriesToDefault() }
+        )
     }
 
     private fun showLogoutDialog() {
-        AlertDialog.Builder(requireContext())
-                .setTitle("Keluar Akun")
-                .setMessage(
-                        "Apakah Anda yakin ingin keluar? Data lokal yang belum disinkronkan mungkin hilang."
-                )
-                .setPositiveButton("Keluar") { _, _ -> viewModel.logout() }
-                .setNegativeButton("Batal", null)
-                .show()
+        showCustomDialog(
+            icon = R.drawable.ic_warning_24,
+            iconTint = R.color.warning,
+            title = "Keluar Akun",
+            message = "Apakah Anda yakin ingin keluar? Data lokal yang belum disinkronkan mungkin hilang.",
+            confirmText = "Keluar",
+            confirmColor = R.color.danger,
+            onConfirm = { viewModel.logout() }
+        )
     }
 
     private fun showCurrencySelectionDialog() {
@@ -408,6 +567,15 @@ class PengaturanPage : Fragment() {
             }
         }
 
+        viewModel.isLoading.asLiveData().observe(viewLifecycleOwner) { isLoading ->
+            if (isLoading) {
+                loadingOverlay.visibility = View.VISIBLE
+            } else {
+                loadingOverlay.visibility = View.GONE
+                loadStatistics()
+            }
+        }
+
         // Observe Username
         viewModel.userName.asLiveData().observe(viewLifecycleOwner) { name ->
             tvUserStatus.text = "Halo, $name"
@@ -416,7 +584,7 @@ class PengaturanPage : Fragment() {
         // Observe Success Message
         viewModel.successMessage.asLiveData().observe(viewLifecycleOwner) { message ->
             message?.let {
-                Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
+                showSnackbar(it, false)
                 loadStatistics()
                 viewModel.clearMessages()
             }
@@ -425,7 +593,7 @@ class PengaturanPage : Fragment() {
         // Observe Error Message
         viewModel.errorMessage.asLiveData().observe(viewLifecycleOwner) { error ->
             error?.let {
-                Toast.makeText(requireContext(), it, Toast.LENGTH_LONG).show()
+                showSnackbar(it, true)
                 viewModel.clearMessages()
             }
         }
@@ -433,8 +601,26 @@ class PengaturanPage : Fragment() {
 
     private fun loadStatistics() {
         tvAppVersion.text = "Versi ${viewModel.getAppVersion()}"
-        val stats = viewModel.getAppStatistics()
-        tvTotalTransaksi.text = "Total Transaksi: ${stats["Total Transaksi"]}"
-        tvTotalKategori.text = "Total Kategori: ${stats["Total Kategori"]}"
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val database = AppDatabase.getDatabase(requireContext())
+                val prefs = requireContext().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+                val activeBookId = prefs.getInt("active_book_id", 1)
+                
+                val transactionCount = kotlinx.coroutines.withContext<Int>(kotlinx.coroutines.Dispatchers.IO) {
+                    database.transactionDao().getAllTransactions(activeBookId).first().size
+                }
+                
+                val categoryCount = kotlinx.coroutines.withContext<Int>(kotlinx.coroutines.Dispatchers.IO) {
+                    database.categoryDao().getAllCategoriesSync(activeBookId).size
+                }
+                
+                tvTotalTransaksi.text = "Total Transaksi: $transactionCount"
+                tvTotalKategori.text = "Total Kategori: $categoryCount"
+            } catch (e: Exception) {
+                tvTotalTransaksi.text = "Total Transaksi: -"
+                tvTotalKategori.text = "Total Kategori: -"
+            }
+        }
     }
 }
