@@ -1,13 +1,20 @@
 package com.example.catetduls
 
+import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.example.catetduls.data.Book // ✅ Solusi error infer type
+import com.example.catetduls.data.getBookRepository
 import com.example.catetduls.data.local.TokenManager
 import com.example.catetduls.ui.pages.*
 import com.example.catetduls.utils.AppPreferences
@@ -16,10 +23,6 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import androidx.lifecycle.lifecycleScope // ✅ Solusi error lifecycleScope
-import com.example.catetduls.data.Book // ✅ Solusi error infer type
-import com.example.catetduls.data.getBookRepository
-import android.content.Context
 
 // Antarmuka yang didefinisikan di RegisterPage, harus diimplementasikan di Activity
 interface NavigationController {
@@ -35,9 +38,19 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.Theme_CatetDuls)
         super.onCreate(savedInstanceState)
+
+        // ========================================
+        // ANDROID 15 EDGE-TO-EDGE SUPPORT (SAFE)
+        // ========================================
+        setupEdgeToEdge()
+
         setContentView(R.layout.activity_main)
 
         bottomNav = findViewById(R.id.bottom_navigation)
+
+        // Apply window insets after views are created
+        applyWindowInsets()
+
         setupNetworkObserver()
         setupSyncObserver()
 
@@ -58,7 +71,10 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
                     // Jika ID di Prefs (1) beda dengan ID asli dari Database (misal 2)
                     if (currentPrefId != book.id) {
                         prefs.edit().putInt("active_book_id", book.id).apply()
-                        android.util.Log.d("MainActivity", "✅ FIX: Active Book ID updated to ${book.id}")
+                        android.util.Log.d(
+                                "MainActivity",
+                                "✅ FIX: Active Book ID updated to ${book.id}"
+                        )
 
                         // Opsional: Reload fragment jika sedang di halaman transaksi
                         // loadFragment(TransaksiPage())
@@ -68,28 +84,27 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
         }
         // --- TAMBAHAN FIX AUTO-UPDATE ID (SELESAI) ---
 
-
         // =========================================================================
         // Logika Lifecycle Callback Sederhana
         // =========================================================================
         supportFragmentManager.registerFragmentLifecycleCallbacks(
-            object : FragmentManager.FragmentLifecycleCallbacks() {
-                override fun onFragmentViewCreated(
-                    fm: FragmentManager,
-                    f: Fragment,
-                    v: View,
-                    savedInstanceState: Bundle?
-                ) {
-                    super.onFragmentViewCreated(fm, f, v, savedInstanceState)
+                object : FragmentManager.FragmentLifecycleCallbacks() {
+                    override fun onFragmentViewCreated(
+                            fm: FragmentManager,
+                            f: Fragment,
+                            v: View,
+                            savedInstanceState: Bundle?
+                    ) {
+                        super.onFragmentViewCreated(fm, f, v, savedInstanceState)
 
-                    if (f is LoginPage || f is RegisterPage) {
-                        bottomNav.visibility = View.GONE
-                    } else {
-                        bottomNav.visibility = View.VISIBLE
+                        if (f is LoginPage || f is RegisterPage) {
+                            bottomNav.visibility = View.GONE
+                        } else {
+                            bottomNav.visibility = View.VISIBLE
+                        }
                     }
-                }
-            },
-            true
+                },
+                true
         )
 
         if (savedInstanceState == null) {
@@ -210,6 +225,74 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
                 .beginTransaction()
                 .replace(R.id.fragment_container, fragment)
                 .commit()
+    }
+
+    /** Setup edge-to-edge display for Android 15+ Only applies on Android 15 (API 35) and above */
+    private fun setupEdgeToEdge() {
+        try {
+            // Enable on Android 15+ (API 35) or for testing on Android 14+
+            // VANILLA_ICE_CREAM might not be available, use numeric constant
+            if (Build.VERSION.SDK_INT >= 35 ||
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+            ) {
+                WindowCompat.setDecorFitsSystemWindows(window, false)
+                android.util.Log.d(
+                        "MainActivity",
+                        "✅ Edge-to-edge enabled (API ${Build.VERSION.SDK_INT})"
+                )
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "❌ Edge-to-edge setup failed", e)
+        }
+    }
+
+    /** Apply window insets to handle system bars Safely handles null views and errors */
+    private fun applyWindowInsets() {
+        try {
+            // Run on Android 14+ for testing, Android 15+ for production
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                return
+            }
+
+            val rootView = findViewById<View>(R.id.fragment_container)
+            if (rootView != null) {
+                ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, windowInsets ->
+                    val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+
+                    // Apply ALL insets including top for status bar and camera cutout
+                    view.setPadding(
+                            insets.left,
+                            insets.top, // CRITICAL: Apply top padding for status bar/camera
+                            insets.right,
+                            0 // Bottom handled by nav bar
+                    )
+
+                    android.util.Log.d(
+                            "MainActivity",
+                            "Insets applied: top=${insets.top}, bottom=${insets.bottom}"
+                    )
+
+                    WindowInsetsCompat.CONSUMED
+                }
+            }
+
+            if (::bottomNav.isInitialized) {
+                ViewCompat.setOnApplyWindowInsetsListener(bottomNav) { view, windowInsets ->
+                    val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+                    view.setPadding(
+                            view.paddingLeft,
+                            view.paddingTop,
+                            view.paddingRight,
+                            insets.bottom
+                    )
+                    windowInsets
+                }
+            }
+
+            android.util.Log.d("MainActivity", "✅ Window insets applied")
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "❌ Window insets setup failed", e)
+        }
     }
 
     override fun navigateTo(fragment: Fragment) {

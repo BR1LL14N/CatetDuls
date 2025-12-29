@@ -18,9 +18,6 @@ import androidx.lifecycle.lifecycleScope
 import com.example.catetduls.R
 import com.example.catetduls.data.AppDatabase
 import com.example.catetduls.data.getBookRepository // Import Extension
-import com.example.catetduls.data.getCategoryRepository
-import com.example.catetduls.data.getTransactionRepository
-import com.example.catetduls.data.getWalletRepository
 import com.example.catetduls.viewmodel.PengaturanViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
@@ -43,8 +40,7 @@ class PengaturanPage : Fragment() {
     private lateinit var cardKelolaWallet: MaterialCardView
     private lateinit var btnBackup: MaterialButton
     private lateinit var btnRestore: MaterialButton
-    private lateinit var btnExportCsv: MaterialButton
-    private lateinit var btnExportJson: MaterialButton
+    private lateinit var btnLaporan: MaterialButton
     private lateinit var btnResetData: MaterialButton
     private lateinit var btnResetKategori: MaterialButton
     private lateinit var tvAppVersion: TextView
@@ -98,6 +94,21 @@ class PengaturanPage : Fragment() {
                         }
             }
 
+    private val restoreFileLauncher =
+            registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+                uri?.let { fileUri ->
+                    viewLifecycleOwner.lifecycleScope.launch { handleRestoreFromFile(fileUri) }
+                }
+                        ?: run {
+                            Toast.makeText(
+                                            requireContext(),
+                                            "Restore dibatalkan",
+                                            Toast.LENGTH_SHORT
+                                    )
+                                    .show()
+                        }
+            }
+
     override fun onCreateView(
             inflater: LayoutInflater,
             container: ViewGroup?,
@@ -137,8 +148,7 @@ class PengaturanPage : Fragment() {
         cardKelolaWallet = view.findViewById(R.id.card_kelola_wallet)
         btnBackup = view.findViewById(R.id.btn_backup)
         btnRestore = view.findViewById(R.id.btn_restore)
-        btnExportCsv = view.findViewById(R.id.btn_export_csv)
-        btnExportJson = view.findViewById(R.id.btn_export_json)
+        btnLaporan = view.findViewById(R.id.btn_laporan)
         btnResetData = view.findViewById(R.id.btn_reset_data)
         btnResetKategori = view.findViewById(R.id.btn_reset_kategori)
         tvAppVersion = view.findViewById(R.id.tv_app_version)
@@ -158,50 +168,53 @@ class PengaturanPage : Fragment() {
     }
 
     private fun setupCardAnimations(view: View) {
-        val cards = listOf(
-            view.findViewById<MaterialCardView>(R.id.card_kelola_buku),
-            view.findViewById<MaterialCardView>(R.id.card_kelola_kategori),
-            view.findViewById<MaterialCardView>(R.id.card_kelola_wallet),
-            view.findViewById<MaterialCardView>(R.id.card_mata_uang_buku)
-        )
+        val cards =
+                listOf(
+                        view.findViewById<MaterialCardView>(R.id.card_kelola_buku),
+                        view.findViewById<MaterialCardView>(R.id.card_kelola_kategori),
+                        view.findViewById<MaterialCardView>(R.id.card_kelola_wallet),
+                        view.findViewById<MaterialCardView>(R.id.card_mata_uang_buku)
+                )
 
         cards.forEachIndexed { index, card: MaterialCardView ->
             card.alpha = 0f
             card.translationY = 50f
-            
+
             card.animate()
-                .alpha(1f)
-                .translationY(0f)
-                .setDuration(400)
-                .setStartDelay((index * 100).toLong())
-                .setInterpolator(android.view.animation.DecelerateInterpolator())
-                .start()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setDuration(400)
+                    .setStartDelay((index * 100).toLong())
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .start()
         }
     }
 
     private fun animateClick(view: View, action: () -> Unit) {
-        val scaleDown = android.animation.ObjectAnimator.ofPropertyValuesHolder(
-            view,
-            android.animation.PropertyValuesHolder.ofFloat("scaleX", 0.95f),
-            android.animation.PropertyValuesHolder.ofFloat("scaleY", 0.95f)
-        ).apply {
-            duration = 100
-        }
+        val scaleDown =
+                android.animation.ObjectAnimator.ofPropertyValuesHolder(
+                                view,
+                                android.animation.PropertyValuesHolder.ofFloat("scaleX", 0.95f),
+                                android.animation.PropertyValuesHolder.ofFloat("scaleY", 0.95f)
+                        )
+                        .apply { duration = 100 }
 
-        val scaleUp = android.animation.ObjectAnimator.ofPropertyValuesHolder(
-            view,
-            android.animation.PropertyValuesHolder.ofFloat("scaleX", 1f),
-            android.animation.PropertyValuesHolder.ofFloat("scaleY", 1f)
-        ).apply {
-            duration = 100
-        }
+        val scaleUp =
+                android.animation.ObjectAnimator.ofPropertyValuesHolder(
+                                view,
+                                android.animation.PropertyValuesHolder.ofFloat("scaleX", 1f),
+                                android.animation.PropertyValuesHolder.ofFloat("scaleY", 1f)
+                        )
+                        .apply { duration = 100 }
 
-        scaleDown.addListener(object : android.animation.AnimatorListenerAdapter() {
-            override fun onAnimationEnd(animation: android.animation.Animator) {
-                scaleUp.start()
-                action()
-            }
-        })
+        scaleDown.addListener(
+                object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        scaleUp.start()
+                        action()
+                    }
+                }
+        )
 
         scaleDown.start()
     }
@@ -273,44 +286,47 @@ class PengaturanPage : Fragment() {
 
         // Restore
         btnRestore.setOnClickListener {
-            Toast.makeText(requireContext(), "Restore - Coming Soon", Toast.LENGTH_SHORT).show()
+            animateClick(it) {
+                showCustomDialog(
+                        icon = R.drawable.ic_restore_24,
+                        iconTint = R.color.primary,
+                        title = "Restore Backup",
+                        message =
+                                "Pilih file backup JSON untuk dipulihkan. Data yang ada akan diganti dengan data dari backup.",
+                        confirmText = "Pilih File",
+                        confirmColor = R.color.primary,
+                        onConfirm = { restoreFileLauncher.launch(arrayOf("application/json")) }
+                )
+            }
         }
 
-        // Export CSV
-        btnExportCsv.setOnClickListener {
-            val defaultFileName = viewModel.getBackupFileName("csv")
-            createCsvFileLauncher.launch(defaultFileName)
-        }
-
-        // Export JSON
-        btnExportJson.setOnClickListener {
-            val defaultFileName = viewModel.getBackupFileName("json")
-            createJsonFileLauncher.launch(defaultFileName)
-        }
+        // Laporan
+        btnLaporan.setOnClickListener { animateClick(it) { showLaporanDialog() } }
 
         // Reset Data
-        btnResetData.setOnClickListener { 
+        btnResetData.setOnClickListener {
             showCustomDialog(
-                icon = R.drawable.ic_delete_24,
-                iconTint = R.color.danger,
-                title = "Reset Semua Data",
-                message = "Apakah Anda yakin ingin menghapus SEMUA transaksi? Tindakan ini tidak dapat dibatalkan!",
-                confirmText = "Ya, Hapus",
-                confirmColor = R.color.danger,
-                onConfirm = { viewModel.resetAllData() }
+                    icon = R.drawable.ic_delete_24,
+                    iconTint = R.color.danger,
+                    title = "Reset Semua Data",
+                    message =
+                            "Apakah Anda yakin ingin menghapus SEMUA transaksi? Tindakan ini tidak dapat dibatalkan!",
+                    confirmText = "Ya, Hapus",
+                    confirmColor = R.color.danger,
+                    onConfirm = { viewModel.resetAllData() }
             )
         }
 
         // Reset Kategori
-        btnResetKategori.setOnClickListener { 
+        btnResetKategori.setOnClickListener {
             showCustomDialog(
-                icon = R.drawable.ic_category_24,
-                iconTint = R.color.warning,
-                title = "Reset Kategori",
-                message = "Apakah Anda yakin ingin mereset kategori ke default?",
-                confirmText = "Ya, Reset",
-                confirmColor = R.color.primary,
-                onConfirm = { viewModel.resetCategoriesToDefault() }
+                    icon = R.drawable.ic_category_24,
+                    iconTint = R.color.warning,
+                    title = "Reset Kategori",
+                    message = "Apakah Anda yakin ingin mereset kategori ke default?",
+                    confirmText = "Ya, Reset",
+                    confirmColor = R.color.primary,
+                    onConfirm = { viewModel.resetCategoriesToDefault() }
             )
         }
 
@@ -358,28 +374,60 @@ class PengaturanPage : Fragment() {
     // ===============================================
 
     private suspend fun handleCsvExportAndSave(fileUri: Uri) {
-        val csvData = viewModel.exportToCsv()
+        // Use pending transactions from laporan if available, otherwise export all
+        val transactions =
+                if (pendingCsvTransactions.isNotEmpty()) {
+                    pendingCsvTransactions
+                } else {
+                    val database = AppDatabase.getDatabase(requireContext())
+                    val prefs =
+                            requireContext()
+                                    .getSharedPreferences(
+                                            "app_settings",
+                                            android.content.Context.MODE_PRIVATE
+                                    )
+                    val activeBookId = prefs.getInt("active_book_id", 1)
+                    kotlinx.coroutines.withContext<List<com.example.catetduls.data.Transaction>>(
+                            kotlinx.coroutines.Dispatchers.IO
+                    ) { database.transactionDao().getAllTransactions(activeBookId).first() }
+                }
+
+        val csvData = generateCSV(transactions)
         if (csvData != null) {
             try {
                 requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream ->
                     outputStream.write(csvData.toByteArray())
-                    Toast.makeText(
-                                    requireContext(),
-                                    "Export CSV berhasil disimpan!",
-                                    Toast.LENGTH_LONG
-                            )
-                            .show()
+                    showSnackbar("CSV berhasil tersimpan!")
                 }
+                // Clear pending
+                pendingCsvTransactions = emptyList()
             } catch (e: Exception) {
-                Toast.makeText(
-                                requireContext(),
-                                "Gagal menyimpan file CSV: ${e.message}",
-                                Toast.LENGTH_LONG
-                        )
-                        .show()
-                e.printStackTrace()
+                showSnackbar("Gagal menyimpan CSV: ${e.message}", true)
             }
         }
+    }
+
+    private fun generateCSV(transactions: List<com.example.catetduls.data.Transaction>): String {
+        val sb = StringBuilder()
+        sb.append("Tanggal,Kategori,Dompet,Tipe,Jumlah,Catatan\n")
+
+        transactions.forEach { transaction ->
+            val sdf = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("id", "ID"))
+            val date = sdf.format(java.util.Date(transaction.date))
+            val type =
+                    if (transaction.type == com.example.catetduls.data.TransactionType.PEMASUKAN)
+                            "Pemasukan"
+                    else "Pengeluaran"
+
+            sb.append("$date,")
+            sb.append("${transaction.categoryId},") // Could fetch name but keeping it simple
+            sb.append("${transaction.walletId},")
+            sb.append("$type,")
+            sb.append("${transaction.amount},")
+            sb.append("\"${transaction.notes}\"\n")
+        }
+
+        return sb.toString()
     }
 
     private suspend fun handleJsonExportAndSave(fileUri: Uri) {
@@ -407,24 +455,71 @@ class PengaturanPage : Fragment() {
         }
     }
 
+    private suspend fun handleRestoreFromFile(fileUri: Uri) {
+        try {
+            loadingOverlay.visibility = View.VISIBLE
+            loadingText.text = "Memulihkan backup..."
+
+            // Read JSON from file
+            val jsonString =
+                    requireContext().contentResolver.openInputStream(fileUri)?.use { inputStream ->
+                        inputStream.bufferedReader().use { it.readText() }
+                    }
+                            ?: run {
+                                showSnackbar("Gagal membaca file backup", true)
+                                loadingOverlay.visibility = View.GONE
+                                return
+                            }
+
+            // Parse and validate JSON
+            val gson = com.google.gson.Gson()
+            val backupData =
+                    try {
+                        gson.fromJson(jsonString, com.google.gson.JsonObject::class.java)
+                    } catch (e: Exception) {
+                        showSnackbar("Format backup tidak valid", true)
+                        loadingOverlay.visibility = View.GONE
+                        return
+                    }
+
+            // Restore data via ViewModel
+            val success = viewModel.restoreFromJson(jsonString)
+
+            loadingOverlay.visibility = View.GONE
+
+            if (success) {
+                showSnackbar("Backup berhasil dipulihkan!")
+                // Reload statistics
+                loadStatistics()
+            } else {
+                showSnackbar("Gagal memulihkan backup", true)
+            }
+        } catch (e: Exception) {
+            loadingOverlay.visibility = View.GONE
+            showSnackbar("Error: ${e.message}", true)
+            e.printStackTrace()
+        }
+    }
+
     // ===============================================
     // DIALOGS
     // ===============================================    }
 
     private fun showCustomDialog(
-        icon: Int,
-        iconTint: Int,
-        title: String,
-        message: String,
-        confirmText: String,
-        confirmColor: Int,
-        onConfirm: () -> Unit
+            icon: Int,
+            iconTint: Int,
+            title: String,
+            message: String,
+            confirmText: String,
+            confirmColor: Int,
+            onConfirm: () -> Unit
     ) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_confirmation, null)
-        val dialog = MaterialAlertDialogBuilder(requireContext())
-            .setView(dialogView)
-            .setCancelable(true)
-            .create()
+        val dialog =
+                MaterialAlertDialogBuilder(requireContext())
+                        .setView(dialogView)
+                        .setCancelable(true)
+                        .create()
 
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
 
@@ -441,9 +536,7 @@ class PengaturanPage : Fragment() {
         btnConfirm.text = confirmText
         btnConfirm.setBackgroundColor(resources.getColor(confirmColor, null))
 
-        btnCancel.setOnClickListener {
-            dialog.dismiss()
-        }
+        btnCancel.setOnClickListener { dialog.dismiss() }
 
         btnConfirm.setOnClickListener {
             animateClick(it) {
@@ -453,67 +546,67 @@ class PengaturanPage : Fragment() {
         }
 
         dialog.show()
-        
+
         dialogView.alpha = 0f
         dialogView.scaleX = 0.8f
         dialogView.scaleY = 0.8f
-        dialogView.animate()
-            .alpha(1f)
-            .scaleX(1f)
-            .scaleY(1f)
-            .setDuration(250)
-            .setInterpolator(android.view.animation.OvershootInterpolator())
-            .start()
+        dialogView
+                .animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(250)
+                .setInterpolator(android.view.animation.OvershootInterpolator())
+                .start()
     }
 
     private fun showSnackbar(message: String, isError: Boolean = false) {
         val snackbar = Snackbar.make(requireView(), message, Snackbar.LENGTH_LONG)
         val snackbarView = snackbar.view
-        
+
         snackbarView.setBackgroundColor(
-            resources.getColor(
-                if (isError) R.color.danger else R.color.success,
-                null
-            )
+                resources.getColor(if (isError) R.color.danger else R.color.success, null)
         )
-        
+
         snackbar.setTextColor(resources.getColor(R.color.white, null))
         snackbar.show()
     }
 
     private fun showResetDataDialog() {
         showCustomDialog(
-            icon = R.drawable.ic_delete_24,
-            iconTint = R.color.danger,
-            title = "Reset Semua Data",
-            message = "Apakah Anda yakin ingin menghapus SEMUA transaksi? Tindakan ini tidak dapat dibatalkan!",
-            confirmText = "Ya, Hapus",
-            confirmColor = R.color.danger,
-            onConfirm = { viewModel.resetAllData() }
+                icon = R.drawable.ic_delete_24,
+                iconTint = R.color.danger,
+                title = "Reset Semua Data",
+                message =
+                        "Apakah Anda yakin ingin menghapus SEMUA transaksi? Tindakan ini tidak dapat dibatalkan!",
+                confirmText = "Ya, Hapus",
+                confirmColor = R.color.danger,
+                onConfirm = { viewModel.resetAllData() }
         )
     }
 
     private fun showResetKategoriDialog() {
         showCustomDialog(
-            icon = R.drawable.ic_category_24,
-            iconTint = R.color.warning,
-            title = "Reset Kategori",
-            message = "Apakah Anda yakin ingin mereset kategori ke default?",
-            confirmText = "Ya, Reset",
-            confirmColor = R.color.primary,
-            onConfirm = { viewModel.resetCategoriesToDefault() }
+                icon = R.drawable.ic_category_24,
+                iconTint = R.color.warning,
+                title = "Reset Kategori",
+                message = "Apakah Anda yakin ingin mereset kategori ke default?",
+                confirmText = "Ya, Reset",
+                confirmColor = R.color.primary,
+                onConfirm = { viewModel.resetCategoriesToDefault() }
         )
     }
 
     private fun showLogoutDialog() {
         showCustomDialog(
-            icon = R.drawable.ic_warning_24,
-            iconTint = R.color.warning,
-            title = "Keluar Akun",
-            message = "Apakah Anda yakin ingin keluar? Data lokal yang belum disinkronkan mungkin hilang.",
-            confirmText = "Keluar",
-            confirmColor = R.color.danger,
-            onConfirm = { viewModel.logout() }
+                icon = R.drawable.ic_warning_24,
+                iconTint = R.color.warning,
+                title = "Keluar Akun",
+                message =
+                        "Apakah Anda yakin ingin keluar? Data lokal yang belum disinkronkan mungkin hilang.",
+                confirmText = "Keluar",
+                confirmColor = R.color.danger,
+                onConfirm = { viewModel.logout() }
         )
     }
 
@@ -604,22 +697,311 @@ class PengaturanPage : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val database = AppDatabase.getDatabase(requireContext())
-                val prefs = requireContext().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+                val prefs =
+                        requireContext()
+                                .getSharedPreferences(
+                                        "app_settings",
+                                        android.content.Context.MODE_PRIVATE
+                                )
                 val activeBookId = prefs.getInt("active_book_id", 1)
-                
-                val transactionCount = kotlinx.coroutines.withContext<Int>(kotlinx.coroutines.Dispatchers.IO) {
-                    database.transactionDao().getAllTransactions(activeBookId).first().size
-                }
-                
-                val categoryCount = kotlinx.coroutines.withContext<Int>(kotlinx.coroutines.Dispatchers.IO) {
-                    database.categoryDao().getAllCategoriesSync(activeBookId).size
-                }
-                
+
+                val transactionCount =
+                        kotlinx.coroutines.withContext<Int>(kotlinx.coroutines.Dispatchers.IO) {
+                            database.transactionDao().getAllTransactions(activeBookId).first().size
+                        }
+
+                val categoryCount =
+                        kotlinx.coroutines.withContext<Int>(kotlinx.coroutines.Dispatchers.IO) {
+                            database.categoryDao().getAllCategoriesSync(activeBookId).size
+                        }
+
                 tvTotalTransaksi.text = "Total Transaksi: $transactionCount"
                 tvTotalKategori.text = "Total Kategori: $categoryCount"
             } catch (e: Exception) {
                 tvTotalTransaksi.text = "Total Transaksi: -"
                 tvTotalKategori.text = "Total Kategori: -"
+            }
+        }
+    }
+
+    private fun showLaporanDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_laporan, null)
+        val dialog =
+                MaterialAlertDialogBuilder(requireContext())
+                        .setView(dialogView)
+                        .setCancelable(true)
+                        .create()
+
+        dialog.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
+
+        // Views
+        val chipGroup =
+                dialogView.findViewById<com.google.android.material.chip.ChipGroup>(
+                        R.id.chip_group_filter
+                )
+        val chip7days =
+                dialogView.findViewById<com.google.android.material.chip.Chip>(R.id.chip_7days)
+        val chip30days =
+                dialogView.findViewById<com.google.android.material.chip.Chip>(R.id.chip_30days)
+        val chip1year =
+                dialogView.findViewById<com.google.android.material.chip.Chip>(R.id.chip_1year)
+        val chipAll = dialogView.findViewById<com.google.android.material.chip.Chip>(R.id.chip_all)
+
+        val etStartDate =
+                dialogView.findViewById<com.google.android.material.textfield.TextInputEditText>(
+                        R.id.et_start_date
+                )
+        val etEndDate =
+                dialogView.findViewById<com.google.android.material.textfield.TextInputEditText>(
+                        R.id.et_end_date
+                )
+
+        val rgFormat = dialogView.findViewById<android.widget.RadioGroup>(R.id.rg_format)
+        val rbCsv =
+                dialogView.findViewById<
+                        com.google.android.material.radiobutton.MaterialRadioButton>(R.id.rb_csv)
+        val rbPdf =
+                dialogView.findViewById<
+                        com.google.android.material.radiobutton.MaterialRadioButton>(R.id.rb_pdf)
+
+        val tvPeriodInfo = dialogView.findViewById<TextView>(R.id.tv_period_info)
+        val tvTransactionCount = dialogView.findViewById<TextView>(R.id.tv_transaction_count)
+
+        val btnCancel = dialogView.findViewById<MaterialButton>(R.id.btn_cancel)
+        val btnGenerate = dialogView.findViewById<MaterialButton>(R.id.btn_generate)
+
+        // Date selection state
+        var startDate: Long? = null
+        var endDate: Long? = null
+
+        fun updateDateFields() {
+            val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale("id", "ID"))
+            if (startDate != null && endDate != null) {
+                etStartDate.setText(sdf.format(java.util.Date(startDate!!)))
+                etEndDate.setText(sdf.format(java.util.Date(endDate!!)))
+                tvPeriodInfo.text =
+                        "Periode: ${sdf.format(java.util.Date(startDate!!))} - ${sdf.format(java.util.Date(endDate!!))}"
+            } else {
+                etStartDate.setText("")
+                etEndDate.setText("")
+                tvPeriodInfo.text = "Periode: Semua waktu"
+            }
+        }
+
+        // Quick filter logic
+        chip7days.setOnClickListener {
+            val cal = java.util.Calendar.getInstance()
+            endDate = cal.timeInMillis
+            cal.add(java.util.Calendar.DAY_OF_YEAR, -7)
+            startDate = cal.timeInMillis
+            updateDateFields()
+        }
+
+        chip30days.setOnClickListener {
+            val cal = java.util.Calendar.getInstance()
+            endDate = cal.timeInMillis
+            cal.add(java.util.Calendar.DAY_OF_YEAR, -30)
+            startDate = cal.timeInMillis
+            updateDateFields()
+        }
+
+        chip1year.setOnClickListener {
+            val cal = java.util.Calendar.getInstance()
+            endDate = cal.timeInMillis
+            cal.add(java.util.Calendar.YEAR, -1)
+            startDate = cal.timeInMillis
+            updateDateFields()
+        }
+
+        chipAll.setOnClickListener {
+            startDate = null
+            endDate = null
+            updateDateFields()
+        }
+
+        // Date pickers
+        etStartDate.setOnClickListener {
+            val datePicker =
+                    com.google.android.material.datepicker.MaterialDatePicker.Builder.datePicker()
+                            .setTitleText("Pilih Tanggal Mulai")
+                            .setSelection(startDate ?: System.currentTimeMillis())
+                            .build()
+
+            datePicker.addOnPositiveButtonClickListener {
+                startDate = it
+                chipGroup.clearCheck()
+                updateDateFields()
+            }
+            datePicker.show(parentFragmentManager, "START_DATE_PICKER")
+        }
+
+        etEndDate.setOnClickListener {
+            val datePicker =
+                    com.google.android.material.datepicker.MaterialDatePicker.Builder.datePicker()
+                            .setTitleText("Pilih Tanggal Akhir")
+                            .setSelection(endDate ?: System.currentTimeMillis())
+                            .build()
+
+            datePicker.addOnPositiveButtonClickListener {
+                endDate = it
+                chipGroup.clearCheck()
+                updateDateFields()
+            }
+            datePicker.show(parentFragmentManager, "END_DATE_PICKER")
+        }
+
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
+        btnGenerate.setOnClickListener {
+            val format = if (rbCsv.isChecked) "csv" else "pdf"
+
+            lifecycleScope.launch {
+                try {
+                    loadingOverlay.visibility = View.VISIBLE
+                    loadingText.text = "Membuat laporan..."
+
+                    // Get filtered transactions
+                    val database = AppDatabase.getDatabase(requireContext())
+                    val prefs =
+                            requireContext()
+                                    .getSharedPreferences(
+                                            "app_settings",
+                                            android.content.Context.MODE_PRIVATE
+                                    )
+                    val activeBookId = prefs.getInt("active_book_id", 1)
+
+                    val allTransactions =
+                            kotlinx.coroutines.withContext<
+                                    List<com.example.catetduls.data.Transaction>>(
+                                    kotlinx.coroutines.Dispatchers.IO
+                            ) { database.transactionDao().getAllTransactions(activeBookId).first() }
+
+                    val filteredTransactions =
+                            if (startDate != null && endDate != null) {
+                                allTransactions.filter {
+                                    it.date >= startDate!! && it.date <= endDate!!
+                                }
+                            } else {
+                                allTransactions
+                            }
+
+                    loadingOverlay.visibility = View.GONE
+
+                    if (filteredTransactions.isEmpty()) {
+                        showSnackbar("Tidak ada transaksi pada periode ini", true)
+                        return@launch
+                    }
+
+                    if (format == "csv") {
+                        exportToCSV(filteredTransactions)
+                    } else {
+                        exportToPDF(filteredTransactions, startDate, endDate)
+                    }
+
+                    dialog.dismiss()
+                } catch (e: Exception) {
+                    loadingOverlay.visibility = View.GONE
+                    showSnackbar("Gagal membuat laporan: ${e.message}", true)
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun exportToCSV(transactions: List<com.example.catetduls.data.Transaction>) {
+        val fileName = "Laporan_${System.currentTimeMillis()}.csv"
+        createCsvFileLauncher.launch(fileName)
+
+        // Store untuk dipakai di file created callback
+        pendingCsvTransactions = transactions
+    }
+
+    private var pendingCsvTransactions: List<com.example.catetduls.data.Transaction> = emptyList()
+
+    private fun exportToPDF(
+            transactions: List<com.example.catetduls.data.Transaction>,
+            startDate: Long?,
+            endDate: Long?
+    ) {
+        lifecycleScope.launch {
+            try {
+                loadingOverlay.visibility = View.VISIBLE
+                loadingText.text = "Membuat PDF..."
+
+                val fileName = "Laporan_${System.currentTimeMillis()}.pdf"
+                val file = java.io.File(requireContext().getExternalFilesDir(null), fileName)
+
+                // Simple PDF using Android PdfDocument
+                val pdfDocument = android.graphics.pdf.PdfDocument()
+                val pageInfo =
+                        android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, 1).create()
+                val page = pdfDocument.startPage(pageInfo)
+
+                val canvas = page.canvas
+                val paint = android.graphics.Paint()
+
+                // Title
+                paint.textSize = 20f
+                paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                canvas.drawText("LAPORAN TRANSAKSI", 50f, 50f, paint)
+
+                // Period
+                paint.textSize = 12f
+                paint.typeface = android.graphics.Typeface.DEFAULT
+                val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale("id", "ID"))
+                val period =
+                        if (startDate != null && endDate != null) {
+                            "${sdf.format(java.util.Date(startDate))} - ${sdf.format(java.util.Date(endDate))}"
+                        } else {
+                            "Semua Waktu"
+                        }
+                canvas.drawText("Periode: $period", 50f, 80f, paint)
+                canvas.drawText("Total: ${transactions.size} transaksi", 50f, 100f, paint)
+
+                // Summary
+                val totalIncome =
+                        transactions
+                                .filter {
+                                    it.type == com.example.catetduls.data.TransactionType.PEMASUKAN
+                                }
+                                .sumOf { it.amount }
+                val totalExpense =
+                        transactions
+                                .filter {
+                                    it.type ==
+                                            com.example.catetduls.data.TransactionType.PENGELUARAN
+                                }
+                                .sumOf { it.amount }
+
+                canvas.drawText(
+                        "Total Pemasukan: Rp ${String.format("%,.0f", totalIncome)}",
+                        50f,
+                        130f,
+                        paint
+                )
+                canvas.drawText(
+                        "Total Pengeluaran: Rp ${String.format("%,.0f", totalExpense)}",
+                        50f,
+                        150f,
+                        paint
+                )
+                canvas.drawText(
+                        "Selisih: Rp ${String.format("%,.0f", totalIncome - totalExpense)}",
+                        50f,
+                        170f,
+                        paint
+                )
+
+                pdfDocument.finishPage(page)
+                pdfDocument.writeTo(java.io.FileOutputStream(file))
+                pdfDocument.close()
+
+                loadingOverlay.visibility = View.GONE
+                showSnackbar("PDF tersimpan: ${file.name}")
+            } catch (e: Exception) {
+                loadingOverlay.visibility = View.GONE
+                showSnackbar("Gagal membuat PDF: ${e.message}", true)
             }
         }
     }

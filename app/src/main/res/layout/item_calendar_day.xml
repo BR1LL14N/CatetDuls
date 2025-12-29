@@ -1,75 +1,137 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="90dp"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_marginBottom="0dp"
-    android:orientation="vertical"
-    android:gravity="center_horizontal"
-    android:background="@drawable/bg_calendar_cell_border"
-    android:padding="2dp">
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/card_calendar_day"
+    android:layout_width="match_parent"
+    android:layout_height="95dp"
+    android:layout_margin="1dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    app:cardElevation="0dp"
+    app:cardCornerRadius="8dp"
+    app:cardBackgroundColor="@color/surface"
+    app:strokeWidth="0.5dp"
+    app:strokeColor="@color/divider">
 
-    <FrameLayout
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="6dp">
 
-        <View
-            android:id="@+id/view_day_marker"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:background="@drawable/bg_day_marker_blue"
-            android:layout_gravity="center_horizontal"
-            android:visibility="gone"
-            tools:visibility="visible" />
-
-        <TextView
-            android:id="@+id/tv_day_number"
-            android:layout_width="wrap_content"
+        <!-- Date number with background indicator -->
+        <FrameLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="top|center_horizontal"
-            android:textColor="@color/text_primary"
-            android:textSize="11sp"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp"
-            tools:text="19" />
+            android:paddingTop="2dp"
+            android:paddingBottom="4dp">
 
-    </FrameLayout>
+            <!-- Current day marker -->
+            <View
+                android:id="@+id/view_day_marker"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:background="@drawable/bg_day_marker_blue"
+                android:layout_gravity="center_horizontal"
+                android:visibility="gone"
+                tools:visibility="visible" />
 
-    <TextView
-        android:id="@+id/tv_day_income"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:textColor="@color/success"
-        android:textSize="8sp"
-        tools:text="10.000,00" />
+            <!-- Date text -->
+            <TextView
+                android:id="@+id/tv_day_number"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                tools:text="19" />
 
-    <TextView
-        android:id="@+id/tv_day_expense"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:textColor="@color/danger"
-        android:textSize="8sp"
-        tools:text="220.000,00" />
+        </FrameLayout>
 
-    <TextView
-        android:id="@+id/tv_day_total"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:textColor="@color/text_primary"
-        android:textSize="8sp"
-        android:textStyle="bold"
-        tools:text="-170.000,00" />
+        <!-- Income indicator with icon -->
+        <LinearLayout
+            android:id="@+id/income_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginTop="2dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+            
+            <TextView
+                android:layout_width="6dp"
+                android:layout_height="6dp"
+                android:background="@drawable/bg_dot_success"
+                android:layout_marginEnd="3dp" />
+            
+            <TextView
+                android:id="@+id/tv_day_income"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="@color/success"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                tools:text="+10K" />
+        </LinearLayout>
 
-</LinearLayout>
+        <!-- Expense indicator with icon -->
+        <LinearLayout
+            android:id="@+id/expense_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginTop="1dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+            
+            <TextView
+                android:layout_width="6dp"
+                android:layout_height="6dp"
+                android:background="@drawable/bg_dot_danger"
+                android:layout_marginEnd="3dp" />
+            
+            <TextView
+                android:id="@+id/tv_day_expense"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="@color/danger"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                tools:text="-220K" />
+        </LinearLayout>
+
+        <!-- Total/balance -->
+        <TextView
+            android:id="@+id/tv_day_total"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/text_secondary"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:layout_marginTop="2dp"
+            android:visibility="gone"
+            tools:visibility="visible"
+            tools:text="-170K" />
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>
