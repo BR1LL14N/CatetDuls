@@ -87,7 +87,7 @@ constructor(
                                     access_token = authData.token,
                                     token_expires_at =
                                             System.currentTimeMillis() +
-                                                    (authData.expires_in * 1000),
+                                                    ((authData.expires_in ?: 3600) * 1000),
                                     last_synced_at = System.currentTimeMillis(),
                                     is_synced = true
                             )
@@ -100,7 +100,7 @@ constructor(
                                 context = context,
                                 accessToken = authData.token,
                                 refreshToken = authData.refresh_token,
-                                expiresIn = authData.expires_in
+                                expiresIn = authData.expires_in ?: 3600L
                         )
                     } else {
 
@@ -144,7 +144,7 @@ constructor(
                                     access_token = authData.token,
                                     token_expires_at =
                                             System.currentTimeMillis() +
-                                                    (authData.expires_in * 1000),
+                                                    ((authData.expires_in ?: 3600) * 1000), // Default 1 hour
                                     last_synced_at = System.currentTimeMillis(),
                                     is_synced = true
                             )
@@ -152,17 +152,13 @@ constructor(
                     userDao.deleteAllUsers()
                     userDao.insertUser(localUser)
 
-                    if (authData.refresh_token != null) {
-                        TokenManager.saveTokens(
-                                context = context,
-                                accessToken = authData.token,
-                                refreshToken = authData.refresh_token,
-                                expiresIn = authData.expires_in
-                        )
-                    } else {
-
-                        TokenManager.saveToken(context, authData.token)
-                    }
+                    // Always use saveTokens() with proper expiry
+                    TokenManager.saveTokens(
+                            context = context,
+                            accessToken = authData.token,
+                            refreshToken = authData.refresh_token ?: authData.token,
+                            expiresIn = authData.expires_in ?: 3600L // Default 1 hour
+                    )
 
                     Result.success(localUser)
                 } else {

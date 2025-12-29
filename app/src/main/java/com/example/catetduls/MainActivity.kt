@@ -1,13 +1,10 @@
 package com.example.catetduls
 
 import android.content.Context
-import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
@@ -38,19 +35,9 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.Theme_CatetDuls)
         super.onCreate(savedInstanceState)
-
-        // ========================================
-        // ANDROID 15 EDGE-TO-EDGE SUPPORT (SAFE)
-        // ========================================
-        setupEdgeToEdge()
-
         setContentView(R.layout.activity_main)
 
         bottomNav = findViewById(R.id.bottom_navigation)
-
-        // Apply window insets after views are created
-        applyWindowInsets()
-
         setupNetworkObserver()
         setupSyncObserver()
 
@@ -150,6 +137,34 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        checkAuthenticationStatus()
+    }
+
+    private fun checkAuthenticationStatus() {
+        if (!TokenManager.isLoggedIn(this)) {
+            return // Not logged in
+        }
+
+        if (TokenManager.isAccessTokenExpired(this)) {
+            performAutoLogout()
+        }
+    }
+
+    private fun performAutoLogout() {
+        TokenManager.clearTokens(this)
+
+        val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        prefs.edit().remove("active_book_id").apply()
+
+        Toast.makeText(this, "Sesi Anda telah berakhir. Silakan login kembali.", Toast.LENGTH_LONG)
+                .show()
+
+        loadFragment(RegisterPage())
+        bottomNav.visibility = View.GONE
+    }
+
     private fun setupNetworkObserver() {
         lifecycleScope.launch {
             NetworkUtils.observeConnectivity(this@MainActivity).collect { isConnected ->
@@ -225,74 +240,6 @@ class MainActivity : AppCompatActivity(), NavigationCallback, NavigationControll
                 .beginTransaction()
                 .replace(R.id.fragment_container, fragment)
                 .commit()
-    }
-
-    /** Setup edge-to-edge display for Android 15+ Only applies on Android 15 (API 35) and above */
-    private fun setupEdgeToEdge() {
-        try {
-            // Enable on Android 15+ (API 35) or for testing on Android 14+
-            // VANILLA_ICE_CREAM might not be available, use numeric constant
-            if (Build.VERSION.SDK_INT >= 35 ||
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
-            ) {
-                WindowCompat.setDecorFitsSystemWindows(window, false)
-                android.util.Log.d(
-                        "MainActivity",
-                        "✅ Edge-to-edge enabled (API ${Build.VERSION.SDK_INT})"
-                )
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("MainActivity", "❌ Edge-to-edge setup failed", e)
-        }
-    }
-
-    /** Apply window insets to handle system bars Safely handles null views and errors */
-    private fun applyWindowInsets() {
-        try {
-            // Run on Android 14+ for testing, Android 15+ for production
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                return
-            }
-
-            val rootView = findViewById<View>(R.id.fragment_container)
-            if (rootView != null) {
-                ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, windowInsets ->
-                    val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-
-                    // Apply ALL insets including top for status bar and camera cutout
-                    view.setPadding(
-                            insets.left,
-                            insets.top, // CRITICAL: Apply top padding for status bar/camera
-                            insets.right,
-                            0 // Bottom handled by nav bar
-                    )
-
-                    android.util.Log.d(
-                            "MainActivity",
-                            "Insets applied: top=${insets.top}, bottom=${insets.bottom}"
-                    )
-
-                    WindowInsetsCompat.CONSUMED
-                }
-            }
-
-            if (::bottomNav.isInitialized) {
-                ViewCompat.setOnApplyWindowInsetsListener(bottomNav) { view, windowInsets ->
-                    val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-                    view.setPadding(
-                            view.paddingLeft,
-                            view.paddingTop,
-                            view.paddingRight,
-                            insets.bottom
-                    )
-                    windowInsets
-                }
-            }
-
-            android.util.Log.d("MainActivity", "✅ Window insets applied")
-        } catch (e: Exception) {
-            android.util.Log.e("MainActivity", "❌ Window insets setup failed", e)
-        }
     }
 
     override fun navigateTo(fragment: Fragment) {

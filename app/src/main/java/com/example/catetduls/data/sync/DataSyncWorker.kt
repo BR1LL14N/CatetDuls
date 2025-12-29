@@ -71,6 +71,21 @@ constructor(
             Log.w(TAG, "[SYNC] 🚫 User belum login. Sync dibatalkan (tidak perlu retry).")
             return Result.failure() // Bukan retry, karena user harus login dulu
         }
+
+        // ===== TAMBAHAN: CEK TOKEN EXPIRY =====
+        if (TokenManager.isAccessTokenExpired(applicationContext)) {
+            Log.w(TAG, "[SYNC] ⚠️ Access token expired! Clearing tokens and requiring re-login.")
+            TokenManager.clearTokens(applicationContext)
+
+            // Clear active book juga untuk force login screen
+            val prefs =
+                    applicationContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            prefs.edit().remove("active_book_id").apply()
+
+            return Result.failure() // Stop sync, user harus login ulang
+        }
+        // =======================================
+
         Log.d(TAG, "[SYNC] ✅ User terautentikasi. Melanjutkan proses sync...")
 
         // CEK KONEKSI INTERNET
@@ -111,6 +126,21 @@ constructor(
             return Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "[SYNC] ⛔ Error kritis saat sync: ${e.message}", e)
+
+            // ===== HANDLE 401 UNAUTHORIZED =====
+            if (e.message?.contains("401") == true) {
+                Log.e(TAG, "[SYNC] 🔐 401 Unauthorized - Token expired! Clearing session...")
+                TokenManager.clearTokens(applicationContext)
+
+                val prefs =
+                        applicationContext.getSharedPreferences(
+                                "app_settings",
+                                Context.MODE_PRIVATE
+                        )
+                prefs.edit().remove("active_book_id").apply()
+            }
+            // ===================================
+
             return Result.failure() // Stop retrying on critical errors
         }
     }
@@ -671,6 +701,14 @@ constructor(
                 repository.saveFromRemote(remoteItem)
             }
         }
+    }
+
+    /**
+     * Override required method from CoroutineWorker This is called when WorkManager wants to show
+     * foreground notification
+     */
+    override suspend fun getForegroundInfo(): ForegroundInfo {
+        return createForegroundInfo("Sinkronisasi berjalan...")
     }
 
     /** Buat notifikasi foreground untuk sync */

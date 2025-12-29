@@ -12,7 +12,7 @@ data class AuthData(
         val user: User,
         val token: String,
         val refresh_token: String? = null,
-        val expires_in: Long,
+        val expires_in: Long? = null, // Nullable - backend might not return this
         val token_type: String
 )
 

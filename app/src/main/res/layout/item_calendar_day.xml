@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/card_calendar_day"
     android:layout_width="match_parent"
-    android:layout_height="95dp"
+    android:layout_height="115dp"
     android:layout_margin="1dp"
     android:clickable="true"
     android:focusable="true"
@@ -20,7 +20,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center_horizontal"
-        android:padding="6dp">
+        android:padding="4dp">
 
         <!-- Date number with background indicator -->
         <FrameLayout
@@ -46,7 +46,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:textColor="@color/text_primary"
-                android:textSize="13sp"
+                android:textSize="12sp"
                 android:textStyle="bold"
                 android:paddingStart="4dp"
                 android:paddingEnd="4dp"
@@ -54,83 +54,50 @@
 
         </FrameLayout>
 
-        <!-- Income indicator with icon -->
-        <LinearLayout
-            android:id="@+id/income_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginTop="2dp"
-            android:visibility="gone"
-            tools:visibility="visible">
-            
-            <TextView
-                android:layout_width="6dp"
-                android:layout_height="6dp"
-                android:background="@drawable/bg_dot_success"
-                android:layout_marginEnd="3dp" />
-            
-            <TextView
-                android:id="@+id/tv_day_income"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="@color/success"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                tools:text="+10K" />
-        </LinearLayout>
-
-        <!-- Expense indicator with icon -->
-        <LinearLayout
-            android:id="@+id/expense_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginTop="1dp"
-            android:visibility="gone"
-            tools:visibility="visible">
-            
-            <TextView
-                android:layout_width="6dp"
-                android:layout_height="6dp"
-                android:background="@drawable/bg_dot_danger"
-                android:layout_marginEnd="3dp" />
-            
-            <TextView
-                android:id="@+id/tv_day_expense"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="@color/danger"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                tools:text="-220K" />
-        </LinearLayout>
-
-        <!-- Total/balance -->
+        <!-- Total/balance (PERTAMA - HITAM) -->
         <TextView
             android:id="@+id/tv_day_total"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="@color/text_secondary"
-            android:textSize="9sp"
+            android:singleLine="true"
+            android:textColor="@color/text_primary"
+            android:textSize="7sp"
             android:textStyle="bold"
             android:layout_marginTop="2dp"
             android:visibility="gone"
             tools:visibility="visible"
             tools:text="-170K" />
+
+        <!-- Income (KEDUA - HIJAU) - Direct colored text -->
+        <TextView
+            android:id="@+id/tv_day_income"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:singleLine="true"
+            android:textColor="@color/success"
+            android:textSize="7sp"
+            android:textStyle="bold"
+            android:layout_marginTop="1dp"
+            android:visibility="gone"
+            tools:visibility="visible"
+            tools:text="+10K" />
+
+        <!-- Expense (KETIGA - MERAH) - Direct colored text -->
+        <TextView
+            android:id="@+id/tv_day_expense"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:singleLine="true"
+            android:textColor="@color/danger"
+            android:textSize="7sp"
+            android:textStyle="bold"
+            android:layout_marginTop="1dp"
+            android:visibility="gone"
+            tools:visibility="visible"
+            tools:text="-220K" />
 
     </LinearLayout>
 
