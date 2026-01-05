@@ -4,6 +4,7 @@ import java.util.*
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -152,6 +153,28 @@ constructor(
 
     suspend fun deleteAllTransactions() {
         transactionDao.deleteTransactionsByBook(getActiveBookId())
+    }
+
+    // ========================================
+    // BACKUP/RESTORE METHODS
+    // ========================================
+
+    suspend fun getAllTransactionsSync(): List<Transaction> {
+        return transactionDao.getAllTransactions(getActiveBookId()).first()
+    }
+
+    suspend fun getTransactionsByBookIdSync(bookId: Int): List<Transaction> {
+        return transactionDao.getAllTransactions(bookId).first()
+    }
+
+    suspend fun insertTransactionFromBackup(transaction: Transaction) {
+        transactionDao.insertTransaction(
+                transaction.copy(
+                        isSynced = false,
+                        syncAction = null,
+                        lastSyncAt = System.currentTimeMillis()
+                )
+        )
     }
 
     // ========================================

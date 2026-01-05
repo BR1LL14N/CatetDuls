@@ -7,6 +7,7 @@ import java.lang.IllegalArgumentException
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 
 class WalletRepository
@@ -65,9 +66,30 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
                 walletDao.getTotalBalance(book?.id ?: 1)
             }
 
-
     suspend fun getSingleWalletById(walletId: Int): Wallet? {
         return walletDao.getSingleWalletById(walletId)
+    }
+
+    // ===================================
+    // BACKUP/RESTORE METHODS
+    // ===================================
+
+    suspend fun getAllWalletsSync(): List<Wallet> {
+        return walletDao.getWalletsByBook(getActiveBookId()).first()
+    }
+
+    suspend fun getWalletsByBookIdSync(bookId: Int): List<Wallet> {
+        return walletDao.getWalletsByBook(bookId).first()
+    }
+
+    suspend fun insertWalletFromBackup(wallet: Wallet) {
+        walletDao.insert(
+                wallet.copy(
+                        isSynced = false,
+                        syncAction = null,
+                        lastSyncAt = System.currentTimeMillis()
+                )
+        )
     }
 
     // ===================================
@@ -141,7 +163,6 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
 
     // ===================================
 
-
     suspend fun delete(wallet: Wallet) {
         if (wallet.serverId == null) {
             walletDao.delete(wallet)
@@ -157,7 +178,6 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
             walletDao.update(walletToDelete)
         }
     }
-
 
     suspend fun deleteByIdPermanently(walletId: Int) {
         walletDao.deleteById(walletId)
@@ -179,7 +199,6 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
         return walletDao.getUnsyncedWallets()
     }
 
-
     override suspend fun updateSyncStatus(id: Long, serverId: String, syncedAt: Long) {
         walletDao.updateSyncStatus(id.toInt(), serverId, syncedAt)
     }
@@ -187,7 +206,6 @@ constructor(private val walletDao: WalletDao, private val bookRepository: BookRe
     suspend fun updateSyncStatus(id: Int, serverId: String, syncedAt: Long) {
         walletDao.updateSyncStatus(id, serverId, syncedAt)
     }
-
 
     override suspend fun saveFromRemote(entity: Wallet) {
         walletDao.insert(

@@ -94,6 +94,38 @@ class PengaturanPage : Fragment() {
                         }
             }
 
+    private val createPdfFileLauncher =
+            registerForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) {
+                    uri: Uri? ->
+                uri?.let { fileUri ->
+                    viewLifecycleOwner.lifecycleScope.launch { handlePdfExportAndSave(fileUri) }
+                }
+                        ?: run {
+                            Toast.makeText(
+                                            requireContext(),
+                                            "Export PDF dibatalkan",
+                                            Toast.LENGTH_SHORT
+                                    )
+                                    .show()
+                        }
+            }
+    
+    private val createSqlFileLauncher =
+            registerForActivityResult(ActivityResultContracts.CreateDocument("application/sql")) {
+                    uri: Uri? ->
+                uri?.let { fileUri ->
+                    viewLifecycleOwner.lifecycleScope.launch { handleSqlExportAndSave(fileUri) }
+                }
+                        ?: run {
+                            Toast.makeText(
+                                            requireContext(),
+                                            "Export SQL dibatalkan",
+                                            Toast.LENGTH_SHORT
+                                    )
+                                    .show()
+                        }
+            }
+
     private val restoreFileLauncher =
             registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
                 uri?.let { fileUri ->
@@ -268,36 +300,12 @@ class PengaturanPage : Fragment() {
 
         // Backup
         btnBackup.setOnClickListener {
-            viewLifecycleOwner.lifecycleScope.launch {
-                val jsonData = viewModel.exportToJson()
-                if (jsonData != null) {
-                    val file = viewModel.saveBackupToFile(jsonData)
-                    if (file != null) {
-                        Toast.makeText(
-                                        requireContext(),
-                                        "Backup disimpan: ${file.name}",
-                                        Toast.LENGTH_LONG
-                                )
-                                .show()
-                    }
-                }
-            }
+            showBackupDialog()
         }
 
         // Restore
         btnRestore.setOnClickListener {
-            animateClick(it) {
-                showCustomDialog(
-                        icon = R.drawable.ic_restore_24,
-                        iconTint = R.color.primary,
-                        title = "Restore Backup",
-                        message =
-                                "Pilih file backup JSON untuk dipulihkan. Data yang ada akan diganti dengan data dari backup.",
-                        confirmText = "Pilih File",
-                        confirmColor = R.color.primary,
-                        onConfirm = { restoreFileLauncher.launch(arrayOf("application/json")) }
-                )
-            }
+            showRestoreDialog()
         }
 
         // Laporan
@@ -431,7 +439,7 @@ class PengaturanPage : Fragment() {
     }
 
     private suspend fun handleJsonExportAndSave(fileUri: Uri) {
-        val jsonData = viewModel.exportToJson()
+        val jsonData = viewModel.exportToJson(null)
         if (jsonData != null) {
             try {
                 requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream ->
@@ -460,8 +468,8 @@ class PengaturanPage : Fragment() {
             loadingOverlay.visibility = View.VISIBLE
             loadingText.text = "Memulihkan backup..."
 
-            // Read JSON from file
-            val jsonString =
+            // Read file content
+            val fileContent =
                     requireContext().contentResolver.openInputStream(fileUri)?.use { inputStream ->
                         inputStream.bufferedReader().use { it.readText() }
                     }
@@ -471,19 +479,32 @@ class PengaturanPage : Fragment() {
                                 return
                             }
 
-            // Parse and validate JSON
-            val gson = com.google.gson.Gson()
-            val backupData =
+            // Detect file format based on content
+            val isJson = fileContent.trim().startsWith("{")
+            val isSql = fileContent.trim().uppercase().contains("INSERT INTO")
+            
+            val success = when {
+                isJson -> {
+                    // Validate JSON format
                     try {
-                        gson.fromJson(jsonString, com.google.gson.JsonObject::class.java)
+                        val gson = com.google.gson.Gson()
+                        gson.fromJson(fileContent, com.google.gson.JsonObject::class.java)
+                        viewModel.restoreFromJson(fileContent)
                     } catch (e: Exception) {
-                        showSnackbar("Format backup tidak valid", true)
+                        showSnackbar("Format JSON tidak valid", true)
                         loadingOverlay.visibility = View.GONE
                         return
                     }
-
-            // Restore data via ViewModel
-            val success = viewModel.restoreFromJson(jsonString)
+                }
+                isSql -> {
+                    viewModel.restoreFromSql(fileContent)
+                }
+                else -> {
+                    showSnackbar("Format file tidak dikenali. Gunakan file JSON atau SQL", true)
+                    loadingOverlay.visibility = View.GONE
+                    return
+                }
+            }
 
             loadingOverlay.visibility = View.GONE
 
@@ -918,21 +939,34 @@ class PengaturanPage : Fragment() {
     }
 
     private var pendingCsvTransactions: List<com.example.catetduls.data.Transaction> = emptyList()
+    private var pendingPdfTransactions: List<com.example.catetduls.data.Transaction> = emptyList()
+    private var pendingPdfStartDate: Long? = null
+    private var pendingPdfEndDate: Long? = null
 
     private fun exportToPDF(
             transactions: List<com.example.catetduls.data.Transaction>,
             startDate: Long?,
             endDate: Long?
     ) {
+        val fileName = "Laporan_${System.currentTimeMillis()}.pdf"
+        pendingPdfTransactions = transactions
+        pendingPdfStartDate = startDate
+        pendingPdfEndDate = endDate
+        createPdfFileLauncher.launch(fileName)
+    }
+
+    private suspend fun handlePdfExportAndSave(fileUri: Uri) {
+        val transactions = pendingPdfTransactions
+        val startDate = pendingPdfStartDate
+        val endDate = pendingPdfEndDate
+
+        if (transactions.isEmpty()) return
+
         lifecycleScope.launch {
             try {
                 loadingOverlay.visibility = View.VISIBLE
                 loadingText.text = "Membuat PDF..."
 
-                val fileName = "Laporan_${System.currentTimeMillis()}.pdf"
-                val file = java.io.File(requireContext().getExternalFilesDir(null), fileName)
-
-                // Simple PDF using Android PdfDocument
                 val pdfDocument = android.graphics.pdf.PdfDocument()
                 val pageInfo =
                         android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, 1).create()
@@ -994,14 +1028,157 @@ class PengaturanPage : Fragment() {
                 )
 
                 pdfDocument.finishPage(page)
-                pdfDocument.writeTo(java.io.FileOutputStream(file))
+
+                requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream ->
+                    pdfDocument.writeTo(outputStream)
+                }
                 pdfDocument.close()
 
                 loadingOverlay.visibility = View.GONE
-                showSnackbar("PDF tersimpan: ${file.name}")
+                showSnackbar("PDF berhasil tersimpan!")
+
+                // Clear pending
+                pendingPdfTransactions = emptyList()
+                pendingPdfStartDate = null
+                pendingPdfEndDate = null
             } catch (e: Exception) {
                 loadingOverlay.visibility = View.GONE
-                showSnackbar("Gagal membuat PDF: ${e.message}", true)
+                showSnackbar("Gagal menyimpan PDF: ${e.message}", true)
+                e.printStackTrace()
+            }
+        }
+    }
+    
+    // ========================================
+    // BACKUP/RESTORE DIALOGS
+    // ========================================
+    
+    private fun showBackupDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_backup, null)
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setView(dialogView)
+            .create()
+        
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        
+        // Initialize views
+        val actvBookSelection = dialogView.findViewById<android.widget.AutoCompleteTextView>(R.id.actv_book_selection)
+        val rgBackupFormat = dialogView.findViewById<android.widget.RadioGroup>(R.id.rg_backup_format)
+        val tvBackupPreview = dialogView.findViewById<android.widget.TextView>(R.id.tv_backup_preview)
+        val btnCancel = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_cancel)
+        val btnGenerate = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_generate)
+        
+        // Load books for selection
+        viewLifecycleOwner.lifecycleScope.launch {
+            val books = viewModel.getAllBooksForSelection()
+            val activeBookId = viewModel.getActiveBookId()
+            val bookNames = mutableListOf("Semua Buku")
+            bookNames.addAll(books.map { book -> 
+                if (book.id == activeBookId) "${book.name} ✓ Aktif" else book.name 
+            })
+            
+            val adapter = android.widget.ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, bookNames)
+            actvBookSelection.setAdapter(adapter)
+            actvBookSelection.setText("Semua Buku", false)
+            
+            // Update preview
+            updateBackupPreview(null, tvBackupPreview)
+            
+            // Book selection listener
+            actvBookSelection.setOnItemClickListener { _, _, position, _ ->
+                val selectedBookId = if (position == 0) null else books[position - 1].id
+                viewLifecycleOwner.lifecycleScope.launch {
+                    updateBackupPreview(selectedBookId, tvBackupPreview)
+                }
+            }
+        }
+        
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+        
+        btnGenerate.setOnClickListener {
+            val selectedFormat = when (rgBackupFormat.checkedRadioButtonId) {
+                R.id.rb_json -> "json"
+                R.id.rb_sql -> "sql"
+                else -> "json"
+            }
+            
+            val selectedBookText = actvBookSelection.text.toString()
+            val selectedBookId = if (selectedBookText == "Semua Buku") null else {
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val books = viewModel.getAllBooksForSelection()
+                    books.find { it.name == selectedBookText }?.id
+                }
+                null // Simplified for now
+            }
+            
+            dialog.dismiss()
+            
+            // Launch file picker
+            val fileName = "backup_${System.currentTimeMillis()}.$selectedFormat"
+            if (selectedFormat == "json") {
+                createJsonFileLauncher.launch(fileName)
+            } else {
+                createSqlFileLauncher.launch(fileName)
+            }
+        }
+        
+        dialog.show()
+    }
+    
+    private suspend fun updateBackupPreview(bookId: Int?, textView: android.widget.TextView) {
+        val preview = viewModel.getBackupPreview(bookId)
+        textView.text = "${preview.bookName}\n" +
+                "Transaksi: ${preview.transactionCount}\n" +
+                "Kategori: ${preview.categoryCount}\n" +
+                "Dompet: ${preview.walletCount}"
+    }
+    
+    private fun showRestoreDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_restore, null)
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setView(dialogView)
+            .create()
+        
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        
+        val btnCancel = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_cancel)
+        val btnChooseFile = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_choose_file)
+        
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+        
+        btnChooseFile.setOnClickListener {
+            dialog.dismiss()
+            restoreFileLauncher.launch(arrayOf("application/json", "application/sql"))
+        }
+        
+        dialog.show()
+    }
+    
+    private suspend fun handleSqlExportAndSave(fileUri: Uri) {
+        val sqlData = viewModel.exportToSql(null)
+        if (sqlData != null) {
+            try {
+                requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream ->
+                    outputStream.write(sqlData.toByteArray())
+                    Toast.makeText(
+                                    requireContext(),
+                                    "Export SQL berhasil disimpan!",
+                                    Toast.LENGTH_LONG
+                            )
+                            .show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(
+                                requireContext(),
+                                "Gagal menyimpan file SQL: ${e.message}",
+                                Toast.LENGTH_LONG
+                        )
+                        .show()
+                e.printStackTrace()
             }
         }
     }

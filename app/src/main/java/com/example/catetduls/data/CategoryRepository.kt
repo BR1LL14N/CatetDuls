@@ -49,6 +49,20 @@ constructor(private val categoryDao: CategoryDao, private val bookRepository: Bo
         return categoryDao.getAllCategoriesSync(getActiveBookId())
     }
 
+    suspend fun getCategoriesByBookIdSync(bookId: Int): List<Category> {
+        return categoryDao.getAllCategoriesSync(bookId)
+    }
+
+    suspend fun insertCategoryFromBackup(category: Category) {
+        categoryDao.insertCategory(
+                category.copy(
+                        isSynced = false,
+                        syncAction = null,
+                        lastSyncAt = System.currentTimeMillis()
+                )
+        )
+    }
+
     fun getCategoryById(id: Int): Flow<Category?> {
         return categoryDao.getCategoryById(id)
     }

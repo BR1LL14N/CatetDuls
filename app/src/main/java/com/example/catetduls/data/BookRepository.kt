@@ -3,6 +3,7 @@ package com.example.catetduls.data
 import java.lang.IllegalArgumentException
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * Repository untuk operasi Buku Disesuaikan untuk mendukung mekanisme sinkronisasi offline-first.
@@ -21,6 +22,10 @@ constructor(
 
         fun getAllBooks(): Flow<List<Book>> = bookDao.getAllBooks()
 
+        suspend fun getAllBooksSync(): List<Book> {
+                return bookDao.getAllBooks().first()
+        }
+
         fun getBookById(bookId: Int): Flow<Book?> = bookDao.getBookById(bookId)
 
         suspend fun getBookByIdSync(bookId: Int): Book? = bookDao.getBookByIdSync(bookId)
@@ -30,6 +35,16 @@ constructor(
         suspend fun getActiveBookSync(): Book? = bookDao.getActiveBookSync()
 
         suspend fun getBookCount(): Int = bookDao.getBookCount()
+
+        suspend fun insertBookFromBackup(book: Book) {
+                bookDao.insert(
+                        book.copy(
+                                isSynced = false,
+                                syncAction = null,
+                                lastSyncAt = System.currentTimeMillis()
+                        )
+                )
+        }
 
         // ===================================
 
