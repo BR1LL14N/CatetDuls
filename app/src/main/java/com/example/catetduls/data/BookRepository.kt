@@ -66,7 +66,87 @@ constructor(
 
                 val newBookId = bookDao.insert(bookToInsert)
 
+                // Create default wallets for the new book
+                createDefaultWalletsForBook(newBookId.toInt())
+
+                // Create default categories for the new book
+                createDefaultCategoriesForBook(newBookId.toInt())
+
                 return newBookId
+        }
+
+        private suspend fun createDefaultWalletsForBook(bookId: Int) {
+                val defaultWallets =
+                        listOf(
+                                Wallet(
+                                        bookId = bookId,
+                                        name = "Tunai",
+                                        type = WalletType.CASH,
+                                        icon = "💵",
+                                        color = "#4CAF50",
+                                        initialBalance = 0.0,
+                                        lastSyncAt = 0L
+                                ),
+                                Wallet(
+                                        bookId = bookId,
+                                        name = "Bank",
+                                        type = WalletType.BANK,
+                                        icon = "🏦",
+                                        color = "#2196F3",
+                                        initialBalance = 0.0,
+                                        lastSyncAt = 0L
+                                )
+                        )
+                walletDao.insertAll(defaultWallets)
+        }
+
+        private suspend fun createDefaultCategoriesForBook(bookId: Int) {
+                val defaultCategories =
+                        listOf(
+                                // Income categories
+                                Category(
+                                        bookId = bookId,
+                                        name = "Gaji",
+                                        type = TransactionType.PEMASUKAN,
+                                        icon = "💰",
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Bonus",
+                                        type = TransactionType.PEMASUKAN,
+                                        icon = "🎁",
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                // Expense categories
+                                Category(
+                                        bookId = bookId,
+                                        name = "Makanan",
+                                        type = TransactionType.PENGELUARAN,
+                                        icon = "🍔",
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Transport",
+                                        type = TransactionType.PENGELUARAN,
+                                        icon = "🚗",
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Belanja",
+                                        type = TransactionType.PENGELUARAN,
+                                        icon = "🛒",
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                )
+                        )
+                categoryDao.insertAll(defaultCategories)
         }
 
         suspend fun insertAll(books: List<Book>) {

@@ -24,7 +24,7 @@
         android:paddingBottom="4dp"
         app:menu="@menu/bottom_nav_menu"
         app:labelVisibilityMode="labeled"
-        app:itemIconTint="@color/bottom_nav_color"
+        app:itemIconTint="@color/bottom_nav_icon_color"
         app:itemTextColor="@color/bottom_nav_color"
         app:itemActiveIndicatorStyle="@style/BottomNavActiveIndicator"
         app:itemIconSize="20dp"

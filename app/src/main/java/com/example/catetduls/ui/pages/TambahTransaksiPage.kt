@@ -346,9 +346,7 @@ class TambahTransaksiPage : Fragment() {
         val cleanAmount = viewModel.amount.value.replace(Regex("[^0-9,]"), "")
 
         // Reset state kalkulator
-        currentInput =
-                if (cleanAmount.isNotEmpty() && (cleanAmount != "0")) cleanAmount
-                else "0"
+        currentInput = if (cleanAmount.isNotEmpty() && (cleanAmount != "0")) cleanAmount else "0"
         operator = ""
         firstValue = ""
         isNewInput = true
@@ -430,9 +428,7 @@ class TambahTransaksiPage : Fragment() {
             calculatorDialog?.dismiss()
         }
 
-        calculatorDialog?.setOnDismissListener {
-            etAmount.clearFocus()
-        }
+        calculatorDialog?.setOnDismissListener { etAmount.clearFocus() }
 
         calculatorDialog?.show()
     }
@@ -506,11 +502,11 @@ class TambahTransaksiPage : Fragment() {
 
     private fun updateDisplay(display: TextView) {
         val displayValue =
-            if (firstValue.isNotEmpty() && operator.isNotEmpty()) {
-                "${formatAmount(firstValue)} $operator ${formatAmount(currentInput)}"
-            } else {
-                formatAmount(currentInput)
-            }
+                if (firstValue.isNotEmpty() && operator.isNotEmpty()) {
+                    "${formatAmount(firstValue)} $operator ${formatAmount(currentInput)}"
+                } else {
+                    formatAmount(currentInput)
+                }
         display.text = displayValue
     }
 
@@ -531,13 +527,15 @@ class TambahTransaksiPage : Fragment() {
 
         // Format result back to String with comma
         // If result is integer (ends with .0), removing decimal part
-        currentInput = if (result % 1.0 == 0.0) {
-             String.format(Locale("in", "ID"), "%.0f", result)
-        } else {
-             // Limit decimals to 2 or 3 digits
-             val formatted = String.format(Locale.US, "%.2f", result) // Use US for dot then replace
-             formatted.replace('.', ',')
-        }
+        currentInput =
+                if (result % 1.0 == 0.0) {
+                    String.format(Locale("in", "ID"), "%.0f", result)
+                } else {
+                    // Limit decimals to 2 or 3 digits
+                    val formatted =
+                            String.format(Locale.US, "%.2f", result) // Use US for dot then replace
+                    formatted.replace('.', ',')
+                }
 
         operator = ""
         firstValue = ""
@@ -924,7 +922,8 @@ class TambahTransaksiPage : Fragment() {
 
                 launch {
                     viewModel.amount.collect { amountString ->
-                        // Hapus pemformatan angka yang ada jika pengguna mengetik saat observasi (tapi biarkan koma)
+                        // Hapus pemformatan angka yang ada jika pengguna mengetik saat observasi
+                        // (tapi biarkan koma)
                         val cleanString = amountString.replace(Regex("[^0-9,]"), "")
 
                         if (etAmount.text.toString() != amountString) {

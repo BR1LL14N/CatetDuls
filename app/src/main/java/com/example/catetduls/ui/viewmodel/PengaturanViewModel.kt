@@ -311,7 +311,7 @@ constructor(
         sb.append("-- Books\n")
         books.forEach { book ->
             sb.append(
-                    "INSERT INTO books (id, name, description, icon, color, is_active, currency_code, currency_symbol) VALUES "
+                    "INSERT OR REPLACE INTO books (id, name, description, icon, color, isActive, currency_code, currency_symbol) VALUES "
             )
             sb.append(
                     "(${book.id}, '${escapeSql(book.name)}', '${escapeSql(book.description)}', '${escapeSql(book.icon)}', '${escapeSql(book.color)}', ${if (book.isActive) 1 else 0}, '${book.currencyCode}', '${book.currencySymbol}');\n"
@@ -322,19 +322,23 @@ constructor(
         sb.append("\n-- Wallets\n")
         wallets.forEach { wallet ->
             sb.append(
-                    "INSERT INTO wallets (id, book_id, name, type, icon, color, initial_balance, is_active) VALUES "
+                    "INSERT OR REPLACE INTO wallets (id, bookId, name, type, icon, color, initialBalance, currentBalance, isActive, created_at, updated_at, server_id, is_synced, is_deleted, last_sync_at, sync_action) VALUES "
             )
+            val serverId = wallet.serverId?.let { "'${escapeSql(it)}'" } ?: "NULL"
+            val syncAction = wallet.syncAction?.let { "'${escapeSql(it)}'" } ?: "NULL"
             sb.append(
-                    "(${wallet.id}, ${wallet.bookId}, '${escapeSql(wallet.name)}', '${wallet.type}', '${escapeSql(wallet.icon)}', '${escapeSql(wallet.color)}', ${wallet.initialBalance}, ${if (wallet.isActive) 1 else 0});\n"
+                    "(${wallet.id}, ${wallet.bookId}, '${escapeSql(wallet.name)}', '${wallet.type}', '${escapeSql(wallet.icon)}', '${escapeSql(wallet.color)}', ${wallet.initialBalance}, ${wallet.currentBalance}, ${if (wallet.isActive) 1 else 0}, ${wallet.createdAt}, ${wallet.updatedAt}, $serverId, ${if (wallet.isSynced) 1 else 0}, ${if (wallet.isDeleted) 1 else 0}, ${wallet.lastSyncAt}, $syncAction);\n"
             )
         }
 
         // Categories
         sb.append("\n-- Categories\n")
         categories.forEach { category ->
-            sb.append("INSERT INTO categories (id, book_id, name, icon, type, is_default) VALUES ")
+            sb.append("INSERT OR REPLACE INTO categories (id, bookId, name, icon, type, isDefault, created_at, updated_at, server_id, is_synced, is_deleted, last_sync_at, sync_action) VALUES ")
+            val serverId = category.serverId?.let { "'${escapeSql(it)}'" } ?: "NULL"
+            val syncAction = category.syncAction?.let { "'${escapeSql(it)}'" } ?: "NULL"
             sb.append(
-                    "(${category.id}, ${category.bookId}, '${escapeSql(category.name)}', '${escapeSql(category.icon)}', '${category.type}', ${if (category.isDefault) 1 else 0});\n"
+                    "(${category.id}, ${category.bookId}, '${escapeSql(category.name)}', '${escapeSql(category.icon)}', '${category.type}', ${if (category.isDefault) 1 else 0}, ${category.createdAt}, ${category.updatedAt}, $serverId, ${if (category.isSynced) 1 else 0}, ${if (category.isDeleted) 1 else 0}, ${category.lastSyncAt}, $syncAction);\n"
             )
         }
 
@@ -342,10 +346,15 @@ constructor(
         sb.append("\n-- Transactions\n")
         transactions.forEach { transaction ->
             sb.append(
-                    "INSERT INTO transactions (id, wallet_id, category_id, amount, type, notes, date) VALUES "
+                    "INSERT OR REPLACE INTO transactions (id, book_id, walletId, categoryId, amount, type, notes, date, image_path, created_at, updated_at, server_id, is_synced, is_deleted, last_sync_at, sync_action) VALUES "
             )
+            val imagePath = transaction.imagePath?.let { "'${escapeSql(it)}'" } ?: "NULL"
+            val serverId = transaction.serverId?.let { "'${escapeSql(it)}'" } ?: "NULL"
+            val lastSyncAt = transaction.lastSyncAt
+            val syncAction = transaction.syncAction?.let { "'${escapeSql(it)}'" } ?: "NULL"
+
             sb.append(
-                    "(${transaction.id}, ${transaction.walletId}, ${transaction.categoryId}, ${transaction.amount}, '${transaction.type}', '${escapeSql(transaction.notes)}', ${transaction.date});\n"
+                    "(${transaction.id}, ${transaction.bookId}, ${transaction.walletId}, ${transaction.categoryId}, ${transaction.amount}, '${transaction.type}', '${escapeSql(transaction.notes)}', ${transaction.date}, $imagePath, ${transaction.createdAt}, ${transaction.updatedAt}, $serverId, ${if (transaction.isSynced) 1 else 0}, ${if (transaction.isDeleted) 1 else 0}, $lastSyncAt, $syncAction);\n"
             )
         }
     }
@@ -358,29 +367,61 @@ constructor(
         return try {
             _isLoading.value = true
 
-            val gson = com.google.gson.Gson()
-            val backupData = gson.fromJson(jsonString, BackupData::class.java)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val gson = com.google.gson.Gson()
+                val backupData = gson.fromJson(jsonString, BackupData::class.java)
 
-            // Insert books
-            backupData.books.forEach { book -> bookRepository.insertBookFromBackup(book) }
+                android.util.Log.d("PengaturanViewModel", "Restoring backup: ${backupData.books.size} books, ${backupData.wallets.size} wallets, ${backupData.categories.size} categories, ${backupData.transactions.size} transactions")
 
-            // Insert wallets
-            backupData.wallets.forEach { wallet -> walletRepository.insertWalletFromBackup(wallet) }
+                // Insert books
+                backupData.books.forEach { book ->
+                    try {
+                        bookRepository.insertBookFromBackup(book)
+                        android.util.Log.d("PengaturanViewModel", "Inserted book: ${book.name}")
+                    } catch (e: Exception) {
+                        android.util.Log.e("PengaturanViewModel", "Failed to insert book: ${book.name}", e)
+                        throw Exception("Gagal insert buku '${book.name}': ${e.message}")
+                    }
+                }
 
-            // Insert categories
-            backupData.categories.forEach { category ->
-                categoryRepository.insertCategoryFromBackup(category)
-            }
+                // Insert wallets
+                backupData.wallets.forEach { wallet ->
+                    try {
+                        walletRepository.insertWalletFromBackup(wallet)
+                        android.util.Log.d("PengaturanViewModel", "Inserted wallet: ${wallet.name}")
+                    } catch (e: Exception) {
+                        android.util.Log.e("PengaturanViewModel", "Failed to insert wallet: ${wallet.name}", e)
+                        throw Exception("Gagal insert wallet '${wallet.name}': ${e.message}")
+                    }
+                }
 
-            // Insert transactions
-            backupData.transactions.forEach { transaction ->
-                transactionRepository.insertTransactionFromBackup(transaction)
+                // Insert categories
+                backupData.categories.forEach { category ->
+                    try {
+                        categoryRepository.insertCategoryFromBackup(category)
+                        android.util.Log.d("PengaturanViewModel", "Inserted category: ${category.name}")
+                    } catch (e: Exception) {
+                        android.util.Log.e("PengaturanViewModel", "Failed to insert category: ${category.name}", e)
+                        throw Exception("Gagal insert kategori '${category.name}': ${e.message}")
+                    }
+                }
+
+                // Insert transactions
+                backupData.transactions.forEach { transaction ->
+                    try {
+                        transactionRepository.insertTransactionFromBackup(transaction)
+                    } catch (e: Exception) {
+                        android.util.Log.e("PengaturanViewModel", "Failed to insert transaction ID: ${transaction.id}", e)
+                        throw Exception("Gagal insert transaksi: ${e.message}")
+                    }
+                }
             }
 
             _successMessage.value = "Backup berhasil dipulihkan"
             _isLoading.value = false
             true
         } catch (e: Exception) {
+            android.util.Log.e("PengaturanViewModel", "Restore failed", e)
             _errorMessage.value = "Gagal memulihkan backup: ${e.message}"
             _isLoading.value = false
             false
@@ -390,39 +431,107 @@ constructor(
     suspend fun restoreFromSql(sqlContent: String): Boolean {
         return try {
             _isLoading.value = true
-            
-            // Get database instance
-            val db = com.example.catetduls.data.AppDatabase.getDatabase(context)
-            
-            // Parse SQL statements
-            val statements = sqlContent.split(";")
-                .map { it.trim() }
-                .filter { it.isNotEmpty() && !it.startsWith("--") && it.uppercase().startsWith("INSERT") }
-            
-            if (statements.isEmpty()) {
-                _errorMessage.value = "File SQL tidak mengandung statement INSERT yang valid"
-                _isLoading.value = false
-                return false
-            }
-            
-            // Execute SQL statements in a transaction
-            db.runInTransaction {
-                statements.forEach { statement ->
-                    try {
-                        db.openHelper.writableDatabase.execSQL(statement)
-                    } catch (e: Exception) {
-                        // Log error but continue with other statements
-                        android.util.Log.e("PengaturanViewModel", "Error executing SQL: $statement", e)
+
+            // Execute database operations on IO thread
+            val result =
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        // Get database instance
+                        val db = com.example.catetduls.data.AppDatabase.getDatabase(context)
+
+                        // Parse SQL statements - split by semicolon and filter
+                        val statements =
+                                sqlContent.split(";").map { it.trim() }.filter {
+                                    it.isNotEmpty() &&
+                                            !it.startsWith("--") &&
+                                            (it.uppercase().startsWith("INSERT"))
+                                }
+
+                        android.util.Log.d("PengaturanViewModel", "Total SQL statements found: ${statements.size}")
+                        
+                        if (statements.isEmpty()) {
+                            android.util.Log.e("PengaturanViewModel", "No valid INSERT statements found")
+                            return@withContext Pair(
+                                    false,
+                                    "File SQL tidak mengandung statement INSERT yang valid"
+                            )
+                        }
+
+                        var successCount = 0
+                        var errorCount = 0
+                        val errors = mutableListOf<String>()
+
+                        // Sort statements by table dependency order
+                        val sortedStatements = statements.sortedBy { statement ->
+                            val upperStatement = statement.uppercase()
+                            when {
+                                upperStatement.contains("INTO BOOKS") -> 1
+                                upperStatement.contains("INTO WALLETS") -> 2
+                                upperStatement.contains("INTO CATEGORIES") -> 3
+                                upperStatement.contains("INTO TRANSACTIONS") -> 4
+                                else -> 5
+                            }
+                        }
+                        
+                        android.util.Log.d("PengaturanViewModel", "Sorted ${sortedStatements.size} statements by dependency order")
+
+                        // Counters for each table
+                        var booksInserted = 0
+                        var walletsInserted = 0
+                        var categoriesInserted = 0
+                        var transactionsInserted = 0
+
+                        // Execute SQL statements in a transaction
+                        db.runInTransaction {
+                            sortedStatements.forEach { statement ->
+                                try {
+                                    // Add semicolon back for execution
+                                    db.openHelper.writableDatabase.execSQL("$statement;")
+                                    successCount++
+                                    
+                                    // Track per-table success
+                                    val upperStatement = statement.uppercase()
+                                    when {
+                                        upperStatement.contains("INTO BOOKS") -> booksInserted++
+                                        upperStatement.contains("INTO WALLETS") -> walletsInserted++
+                                        upperStatement.contains("INTO CATEGORIES") -> categoriesInserted++
+                                        upperStatement.contains("INTO TRANSACTIONS") -> transactionsInserted++
+                                    }
+                                } catch (e: Exception) {
+                                    errorCount++
+                                    val errorMsg = "Error: ${e.message?.take(50)}"
+                                    errors.add(errorMsg)
+                                    android.util.Log.e(
+                                            "PengaturanViewModel",
+                                            "SQL Error: $statement",
+                                            e
+                                    )
+                                }
+                            }
+                        }
+                        
+                        android.util.Log.d("PengaturanViewModel", "Restore completed: $successCount success, $errorCount errors")
+                        android.util.Log.d("PengaturanViewModel", "Per-table: Books=$booksInserted, Wallets=$walletsInserted, Categories=$categoriesInserted, Transactions=$transactionsInserted")
+
+                        // Return result
+                        if (successCount > 0) {
+                            Pair(true, "Backup SQL berhasil dipulihkan ($successCount statements)")
+                        } else {
+                            Pair(false, "Gagal restore: ${errors.firstOrNull() ?: "Unknown error"}")
+                        }
                     }
-                }
-            }
-            
-            _successMessage.value = "Backup SQL berhasil dipulihkan (${statements.size} statements)"
+
             _isLoading.value = false
-            true
-            
+
+            if (result.first) {
+                _successMessage.value = result.second
+            } else {
+                _errorMessage.value = result.second
+            }
+
+            result.first
         } catch (e: Exception) {
             _errorMessage.value = "Gagal memulihkan dari SQL: ${e.message}"
+            android.util.Log.e("PengaturanViewModel", "Restore failed", e)
             _isLoading.value = false
             false
         }

@@ -1,6 +1,8 @@
 package com.example.catetduls.ui.pages
 
+import android.app.Activity
 import android.app.AlertDialog
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -24,9 +26,11 @@ import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @AndroidEntryPoint // WAJIB: Anotasi agar Hilt bekerja di Fragment ini
 class PengaturanPage : Fragment() {
@@ -109,7 +113,7 @@ class PengaturanPage : Fragment() {
                                     .show()
                         }
             }
-    
+
     private val createSqlFileLauncher =
             registerForActivityResult(ActivityResultContracts.CreateDocument("application/sql")) {
                     uri: Uri? ->
@@ -172,6 +176,26 @@ class PengaturanPage : Fragment() {
 
         // Panggil fungsi ini (Pastikan di ViewModel sudah PUBLIC, tidak private)
         viewModel.checkLoginStatus()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (resultCode == Activity.RESULT_OK && data != null) {
+            data.data?.let { uri ->
+                when (requestCode) {
+                    REQUEST_CODE_CREATE_CSV -> {
+                        lifecycleScope.launch { handleCsvExportAndSave(uri) }
+                    }
+                    REQUEST_CODE_CREATE_PDF -> {
+                        lifecycleScope.launch { handlePdfExportAndSave(uri) }
+                    }
+                    else -> {
+                        // Ignore other request codes
+                    }
+                }
+            }
+        }
     }
 
     private fun initViews(view: View) {
@@ -299,14 +323,10 @@ class PengaturanPage : Fragment() {
         }
 
         // Backup
-        btnBackup.setOnClickListener {
-            showBackupDialog()
-        }
+        btnBackup.setOnClickListener { showBackupDialog() }
 
         // Restore
-        btnRestore.setOnClickListener {
-            showRestoreDialog()
-        }
+        btnRestore.setOnClickListener { showRestoreDialog() }
 
         // Laporan
         btnLaporan.setOnClickListener { animateClick(it) { showLaporanDialog() } }
@@ -381,63 +401,6 @@ class PengaturanPage : Fragment() {
     // EXPORT HANDLERS
     // ===============================================
 
-    private suspend fun handleCsvExportAndSave(fileUri: Uri) {
-        // Use pending transactions from laporan if available, otherwise export all
-        val transactions =
-                if (pendingCsvTransactions.isNotEmpty()) {
-                    pendingCsvTransactions
-                } else {
-                    val database = AppDatabase.getDatabase(requireContext())
-                    val prefs =
-                            requireContext()
-                                    .getSharedPreferences(
-                                            "app_settings",
-                                            android.content.Context.MODE_PRIVATE
-                                    )
-                    val activeBookId = prefs.getInt("active_book_id", 1)
-                    kotlinx.coroutines.withContext<List<com.example.catetduls.data.Transaction>>(
-                            kotlinx.coroutines.Dispatchers.IO
-                    ) { database.transactionDao().getAllTransactions(activeBookId).first() }
-                }
-
-        val csvData = generateCSV(transactions)
-        if (csvData != null) {
-            try {
-                requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream ->
-                    outputStream.write(csvData.toByteArray())
-                    showSnackbar("CSV berhasil tersimpan!")
-                }
-                // Clear pending
-                pendingCsvTransactions = emptyList()
-            } catch (e: Exception) {
-                showSnackbar("Gagal menyimpan CSV: ${e.message}", true)
-            }
-        }
-    }
-
-    private fun generateCSV(transactions: List<com.example.catetduls.data.Transaction>): String {
-        val sb = StringBuilder()
-        sb.append("Tanggal,Kategori,Dompet,Tipe,Jumlah,Catatan\n")
-
-        transactions.forEach { transaction ->
-            val sdf = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("id", "ID"))
-            val date = sdf.format(java.util.Date(transaction.date))
-            val type =
-                    if (transaction.type == com.example.catetduls.data.TransactionType.PEMASUKAN)
-                            "Pemasukan"
-                    else "Pengeluaran"
-
-            sb.append("$date,")
-            sb.append("${transaction.categoryId},") // Could fetch name but keeping it simple
-            sb.append("${transaction.walletId},")
-            sb.append("$type,")
-            sb.append("${transaction.amount},")
-            sb.append("\"${transaction.notes}\"\n")
-        }
-
-        return sb.toString()
-    }
-
     private suspend fun handleJsonExportAndSave(fileUri: Uri) {
         val jsonData = viewModel.exportToJson(null)
         if (jsonData != null) {
@@ -481,30 +444,37 @@ class PengaturanPage : Fragment() {
 
             // Detect file format based on content
             val isJson = fileContent.trim().startsWith("{")
-            val isSql = fileContent.trim().uppercase().contains("INSERT INTO")
-            
-            val success = when {
-                isJson -> {
-                    // Validate JSON format
-                    try {
-                        val gson = com.google.gson.Gson()
-                        gson.fromJson(fileContent, com.google.gson.JsonObject::class.java)
-                        viewModel.restoreFromJson(fileContent)
-                    } catch (e: Exception) {
-                        showSnackbar("Format JSON tidak valid", true)
-                        loadingOverlay.visibility = View.GONE
-                        return
+            val isSql =
+                    fileContent.trim().uppercase().let {
+                        it.contains("INSERT INTO") || it.contains("INSERT OR REPLACE INTO")
                     }
-                }
-                isSql -> {
-                    viewModel.restoreFromSql(fileContent)
-                }
-                else -> {
-                    showSnackbar("Format file tidak dikenali. Gunakan file JSON atau SQL", true)
-                    loadingOverlay.visibility = View.GONE
-                    return
-                }
-            }
+
+            val success =
+                    when {
+                        isJson -> {
+                            // Validate JSON format
+                            try {
+                                val gson = com.google.gson.Gson()
+                                gson.fromJson(fileContent, com.google.gson.JsonObject::class.java)
+                                viewModel.restoreFromJson(fileContent)
+                            } catch (e: Exception) {
+                                showSnackbar("Format JSON tidak valid", true)
+                                loadingOverlay.visibility = View.GONE
+                                return
+                            }
+                        }
+                        isSql -> {
+                            viewModel.restoreFromSql(fileContent)
+                        }
+                        else -> {
+                            showSnackbar(
+                                    "Format file tidak dikenali. Gunakan file JSON atau SQL",
+                                    true
+                            )
+                            loadingOverlay.visibility = View.GONE
+                            return
+                        }
+                    }
 
             loadingOverlay.visibility = View.GONE
 
@@ -930,12 +900,189 @@ class PengaturanPage : Fragment() {
         dialog.show()
     }
 
-    private fun exportToCSV(transactions: List<com.example.catetduls.data.Transaction>) {
-        val fileName = "Laporan_${System.currentTimeMillis()}.csv"
-        createCsvFileLauncher.launch(fileName)
+    private fun exportToPDF(
+            transactions: List<com.example.catetduls.data.Transaction>,
+            startDate: Long?,
+            endDate: Long?
+    ) {
+        val fileName = "Laporan_CatetDuls_${System.currentTimeMillis()}.pdf"
 
-        // Store untuk dipakai di file created callback
+        // Use file picker to let user choose where to save
+        val intent =
+                Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/pdf"
+                    putExtra(Intent.EXTRA_TITLE, fileName)
+                }
+
+        // Store data for callback
+        pendingPdfTransactions = transactions
+        pendingPdfStartDate = startDate
+        pendingPdfEndDate = endDate
+
+        // Launch file picker
+        try {
+            startActivityForResult(intent, REQUEST_CODE_CREATE_PDF)
+        } catch (e: Exception) {
+            showSnackbar("Gagal membuka file picker: ${e.message}", true)
+        }
+    }
+
+    private fun exportToCSV(transactions: List<com.example.catetduls.data.Transaction>) {
+        val fileName = "Laporan_CatetDuls_${System.currentTimeMillis()}.csv"
+
+        // Use file picker to let user choose where to save
+        val intent =
+                Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "text/csv"
+                    putExtra(Intent.EXTRA_TITLE, fileName)
+                }
+
+        // Store transactions for callback
         pendingCsvTransactions = transactions
+
+        // Launch file picker (you'll need to add this launcher in onCreate/onViewCreated)
+        try {
+            startActivityForResult(intent, REQUEST_CODE_CREATE_CSV)
+        } catch (e: Exception) {
+            showSnackbar("Gagal membuka file picker: ${e.message}", true)
+        }
+    }
+
+    private fun handleCsvExportAndSave(fileUri: Uri) {
+        val transactions = pendingCsvTransactions
+        if (transactions.isEmpty()) return
+
+        lifecycleScope.launch {
+            try {
+                loadingOverlay.visibility = View.VISIBLE
+                loadingText.text = "Membuat CSV..."
+
+                withContext(Dispatchers.IO) {
+                    val csvData = buildString {
+                        // ===== HEADER SECTION (as comments) =====
+                        appendLine("# LAPORAN TRANSAKSI KEUANGAN")
+                        appendLine("# CatetDuls - Aplikasi Pencatatan Keuangan")
+
+                        // Generation date
+                        val now =
+                                java.text.SimpleDateFormat(
+                                                "dd MMMM yyyy, HH:mm",
+                                                java.util.Locale("id", "ID")
+                                        )
+                                        .format(java.util.Date())
+                        appendLine("# Tanggal Generate: $now")
+                        appendLine("#")
+
+                        // Summary calculations
+                        val totalIncome =
+                                transactions
+                                        .filter {
+                                            it.type ==
+                                                    com.example.catetduls.data.TransactionType
+                                                            .PEMASUKAN
+                                        }
+                                        .sumOf { it.amount }
+                        val totalExpense =
+                                transactions
+                                        .filter {
+                                            it.type ==
+                                                    com.example.catetduls.data.TransactionType
+                                                            .PENGELUARAN
+                                        }
+                                        .sumOf { it.amount }
+                        val balance = totalIncome - totalExpense
+
+                        appendLine("# Total Transaksi: ${transactions.size}")
+                        appendLine("# Total Pemasukan: Rp ${String.format("%,.0f", totalIncome)}")
+                        appendLine(
+                                "# Total Pengeluaran: Rp ${String.format("%,.0f", totalExpense)}"
+                        )
+                        appendLine("# Saldo: Rp ${String.format("%,.0f", balance)}")
+                        appendLine("#")
+                        appendLine("")
+
+                        // ===== COLUMN HEADERS =====
+                        appendLine("No,Tanggal,Waktu,Kategori,Tipe,Keterangan,Jumlah")
+
+                        // ===== DATA ROWS =====
+                        val dateFormat =
+                                java.text.SimpleDateFormat(
+                                        "dd/MM/yyyy",
+                                        java.util.Locale("id", "ID")
+                                )
+                        val timeFormat =
+                                java.text.SimpleDateFormat("HH:mm", java.util.Locale("id", "ID"))
+
+                        transactions.forEachIndexed { index, transaction ->
+                            val date = dateFormat.format(java.util.Date(transaction.date))
+                            val time = timeFormat.format(java.util.Date(transaction.date))
+                            val category =
+                                    transaction.categoryId
+                                            .toString() // You may want to fetch actual category
+                            // name
+                            val type =
+                                    when (transaction.type) {
+                                        com.example.catetduls.data.TransactionType.PEMASUKAN ->
+                                                "Pemasukan"
+                                        com.example.catetduls.data.TransactionType.PENGELUARAN ->
+                                                "Pengeluaran"
+                                        else -> "Transfer"
+                                    }
+
+                            // Escape notes for CSV (handle commas and quotes)
+                            val escapedNotes =
+                                    transaction.notes.replace("\"", "\"\"") // Escape quotes
+                                            .let {
+                                                if (it.contains(",") ||
+                                                                it.contains("\"") ||
+                                                                it.contains("\n")
+                                                )
+                                                        "\"$it\""
+                                                else it
+                                            }
+
+                            // Format amount as number (no Rp prefix for Excel compatibility)
+                            val amount = transaction.amount.toLong()
+
+                            appendLine(
+                                    "${index + 1},$date,$time,$category,$type,$escapedNotes,$amount"
+                            )
+                        }
+
+                        // ===== SUMMARY SECTION (as comments at end) =====
+                        appendLine("")
+                        appendLine("#")
+                        appendLine("# RINGKASAN")
+                        appendLine("# Total Pemasukan,$totalIncome")
+                        appendLine("# Total Pengeluaran,$totalExpense")
+                        appendLine("# Saldo,$balance")
+                    }
+
+                    // Write to file
+                    requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream
+                        ->
+                        outputStream.write(csvData.toByteArray())
+                    }
+                }
+
+                loadingOverlay.visibility = View.GONE
+                showSnackbar("CSV berhasil tersimpan!")
+
+                // Clear pending
+                pendingCsvTransactions = emptyList()
+            } catch (e: Exception) {
+                loadingOverlay.visibility = View.GONE
+                showSnackbar("Gagal menyimpan CSV: ${e.message}", true)
+                e.printStackTrace()
+            }
+        }
+    }
+
+    companion object {
+        private const val REQUEST_CODE_CREATE_CSV = 1001
+        private const val REQUEST_CODE_CREATE_PDF = 1002
     }
 
     private var pendingCsvTransactions: List<com.example.catetduls.data.Transaction> = emptyList()
@@ -943,17 +1090,9 @@ class PengaturanPage : Fragment() {
     private var pendingPdfStartDate: Long? = null
     private var pendingPdfEndDate: Long? = null
 
-    private fun exportToPDF(
-            transactions: List<com.example.catetduls.data.Transaction>,
-            startDate: Long?,
-            endDate: Long?
-    ) {
-        val fileName = "Laporan_${System.currentTimeMillis()}.pdf"
-        pendingPdfTransactions = transactions
-        pendingPdfStartDate = startDate
-        pendingPdfEndDate = endDate
-        createPdfFileLauncher.launch(fileName)
-    }
+    // ========================================
+    // BACKUP/RESTORE DIALOGS
+    // ========================================
 
     private suspend fun handlePdfExportAndSave(fileUri: Uri) {
         val transactions = pendingPdfTransactions
@@ -967,72 +1106,420 @@ class PengaturanPage : Fragment() {
                 loadingOverlay.visibility = View.VISIBLE
                 loadingText.text = "Membuat PDF..."
 
-                val pdfDocument = android.graphics.pdf.PdfDocument()
-                val pageInfo =
-                        android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, 1).create()
-                val page = pdfDocument.startPage(pageInfo)
+                withContext(Dispatchers.IO) {
+                    val pdfDocument = android.graphics.pdf.PdfDocument()
 
-                val canvas = page.canvas
-                val paint = android.graphics.Paint()
+                    // PDF Constants
+                    val PAGE_WIDTH = 595f
+                    val PAGE_HEIGHT = 842f
+                    val MARGIN = 40f
+                    val USABLE_WIDTH = PAGE_WIDTH - (2 * MARGIN)
 
-                // Title
-                paint.textSize = 20f
-                paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
-                canvas.drawText("LAPORAN TRANSAKSI", 50f, 50f, paint)
+                    // Colors
+                    val COLOR_PRIMARY = android.graphics.Color.rgb(33, 150, 243)
+                    val COLOR_INCOME = android.graphics.Color.rgb(76, 175, 80)
+                    val COLOR_EXPENSE = android.graphics.Color.rgb(244, 67, 54)
+                    val COLOR_GRAY = android.graphics.Color.rgb(158, 158, 158)
+                    val COLOR_LIGHT_GRAY = android.graphics.Color.rgb(245, 245, 245)
 
-                // Period
-                paint.textSize = 12f
-                paint.typeface = android.graphics.Typeface.DEFAULT
-                val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale("id", "ID"))
-                val period =
-                        if (startDate != null && endDate != null) {
-                            "${sdf.format(java.util.Date(startDate))} - ${sdf.format(java.util.Date(endDate))}"
-                        } else {
-                            "Semua Waktu"
+                    var pageNumber = 1
+                    var yPosition = MARGIN
+
+                    // Create first page
+                    val pageInfo =
+                            android.graphics.pdf.PdfDocument.PageInfo.Builder(
+                                            PAGE_WIDTH.toInt(),
+                                            PAGE_HEIGHT.toInt(),
+                                            pageNumber
+                                    )
+                                    .create()
+                    var page = pdfDocument.startPage(pageInfo)
+                    var canvas = page.canvas
+                    val paint = android.graphics.Paint()
+
+                    // ===== HEADER SECTION =====
+
+                    // Draw Logo
+                    val d =
+                            androidx.core.content.ContextCompat.getDrawable(
+                                    requireContext(),
+                                    R.mipmap.ic_launcher
+                            )
+                    val bitmap =
+                            if (d is android.graphics.drawable.BitmapDrawable) {
+                                d.bitmap
+                            } else {
+                                val bmp =
+                                        android.graphics.Bitmap.createBitmap(
+                                                d?.intrinsicWidth ?: 100,
+                                                d?.intrinsicHeight ?: 100,
+                                                android.graphics.Bitmap.Config.ARGB_8888
+                                        )
+                                val c = android.graphics.Canvas(bmp)
+                                d?.setBounds(0, 0, c.width, c.height)
+                                d?.draw(c)
+                                bmp
+                            }
+                    val scaledBitmap =
+                            android.graphics.Bitmap.createScaledBitmap(bitmap, 50, 50, false)
+                    canvas.drawBitmap(scaledBitmap, MARGIN, yPosition, paint)
+
+                    // App Name (Right of Logo)
+                    paint.color = COLOR_PRIMARY
+                    paint.textSize = 24f
+                    paint.typeface =
+                            android.graphics.Typeface.create(
+                                    android.graphics.Typeface.DEFAULT,
+                                    android.graphics.Typeface.BOLD
+                            )
+                    // Geser teks ke kanan logo (margin + lebar logo + padding)
+                    canvas.drawText("CatetDuls", MARGIN + 60f, yPosition + 20f, paint)
+
+                    paint.textSize = 12f
+                    paint.color = COLOR_GRAY
+                    paint.typeface = android.graphics.Typeface.DEFAULT
+                    canvas.drawText(
+                            "Pencatatan Keuangan Pribadi",
+                            MARGIN + 60f,
+                            yPosition + 40f,
+                            paint
+                    )
+
+                    // Move Y position down below logo
+                    yPosition += 70f
+
+                    // Report Title
+                    paint.color = android.graphics.Color.BLACK
+                    paint.textSize = 18f
+                    paint.typeface =
+                            android.graphics.Typeface.create(
+                                    android.graphics.Typeface.DEFAULT,
+                                    android.graphics.Typeface.BOLD
+                            )
+                    // Center align title
+                    val titleText = "LAPORAN TRANSAKSI KEUANGAN"
+                    val titleWidth = paint.measureText(titleText)
+                    val titleX = (PAGE_WIDTH - titleWidth) / 2
+                    canvas.drawText(titleText, titleX, yPosition, paint)
+                    yPosition += 15f
+
+                    // Separator Line
+                    paint.strokeWidth = 2f
+                    canvas.drawLine(MARGIN, yPosition, PAGE_WIDTH - MARGIN, yPosition, paint)
+                    yPosition += 20f
+
+                    // ===== METADATA SECTION =====
+                    paint.textSize = 11f
+                    paint.typeface = android.graphics.Typeface.DEFAULT
+
+                    // Generation Date
+                    val now =
+                            java.text.SimpleDateFormat(
+                                            "dd MMMM yyyy, HH:mm",
+                                            java.util.Locale("id", "ID")
+                                    )
+                                    .format(java.util.Date())
+                    canvas.drawText("Tanggal Cetak: $now", MARGIN, yPosition, paint)
+                    yPosition += 18f
+
+                    // Period
+                    val sdf =
+                            java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale("id", "ID"))
+                    val period =
+                            if (startDate != null && endDate != null) {
+                                "${sdf.format(java.util.Date(startDate))} - ${sdf.format(java.util.Date(endDate))}"
+                            } else {
+                                "Semua Waktu"
+                            }
+                    canvas.drawText("Periode: $period", MARGIN, yPosition, paint)
+                    yPosition += 18f
+
+                    // Total Transactions
+                    canvas.drawText(
+                            "Total Transaksi: ${transactions.size}",
+                            MARGIN,
+                            yPosition,
+                            paint
+                    )
+                    yPosition += 25f
+
+                    // ===== SUMMARY BOX =====
+                    val totalIncome =
+                            transactions
+                                    .filter {
+                                        it.type ==
+                                                com.example.catetduls.data.TransactionType.PEMASUKAN
+                                    }
+                                    .sumOf { it.amount }
+                    val totalExpense =
+                            transactions
+                                    .filter {
+                                        it.type ==
+                                                com.example.catetduls.data.TransactionType
+                                                        .PENGELUARAN
+                                    }
+                                    .sumOf { it.amount }
+                    val balance = totalIncome - totalExpense
+
+                    // Draw summary box background
+                    paint.style = android.graphics.Paint.Style.FILL
+                    paint.color = COLOR_LIGHT_GRAY
+                    canvas.drawRect(MARGIN, yPosition, PAGE_WIDTH - MARGIN, yPosition + 70f, paint)
+
+                    // Draw summary box border
+                    paint.style = android.graphics.Paint.Style.STROKE
+                    paint.color = COLOR_GRAY
+                    paint.strokeWidth = 1f
+                    canvas.drawRect(MARGIN, yPosition, PAGE_WIDTH - MARGIN, yPosition + 70f, paint)
+
+                    yPosition += 20f
+                    paint.style = android.graphics.Paint.Style.FILL
+                    paint.textSize = 10f
+
+                    // Income
+                    paint.color = COLOR_INCOME
+                    canvas.drawText("Total Pemasukan:", MARGIN + 10f, yPosition, paint)
+                    paint.typeface =
+                            android.graphics.Typeface.create(
+                                    android.graphics.Typeface.DEFAULT,
+                                    android.graphics.Typeface.BOLD
+                            )
+                    canvas.drawText(
+                            "Rp ${String.format("%,.0f", totalIncome)}",
+                            MARGIN + 150f,
+                            yPosition,
+                            paint
+                    )
+                    yPosition += 18f
+
+                    // Expense
+                    paint.typeface = android.graphics.Typeface.DEFAULT
+                    paint.color = COLOR_EXPENSE
+                    canvas.drawText("Total Pengeluaran:", MARGIN + 10f, yPosition, paint)
+                    paint.typeface =
+                            android.graphics.Typeface.create(
+                                    android.graphics.Typeface.DEFAULT,
+                                    android.graphics.Typeface.BOLD
+                            )
+                    canvas.drawText(
+                            "Rp ${String.format("%,.0f", totalExpense)}",
+                            MARGIN + 150f,
+                            yPosition,
+                            paint
+                    )
+                    yPosition += 18f
+
+                    // Balance
+                    paint.typeface = android.graphics.Typeface.DEFAULT
+                    paint.color = android.graphics.Color.BLACK
+                    canvas.drawText("Saldo:", MARGIN + 10f, yPosition, paint)
+                    paint.typeface =
+                            android.graphics.Typeface.create(
+                                    android.graphics.Typeface.DEFAULT,
+                                    android.graphics.Typeface.BOLD
+                            )
+                    paint.color = if (balance >= 0) COLOR_INCOME else COLOR_EXPENSE
+                    canvas.drawText(
+                            "Rp ${String.format("%,.0f", balance)}",
+                            MARGIN + 150f,
+                            yPosition,
+                            paint
+                    )
+
+                    yPosition += 30f
+
+                    // ===== TRANSACTION TABLE =====
+                    paint.color = android.graphics.Color.BLACK
+                    paint.typeface =
+                            android.graphics.Typeface.create(
+                                    android.graphics.Typeface.DEFAULT,
+                                    android.graphics.Typeface.BOLD
+                            )
+                    paint.textSize = 12f
+                    canvas.drawText("Rincian Transaksi", MARGIN, yPosition, paint)
+                    yPosition += 20f
+
+                    // Table Header
+                    paint.style = android.graphics.Paint.Style.FILL
+                    paint.color = COLOR_PRIMARY
+                    canvas.drawRect(
+                            MARGIN,
+                            yPosition - 15f,
+                            PAGE_WIDTH - MARGIN,
+                            yPosition + 5f,
+                            paint
+                    )
+
+                    paint.color = android.graphics.Color.WHITE
+                    paint.textSize = 9f
+                    paint.typeface =
+                            android.graphics.Typeface.create(
+                                    android.graphics.Typeface.DEFAULT,
+                                    android.graphics.Typeface.BOLD
+                            )
+
+                    val colNo = MARGIN + 5f
+                    val colDate = MARGIN + 30f
+                    val colCategory = MARGIN + 100f
+                    val colNotes = MARGIN + 200f
+                    val colIncome = MARGIN + 340f
+                    val colExpense = MARGIN + 440f
+
+                    canvas.drawText("No", colNo, yPosition, paint)
+                    canvas.drawText("Tanggal", colDate, yPosition, paint)
+                    canvas.drawText("Kategori", colCategory, yPosition, paint)
+                    canvas.drawText("Keterangan", colNotes, yPosition, paint)
+                    canvas.drawText("Pemasukan", colIncome, yPosition, paint)
+                    canvas.drawText("Pengeluaran", colExpense, yPosition, paint)
+
+                    yPosition += 20f
+
+                    // Table Rows
+                    paint.typeface = android.graphics.Typeface.DEFAULT
+                    paint.textSize = 8f
+                    val dateFormat =
+                            java.text.SimpleDateFormat("dd/MM/yy", java.util.Locale("id", "ID"))
+
+                    transactions.forEachIndexed { index, transaction ->
+                        // Check if need new page
+                        if (yPosition > PAGE_HEIGHT - 100f) {
+                            // Footer for current page
+                            paint.color = COLOR_GRAY
+                            paint.textSize = 8f
+                            canvas.drawText(
+                                    "Halaman $pageNumber",
+                                    PAGE_WIDTH / 2 - 20f,
+                                    PAGE_HEIGHT - 20f,
+                                    paint
+                            )
+
+                            pdfDocument.finishPage(page)
+                            pageNumber++
+
+                            // Start new page
+                            val newPageInfo =
+                                    android.graphics.pdf.PdfDocument.PageInfo.Builder(
+                                                    PAGE_WIDTH.toInt(),
+                                                    PAGE_HEIGHT.toInt(),
+                                                    pageNumber
+                                            )
+                                            .create()
+                            page = pdfDocument.startPage(newPageInfo)
+                            canvas = page.canvas
+                            yPosition = MARGIN
+
+                            // Repeat table header on new page
+                            paint.style = android.graphics.Paint.Style.FILL
+                            paint.color = COLOR_PRIMARY
+                            canvas.drawRect(
+                                    MARGIN,
+                                    yPosition - 15f,
+                                    PAGE_WIDTH - MARGIN,
+                                    yPosition + 5f,
+                                    paint
+                            )
+
+                            paint.color = android.graphics.Color.WHITE
+                            paint.textSize = 9f
+                            paint.typeface =
+                                    android.graphics.Typeface.create(
+                                            android.graphics.Typeface.DEFAULT,
+                                            android.graphics.Typeface.BOLD
+                                    )
+                            canvas.drawText("No", colNo, yPosition, paint)
+                            canvas.drawText("Tanggal", colDate, yPosition, paint)
+                            canvas.drawText("Kategori", colCategory, yPosition, paint)
+                            canvas.drawText("Keterangan", colNotes, yPosition, paint)
+                            canvas.drawText("Pemasukan", colIncome, yPosition, paint)
+                            canvas.drawText("Pengeluaran", colExpense, yPosition, paint)
+
+                            yPosition += 20f
+                            paint.typeface = android.graphics.Typeface.DEFAULT
+                            paint.textSize = 8f
                         }
-                canvas.drawText("Periode: $period", 50f, 80f, paint)
-                canvas.drawText("Total: ${transactions.size} transaksi", 50f, 100f, paint)
 
-                // Summary
-                val totalIncome =
-                        transactions
-                                .filter {
-                                    it.type == com.example.catetduls.data.TransactionType.PEMASUKAN
-                                }
-                                .sumOf { it.amount }
-                val totalExpense =
-                        transactions
-                                .filter {
-                                    it.type ==
-                                            com.example.catetduls.data.TransactionType.PENGELUARAN
-                                }
-                                .sumOf { it.amount }
+                        // Alternating row background
+                        if (index % 2 == 0) {
+                            paint.style = android.graphics.Paint.Style.FILL
+                            paint.color = COLOR_LIGHT_GRAY
+                            canvas.drawRect(
+                                    MARGIN,
+                                    yPosition - 12f,
+                                    PAGE_WIDTH - MARGIN,
+                                    yPosition + 3f,
+                                    paint
+                            )
+                        }
 
-                canvas.drawText(
-                        "Total Pemasukan: Rp ${String.format("%,.0f", totalIncome)}",
-                        50f,
-                        130f,
-                        paint
-                )
-                canvas.drawText(
-                        "Total Pengeluaran: Rp ${String.format("%,.0f", totalExpense)}",
-                        50f,
-                        150f,
-                        paint
-                )
-                canvas.drawText(
-                        "Selisih: Rp ${String.format("%,.0f", totalIncome - totalExpense)}",
-                        50f,
-                        170f,
-                        paint
-                )
+                        // Row data
+                        paint.color = android.graphics.Color.BLACK
+                        canvas.drawText("${index + 1}", colNo, yPosition, paint)
+                        canvas.drawText(
+                                dateFormat.format(java.util.Date(transaction.date)),
+                                colDate,
+                                yPosition,
+                                paint
+                        )
 
-                pdfDocument.finishPage(page)
+                        // Get category name (truncate if too long)
+                        val categoryName =
+                                transaction.categoryId
+                                        .toString() // You may want to fetch actual category name
+                        val truncatedCategory =
+                                if (categoryName.length > 12) categoryName.substring(0, 12) + "..."
+                                else categoryName
+                        canvas.drawText(truncatedCategory, colCategory, yPosition, paint)
 
-                requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream ->
-                    pdfDocument.writeTo(outputStream)
+                        // Notes (truncate if too long)
+                        val truncatedNotes =
+                                if (transaction.notes.length > 18)
+                                        transaction.notes.substring(0, 18) + "..."
+                                else transaction.notes
+                        canvas.drawText(truncatedNotes, colNotes, yPosition, paint)
+
+                        // Amount
+                        if (transaction.type == com.example.catetduls.data.TransactionType.PEMASUKAN
+                        ) {
+                            paint.color = COLOR_INCOME
+                            canvas.drawText(
+                                    String.format("%,.0f", transaction.amount),
+                                    colIncome,
+                                    yPosition,
+                                    paint
+                            )
+                        } else {
+                            paint.color = COLOR_EXPENSE
+                            canvas.drawText(
+                                    String.format("%,.0f", transaction.amount),
+                                    colExpense,
+                                    yPosition,
+                                    paint
+                            )
+                        }
+
+                        yPosition += 15f
+                    }
+
+                    // Footer for last page
+                    paint.color = COLOR_GRAY
+                    paint.textSize = 8f
+                    canvas.drawText(
+                            "Halaman $pageNumber",
+                            PAGE_WIDTH / 2 - 20f,
+                            PAGE_HEIGHT - 20f,
+                            paint
+                    )
+                    canvas.drawText("Dibuat oleh CatetDuls v1.0", MARGIN, PAGE_HEIGHT - 20f, paint)
+
+                    pdfDocument.finishPage(page)
+
+                    // Write to file
+                    requireContext().contentResolver.openOutputStream(fileUri)?.use { outputStream
+                        ->
+                        pdfDocument.writeTo(outputStream)
+                    }
+                    pdfDocument.close()
                 }
-                pdfDocument.close()
 
                 loadingOverlay.visibility = View.GONE
                 showSnackbar("PDF berhasil tersimpan!")
@@ -1048,42 +1535,61 @@ class PengaturanPage : Fragment() {
             }
         }
     }
-    
+
     // ========================================
     // BACKUP/RESTORE DIALOGS
     // ========================================
-    
+
     private fun showBackupDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_backup, null)
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(requireContext())
-            .setView(dialogView)
-            .create()
-        
+        val dialog =
+                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                        .setView(dialogView)
+                        .create()
+
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        
+
         // Initialize views
-        val actvBookSelection = dialogView.findViewById<android.widget.AutoCompleteTextView>(R.id.actv_book_selection)
-        val rgBackupFormat = dialogView.findViewById<android.widget.RadioGroup>(R.id.rg_backup_format)
-        val tvBackupPreview = dialogView.findViewById<android.widget.TextView>(R.id.tv_backup_preview)
-        val btnCancel = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_cancel)
-        val btnGenerate = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_generate)
-        
+        val actvBookSelection =
+                dialogView.findViewById<android.widget.AutoCompleteTextView>(
+                        R.id.actv_book_selection
+                )
+        val rgBackupFormat =
+                dialogView.findViewById<android.widget.RadioGroup>(R.id.rg_backup_format)
+        val tvBackupPreview =
+                dialogView.findViewById<android.widget.TextView>(R.id.tv_backup_preview)
+        val btnCancel =
+                dialogView.findViewById<com.google.android.material.button.MaterialButton>(
+                        R.id.btn_cancel
+                )
+        val btnGenerate =
+                dialogView.findViewById<com.google.android.material.button.MaterialButton>(
+                        R.id.btn_generate
+                )
+
         // Load books for selection
         viewLifecycleOwner.lifecycleScope.launch {
             val books = viewModel.getAllBooksForSelection()
             val activeBookId = viewModel.getActiveBookId()
             val bookNames = mutableListOf("Semua Buku")
-            bookNames.addAll(books.map { book -> 
-                if (book.id == activeBookId) "${book.name} ✓ Aktif" else book.name 
-            })
-            
-            val adapter = android.widget.ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, bookNames)
+            bookNames.addAll(
+                    books.map { book ->
+                        if (book.id == activeBookId) "${book.name} ✓ Aktif" else book.name
+                    }
+            )
+
+            val adapter =
+                    android.widget.ArrayAdapter(
+                            requireContext(),
+                            android.R.layout.simple_dropdown_item_1line,
+                            bookNames
+                    )
             actvBookSelection.setAdapter(adapter)
             actvBookSelection.setText("Semua Buku", false)
-            
+
             // Update preview
             updateBackupPreview(null, tvBackupPreview)
-            
+
             // Book selection listener
             actvBookSelection.setOnItemClickListener { _, _, position, _ ->
                 val selectedBookId = if (position == 0) null else books[position - 1].id
@@ -1092,29 +1598,30 @@ class PengaturanPage : Fragment() {
                 }
             }
         }
-        
-        btnCancel.setOnClickListener {
-            dialog.dismiss()
-        }
-        
+
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
         btnGenerate.setOnClickListener {
-            val selectedFormat = when (rgBackupFormat.checkedRadioButtonId) {
-                R.id.rb_json -> "json"
-                R.id.rb_sql -> "sql"
-                else -> "json"
-            }
-            
+            val selectedFormat =
+                    when (rgBackupFormat.checkedRadioButtonId) {
+                        R.id.rb_json -> "json"
+                        R.id.rb_sql -> "sql"
+                        else -> "json"
+                    }
+
             val selectedBookText = actvBookSelection.text.toString()
-            val selectedBookId = if (selectedBookText == "Semua Buku") null else {
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val books = viewModel.getAllBooksForSelection()
-                    books.find { it.name == selectedBookText }?.id
-                }
-                null // Simplified for now
-            }
-            
+            val selectedBookId =
+                    if (selectedBookText == "Semua Buku") null
+                    else {
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            val books = viewModel.getAllBooksForSelection()
+                            books.find { it.name == selectedBookText }?.id
+                        }
+                        null // Simplified for now
+                    }
+
             dialog.dismiss()
-            
+
             // Launch file picker
             val fileName = "backup_${System.currentTimeMillis()}.$selectedFormat"
             if (selectedFormat == "json") {
@@ -1123,41 +1630,47 @@ class PengaturanPage : Fragment() {
                 createSqlFileLauncher.launch(fileName)
             }
         }
-        
+
         dialog.show()
     }
-    
+
     private suspend fun updateBackupPreview(bookId: Int?, textView: android.widget.TextView) {
         val preview = viewModel.getBackupPreview(bookId)
-        textView.text = "${preview.bookName}\n" +
-                "Transaksi: ${preview.transactionCount}\n" +
-                "Kategori: ${preview.categoryCount}\n" +
-                "Dompet: ${preview.walletCount}"
+        textView.text =
+                "${preview.bookName}\n" +
+                        "Transaksi: ${preview.transactionCount}\n" +
+                        "Kategori: ${preview.categoryCount}\n" +
+                        "Dompet: ${preview.walletCount}"
     }
-    
+
     private fun showRestoreDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_restore, null)
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(requireContext())
-            .setView(dialogView)
-            .create()
-        
+        val dialog =
+                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                        .setView(dialogView)
+                        .create()
+
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        
-        val btnCancel = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_cancel)
-        val btnChooseFile = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_choose_file)
-        
-        btnCancel.setOnClickListener {
-            dialog.dismiss()
-        }
-        
+
+        val btnCancel =
+                dialogView.findViewById<com.google.android.material.button.MaterialButton>(
+                        R.id.btn_cancel
+                )
+        val btnChooseFile =
+                dialogView.findViewById<com.google.android.material.button.MaterialButton>(
+                        R.id.btn_choose_file
+                )
+
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
         btnChooseFile.setOnClickListener {
             dialog.dismiss()
             restoreFileLauncher.launch(arrayOf("application/json", "application/sql"))
         }
-        
+
         dialog.show()
     }
-    
+
     private suspend fun handleSqlExportAndSave(fileUri: Uri) {
         val sqlData = viewModel.exportToSql(null)
         if (sqlData != null) {
