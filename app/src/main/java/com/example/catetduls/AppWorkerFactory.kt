@@ -15,7 +15,8 @@ class AppWorkerFactory(
     private val bookRepository: BookRepository,
     private val walletRepository: WalletRepository,
     private val categoryRepository: CategoryRepository,
-    private val transactionRepository: TransactionRepository
+    private val transactionRepository: TransactionRepository,
+    private val userRepository: UserRepository
 ) : WorkerFactory() {
 
     override fun createWorker(
@@ -32,6 +33,7 @@ class AppWorkerFactory(
                     walletRepository,
                     categoryRepository,
                     transactionRepository,
+                    userRepository,
                     apiService
                 )
             else -> null

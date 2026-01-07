@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
-import com.example.catetduls.data.Transaction
 import com.example.catetduls.data.TransactionRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,9 +20,7 @@ import kotlinx.coroutines.launch
  * - Transaksi terbaru
  * - Loading state
  */
-class DashboardViewModel(
-    private val repository: TransactionRepository
-) : ViewModel() {
+class DashboardViewModel(private val repository: TransactionRepository) : ViewModel() {
 
     // ========================================
     // State Management
@@ -39,41 +36,30 @@ class DashboardViewModel(
     // Data Flows
     // ========================================
 
-    /**
-     * Total saldo (pemasukan - pengeluaran)
-     */
+    /** Total saldo (pemasukan - pengeluaran) */
     val totalBalance = repository.getTotalBalance().asLiveData()
 
-    /**
-     * Total pemasukan bulan ini
-     */
+    /** Total pemasukan bulan ini */
     val totalIncomeThisMonth = repository.getTotalIncomeThisMonth().asLiveData()
 
-    /**
-     * Total pengeluaran bulan ini
-     */
+    /** Total pengeluaran bulan ini */
     val totalExpenseThisMonth = repository.getTotalExpenseThisMonth().asLiveData()
 
-    /**
-     * 5 Transaksi terakhir
-     */
+    /** 5 Transaksi terakhir */
     val recentTransactions = repository.getRecentTransactions(5).asLiveData()
 
     // ========================================
     // Computed Properties
     // ========================================
 
-    /**
-     * Format saldo ke Rupiah
-     */
-    fun formatCurrency(amount: Double?): String {
-        if (amount == null) return "Rp 0"
-        return "Rp ${String.format("%,.0f", amount)}"
+    /** Format saldo ke Rupiah */
+    /** Format saldo ke Rupiah */
+    fun formatCurrency(amount: Double?, symbol: String = "Rp"): String {
+        if (amount == null) return com.example.catetduls.utils.CurrencyHelper.format(0.0, symbol)
+        return com.example.catetduls.utils.CurrencyHelper.format(amount, symbol)
     }
 
-    /**
-     * Warna untuk saldo (hijau jika positif, merah jika negatif)
-     */
+    /** Warna untuk saldo (hijau jika positif, merah jika negatif) */
     fun getBalanceColor(balance: Double?): Int {
         return if (balance != null && balance >= 0) {
             android.graphics.Color.parseColor("#4CAF50") // Hijau
@@ -82,9 +68,7 @@ class DashboardViewModel(
         }
     }
 
-    /**
-     * Persentase pengeluaran dari pemasukan
-     */
+    /** Persentase pengeluaran dari pemasukan */
     fun getExpensePercentage(income: Double?, expense: Double?): Float {
         if (income == null || expense == null || income == 0.0) return 0f
         return ((expense / income) * 100).toFloat()
@@ -94,9 +78,7 @@ class DashboardViewModel(
     // Actions
     // ========================================
 
-    /**
-     * Refresh data dashboard
-     */
+    /** Refresh data dashboard */
     fun refreshDashboard() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -111,9 +93,7 @@ class DashboardViewModel(
         }
     }
 
-    /**
-     * Clear error message
-     */
+    /** Clear error message */
     fun clearError() {
         _errorMessage.value = null
     }
@@ -123,16 +103,12 @@ class DashboardViewModel(
     }
 }
 
-/**
- * Factory untuk membuat DashboardViewModel dengan repository
- */
-class DashboardViewModelFactory(
-    private val repository: TransactionRepository
-) : ViewModelProvider.Factory {
+/** Factory untuk membuat DashboardViewModel dengan repository */
+class DashboardViewModelFactory(private val repository: TransactionRepository) :
+        ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(DashboardViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return DashboardViewModel(repository) as T
+            @Suppress("UNCHECKED_CAST") return DashboardViewModel(repository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

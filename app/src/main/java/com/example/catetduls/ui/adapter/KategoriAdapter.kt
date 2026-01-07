@@ -3,7 +3,7 @@ package com.example.catetduls.ui.adapter
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -35,7 +35,7 @@ class KategoriAdapter(
         private val tvName: TextView = itemView.findViewById(R.id.tv_name)
         private val tvType: TextView = itemView.findViewById(R.id.tv_type)
         private val tvDefault: TextView = itemView.findViewById(R.id.tv_default)
-        private val btnEdit: Button = itemView.findViewById(R.id.btn_edit)
+        private val btnEdit: ImageButton = itemView.findViewById(R.id.btn_edit)
 
         // file: KategoriAdapter.kt (di dalam class ViewHolder)
 

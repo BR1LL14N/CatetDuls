@@ -21,7 +21,15 @@ class FormBukuViewModel @Inject constructor(private val repository: BookReposito
     private val _uiEvent = Channel<UiEvent>()
     val uiEvent = _uiEvent.receiveAsFlow()
 
-    fun saveBook(id: Int, name: String, description: String, icon: String, existingBook: Book?) {
+    fun saveBook(
+            id: Int,
+            name: String,
+            description: String,
+            icon: String,
+            currencyCode: String,
+            currencySymbol: String,
+            existingBook: Book?
+    ) {
         if (name.isBlank()) {
             sendEvent(UiEvent.Error("Nama buku tidak boleh kosong"))
             return
@@ -37,13 +45,21 @@ class FormBukuViewModel @Inject constructor(private val repository: BookReposito
                                     description = description,
                                     icon = icon,
                                     isActive = false,
-                                    lastSyncAt = 0L
+                                    lastSyncAt = 0L,
+                                    currencyCode = currencyCode,
+                                    currencySymbol = currencySymbol
                             )
                     repository.insert(newBook)
                 } else {
                     // Update Existing
                     val updatedBook =
-                            existingBook.copy(name = name, description = description, icon = icon)
+                            existingBook.copy(
+                                    name = name,
+                                    description = description,
+                                    icon = icon,
+                                    currencyCode = currencyCode,
+                                    currencySymbol = currencySymbol
+                            )
                     repository.update(updatedBook)
                 }
                 sendEvent(UiEvent.Success)

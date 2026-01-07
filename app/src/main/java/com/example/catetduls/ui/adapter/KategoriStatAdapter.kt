@@ -13,7 +13,8 @@ import com.example.catetduls.utils.Formatters
 import java.util.Locale
 
 class CategoryStatAdapter(
-    private val onItemClick: ((CategoryExpense) -> Unit)? = null
+    private val onItemClick: ((CategoryExpense) -> Unit)? = null,
+    private var currencySymbol: String = "Rp" // Default
 ) : RecyclerView.Adapter<CategoryStatAdapter.ViewHolder>() {
 
     private var items: List<CategoryExpense> = emptyList()
@@ -23,6 +24,11 @@ class CategoryStatAdapter(
         "#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0",
         "#9966FF", "#FF9F40", "#33FFCC", "#C9CBCF"
     )
+
+    fun setCurrency(symbol: String) {
+        this.currencySymbol = symbol
+        notifyDataSetChanged()
+    }
 
     fun submitList(newItems: List<CategoryExpense>) {
         items = newItems
@@ -43,7 +49,7 @@ class CategoryStatAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(items[position], position, totalAmount, colors, onItemClick)
+        holder.bind(items[position], position, totalAmount, colors, currencySymbol, onItemClick)
     }
 
     override fun getItemCount(): Int = items.size
@@ -60,6 +66,7 @@ class CategoryStatAdapter(
             position: Int,
             grandTotal: Double,
             colors: List<String>,
+            currencySymbol: String,
             onItemClick: ((CategoryExpense) -> Unit)?
         ) {
             tvIcon.text = item.icon
@@ -71,8 +78,8 @@ class CategoryStatAdapter(
             val colorHex = colors[position % colors.size]
             cardBadge.setCardBackgroundColor(android.graphics.Color.parseColor(colorHex))
 
-            // Gunakan Formatters
-            tvTotal.text = Formatters.toRupiah(item.total)
+            // Gunakan CurrencyHelper.format dengan symbol dinamis
+            tvTotal.text = com.example.catetduls.utils.CurrencyHelper.format(item.total, currencySymbol)
 
             itemView.setOnClickListener {
                 onItemClick?.invoke(item)

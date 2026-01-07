@@ -4,6 +4,7 @@ import java.util.*
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -37,8 +38,11 @@ constructor(
     fun getTransactionById(id: Int): Flow<Transaction?> = transactionDao.getTransactionById(id)
 
     suspend fun getSingleTransactionById(id: Int): Transaction? {
-        // Menggunakan first() atau singleOrNull() untuk mendapatkan nilai pertama/tunggal dari Flow
         return transactionDao.getTransactionById(id).firstOrNull()
+    }
+
+    suspend fun getTransactionCountByBookId(bookId: Int): Int {
+        return transactionDao.getTransactionCountByBookId(bookId)
     }
 
     // ========================================
@@ -52,11 +56,10 @@ constructor(
             )
         }
 
-        // OTOMATIS ISI bookId DARI STATE APLIKASI
         val currentBookId = if (transaction.bookId == 0) getActiveBookId() else transaction.bookId
         val transactionToInsert =
                 transaction.copy(
-                        bookId = currentBookId, // <--- TAMBAHAN PENTING
+                        bookId = currentBookId,
                         isSynced = false,
                         isDeleted = false,
                         syncAction = "CREATE",
@@ -78,7 +81,7 @@ constructor(
                     val currentBookId =
                             if (transaction.bookId == 0) getActiveBookId() else transaction.bookId
                     transaction.copy(
-                            bookId = currentBookId, // <--- TAMBAHAN PENTING
+                            bookId = currentBookId,
                             isSynced = false,
                             isDeleted = false,
                             syncAction = "CREATE",
@@ -101,11 +104,10 @@ constructor(
             )
         }
 
-        // Menentukan status sinkronisasi untuk UPDATE
         val currentBookId = if (transaction.bookId == 0) getActiveBookId() else transaction.bookId
         val transactionToUpdate =
                 transaction.copy(
-                        bookId = currentBookId, // <--- Jaga-jaga jika 0
+                        bookId = currentBookId,
                         isSynced = false,
                         isDeleted = false,
                         syncAction = "UPDATE",
@@ -150,8 +152,29 @@ constructor(
     }
 
     suspend fun deleteAllTransactions() {
-        // Hapus transaksi HANYA untuk buku yang sedang aktif
         transactionDao.deleteTransactionsByBook(getActiveBookId())
+    }
+
+    // ========================================
+    // BACKUP/RESTORE METHODS
+    // ========================================
+
+    suspend fun getAllTransactionsSync(): List<Transaction> {
+        return transactionDao.getAllTransactions(getActiveBookId()).first()
+    }
+
+    suspend fun getTransactionsByBookIdSync(bookId: Int): List<Transaction> {
+        return transactionDao.getAllTransactions(bookId).first()
+    }
+
+    suspend fun insertTransactionFromBackup(transaction: Transaction) {
+        transactionDao.insertTransaction(
+                transaction.copy(
+                        isSynced = false,
+                        syncAction = null,
+                        lastSyncAt = System.currentTimeMillis()
+                )
+        )
     }
 
     // ========================================
@@ -170,6 +193,10 @@ constructor(
 
     suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long) {
         transactionDao.updateSyncStatus(localId, serverId, lastSyncAt)
+    }
+
+    suspend fun updateTransactionImagePath(id: Int, imagePath: String) {
+        transactionDao.updateTransactionImagePath(id, imagePath)
     }
 
     /** Menyimpan data transaksi yang diterima dari server (untuk operasi PULL/READ dari server) */
@@ -192,7 +219,6 @@ constructor(
                         syncAction = null,
                         lastSyncAt = System.currentTimeMillis(),
                         imagePath = existingPath ?: entity.imagePath,
-                        // Handle Nullability 'notes' agar tidak crash
                         notes = entity.notes ?: ""
                 )
 
@@ -201,6 +227,10 @@ constructor(
 
     override suspend fun getByServerId(serverId: String): Transaction? {
         return transactionDao.getByServerId(serverId)
+    }
+
+    override suspend fun markAsUnsynced(id: Long, action: String) {
+        transactionDao.markAsUnsynced(id.toInt(), action, System.currentTimeMillis())
     }
 
     /** Membersihkan transaksi yang sudah berhasil di-sync delete ke server */
@@ -452,6 +482,3 @@ constructor(
         }
     }
 }
-
-// Catatan: Anda perlu memastikan `ValidationResult`, `DailySummary`,
-// `CategoryExpense`, dan `MonthlyTotal` didefinisikan di tempat lain dalam proyek Anda.

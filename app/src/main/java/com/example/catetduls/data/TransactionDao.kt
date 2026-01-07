@@ -41,8 +41,12 @@ interface TransactionDao {
     @Query("SELECT COUNT(*) FROM transactions WHERE book_id = :bookId")
     suspend fun getTransactionCount(bookId: Int): Int
 
+    @Query("SELECT COUNT(*) FROM transactions WHERE book_id = :bookId")
+    suspend fun getTransactionCountByBookId(bookId: Int): Int
+
     // ========================================
-    // SYNC OPERATIONS - PERBAIKAN DAN TAMBAHAN
+    // SYNC OPERATIONS (Background Worker)
+
     // ========================================
 
     @Query("SELECT * FROM transactions WHERE is_synced = 0")
@@ -62,6 +66,9 @@ interface TransactionDao {
     """
     )
     suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long)
+
+    @Query("UPDATE transactions SET image_path = :imagePath WHERE id = :id")
+    suspend fun updateTransactionImagePath(id: Int, imagePath: String)
 
     @Query("DELETE FROM transactions WHERE is_deleted = 1 AND is_synced = 1")
     suspend fun cleanupSyncedDeletes(): Unit
@@ -84,10 +91,9 @@ interface TransactionDao {
     suspend fun getAllUnsyncedTransactions(): List<Transaction>
 
     // ========================================
-    // Dashboard Queries
+    // Dashboard Queries (UI)
     // ========================================
 
-    /** Menghitung total saldo (pemasukan - pengeluaran) */
     @Query(
             """
         SELECT 
@@ -98,7 +104,6 @@ interface TransactionDao {
     )
     fun getTotalBalance(bookId: Int): Flow<Double?>
 
-    /** Get transaksi terbaru (untuk dashboard) */
     @Query(
             """
         SELECT * FROM transactions 
@@ -109,7 +114,6 @@ interface TransactionDao {
     )
     fun getRecentTransactions(bookId: Int, limit: Int = 5): Flow<List<Transaction>>
 
-    /** Total berdasarkan tipe dan rentang tanggal */
     @Query(
             """
         SELECT COALESCE(SUM(amount), 0) 
@@ -130,7 +134,6 @@ interface TransactionDao {
     // Filter Queries (Halaman Transaksi)
     // ========================================
 
-    /** Filter berdasarkan tipe (Pemasukan/Pengeluaran) */
     @Query(
             """
         SELECT * FROM transactions 
@@ -141,7 +144,6 @@ interface TransactionDao {
     )
     fun getTransactionsByType(bookId: Int, type: TransactionType): Flow<List<Transaction>>
 
-    /** Filter berdasarkan kategori */
     @Query(
             """
         SELECT * FROM transactions 
@@ -152,7 +154,6 @@ interface TransactionDao {
     )
     fun getTransactionsByCategory(bookId: Int, categoryId: Int): Flow<List<Transaction>>
 
-    /** Filter berdasarkan rentang tanggal */
     @Query(
             """
         SELECT * FROM transactions 
@@ -167,7 +168,6 @@ interface TransactionDao {
             endDate: Long
     ): Flow<List<Transaction>>
 
-    /** Filter kombinasi: categoryId + rentang tanggal */
     @Query(
             """
     SELECT * FROM transactions 
@@ -184,7 +184,6 @@ interface TransactionDao {
             endDate: Long
     ): Flow<List<Transaction>>
 
-    /** Search transaksi berdasarkan notes */
     @Query(
             """
         SELECT * FROM transactions 
@@ -195,7 +194,6 @@ interface TransactionDao {
     )
     fun searchTransactions(bookId: Int, query: String): Flow<List<Transaction>>
 
-    /** Filter kombinasi: type + kategori */
     @Query(
             """
         SELECT * FROM transactions 
@@ -211,7 +209,6 @@ interface TransactionDao {
             categoryId: Int
     ): Flow<List<Transaction>>
 
-    /** Filter kombinasi: type + rentang tanggal */
     @Query(
             """
         SELECT * FROM transactions 
@@ -228,7 +225,6 @@ interface TransactionDao {
             endDate: Long
     ): Flow<List<Transaction>>
 
-    /** Filter kombinasi: type + kategori + rentang tanggal */
     @Query(
             """
         SELECT * FROM transactions 
@@ -251,10 +247,6 @@ interface TransactionDao {
     // Statistik Queries
     // ========================================
 
-    /**
-     * Total pengeluaran per kategori (untuk Pie Chart) Join dengan tabel categories untuk mendapat
-     * nama kategori
-     */
     @Query(
             """
         SELECT 
@@ -286,7 +278,6 @@ interface TransactionDao {
     )
     fun getDailySummaries(bookId: Int, startDate: Long, endDate: Long): Flow<List<DailySummary>>
 
-    /** Kategori dengan pengeluaran terbesar */
     @Query(
             """
         SELECT 
@@ -305,17 +296,16 @@ interface TransactionDao {
     )
     fun getTopExpenseCategory(bookId: Int): Flow<CategoryExpense?>
 
-    /** Total pemasukan dan pengeluaran per bulan dalam setahun Untuk Bar Chart bulanan */
     @Query(
             """
         SELECT 
-            CAST(strftime('%m', date/1000, 'unixepoch') AS INTEGER) as month,
-            CAST(strftime('%Y', date/1000, 'unixepoch') AS INTEGER) as year,
+            CAST(strftime('%m', datetime(date/1000, 'unixepoch', 'localtime')) as INTEGER) as month,
+            CAST(strftime('%Y', datetime(date/1000, 'unixepoch', 'localtime')) as INTEGER) as year,
             COALESCE(SUM(CASE WHEN type = 'PEMASUKAN' THEN amount ELSE 0 END), 0) as income,
             COALESCE(SUM(CASE WHEN type = 'PENGELUARAN' THEN amount ELSE 0 END), 0) as expense,
             COALESCE(SUM(CASE WHEN type = 'PEMASUKAN' THEN amount ELSE -amount END), 0) as balance
         FROM transactions
-        WHERE CAST(strftime('%Y', date/1000, 'unixepoch') AS INTEGER) = :year
+        WHERE CAST(strftime('%Y', datetime(date/1000, 'unixepoch', 'localtime')) AS INTEGER) = :year
         AND is_deleted = 0 AND book_id = :bookId
         GROUP BY month, year
         ORDER BY month ASC
@@ -323,7 +313,6 @@ interface TransactionDao {
     )
     fun getMonthlyTotals(bookId: Int, year: Int): Flow<List<MonthlyTotal>>
 
-    /** Total transaksi per hari dalam sebulan (untuk detail statistik) */
     @Query(
             """
         SELECT 
@@ -339,7 +328,6 @@ interface TransactionDao {
     )
     fun getDailyTotals(bookId: Int, startDate: Long, endDate: Long): Flow<List<DailyTotal>>
 
-    /** Statistik kategori detail (jumlah transaksi + total) */
     @Query(
             """
         SELECT 
@@ -362,7 +350,6 @@ interface TransactionDao {
     // Utility Queries
     // ========================================
 
-    /** Cek apakah ada transaksi dalam rentang tanggal */
     @Query(
             """
         SELECT COUNT(*) > 0 
@@ -371,9 +358,8 @@ interface TransactionDao {
         AND is_deleted = 0 AND book_id = :bookId
     """
     )
-    fun hasTransactionsInDateRange(bookId: Int, startDate: Long, endDate: Long): Boolean
+    suspend fun hasTransactionsInDateRange(bookId: Int, startDate: Long, endDate: Long): Boolean
 
-    /** Get tanggal transaksi pertama (untuk menentukan range data) */
     @Query(
             """
         SELECT MIN(date) 
@@ -383,7 +369,6 @@ interface TransactionDao {
     )
     suspend fun getFirstTransactionDate(bookId: Int): Long?
 
-    /** Get tanggal transaksi terakhir */
     @Query(
             """
         SELECT MAX(date) 
@@ -393,7 +378,6 @@ interface TransactionDao {
     )
     suspend fun getLastTransactionDate(bookId: Int): Long?
 
-    /** Get total amount berdasarkan kategori dalam rentang waktu */
     @Query(
             """
         SELECT COALESCE(SUM(amount), 0)

@@ -9,7 +9,8 @@ import java.util.*
 
 class DetailStatistikViewModel(
     private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val bookRepository: BookRepository
 ) : ViewModel() {
 
     // ===================================
@@ -17,6 +18,28 @@ class DetailStatistikViewModel(
     // ===================================
     private val _categoryId = MutableStateFlow<Int>(0)
     private val _selectedMonthYear = MutableStateFlow(System.currentTimeMillis())
+
+    // Currency State
+    private val _currencyCode = MutableStateFlow("IDR")
+    private val _currencySymbol = MutableStateFlow("Rp")
+    val currencyCode: StateFlow<String> = _currencyCode.asStateFlow()
+    val currencySymbol: StateFlow<String> = _currencySymbol.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            bookRepository.getActiveBook().collect { book ->
+                if (book != null) {
+                    // ✅ PERBAIKAN: Gunakan Elvis Operator (?:)
+                    _currencyCode.value = book.currencyCode ?: "IDR"
+                    _currencySymbol.value = book.currencySymbol ?: "Rp"
+
+                    // Reload data dependent on currency
+                    loadYearlyTrend(_categoryId.value, _selectedMonthYear.value)
+                    // Trigger total recalculation if needed (via combine)
+                }
+            }
+        }
+    }
 
     // ===================================
     // OUTPUT DATA (Ke Fragment)
@@ -36,8 +59,9 @@ class DetailStatistikViewModel(
     // 4. Riwayat Transaksi (Grouped by Date)
     val transactionHistory: LiveData<List<TransactionListItem>> = combine(
         _categoryId,
-        _selectedMonthYear
-    ) { catId, timestamp ->
+        _selectedMonthYear,
+        _currencyCode // Combine currency change to trigger update
+    ) { catId, timestamp, _ ->
         Pair(catId, timestamp)
     }.flatMapLatest { (catId, timestamp) ->
 
@@ -47,9 +71,10 @@ class DetailStatistikViewModel(
         // Ambil transaksi khusus kategori ini di bulan ini
         transactionRepository.getTransactionsByCategoryAndDateRange(catId, start, end)
             .map { list ->
-                // Hitung total bulan ini sekalian
-                val total = list.sumOf { it.amount }
-                currentMonthTotal.postValue(total) // Update UI Total Besar
+                // Hitung total bulan ini sekalian -> CONVERTED
+                val totalIdr = list.sumOf { it.amount }
+                val totalConverted = com.example.catetduls.utils.CurrencyHelper.convertIdrTo(totalIdr, _currencyCode.value)
+                currentMonthTotal.postValue(totalConverted) // Update UI Total Besar
 
                 // Grouping untuk RecyclerView (Sama seperti di TransaksiPage)
                 val result = mutableListOf<TransactionListItem>()
@@ -79,12 +104,11 @@ class DetailStatistikViewModel(
 
     fun setCategoryId(id: Int) {
         _categoryId.value = id
-        loadYearlyTrend(id) // Load data grafik saat kategori di-set
+        loadYearlyTrend(id, _selectedMonthYear.value)
     }
 
     fun setMonthYear(timestamp: Long) {
         _selectedMonthYear.value = timestamp
-        // Jika bulan berubah, kita perlu reload data grafik juga (karena tahun mungkin berubah)
         loadYearlyTrend(_categoryId.value, timestamp)
     }
 
@@ -101,7 +125,7 @@ class DetailStatistikViewModel(
     /**
      * Mengambil data tren 1 tahun (Jan - Des) untuk Line Chart
      */
-    private fun loadYearlyTrend(catId: Int, timestamp: Long = System.currentTimeMillis()) {
+    private fun loadYearlyTrend(catId: Int, timestamp: Long) {
         viewModelScope.launch {
             val cal = Calendar.getInstance()
             cal.timeInMillis = timestamp
@@ -114,19 +138,19 @@ class DetailStatistikViewModel(
             cal.set(year, Calendar.DECEMBER, 31, 23, 59, 59)
             val endYear = cal.timeInMillis
 
-            // Ambil semua transaksi kategori ini dalam 1 tahun
-            // Note: Kita pakai 'getTotalByCategoryAndDateRange' di repository tapi kita butuh breakdown per bulan.
-            // Cara manual: Ambil semua transaksi setahun, lalu group by month di Kotlin.
-
             val transactions = transactionRepository.getTransactionsByCategoryAndDateRange(catId, startYear, endYear).first()
 
             val monthlyData = FloatArray(12) { 0f } // Array 12 slot (0-11)
+            val currentCode = _currencyCode.value
 
             transactions.forEach { trans ->
                 val c = Calendar.getInstance()
                 c.timeInMillis = trans.date
                 val monthIndex = c.get(Calendar.MONTH) // 0 = Jan, 11 = Des
-                monthlyData[monthIndex] += trans.amount.toFloat()
+                
+                // Convert each transaction amount for the chart
+                val converted = com.example.catetduls.utils.CurrencyHelper.convertIdrTo(trans.amount, currentCode)
+                monthlyData[monthIndex] += converted.toFloat()
             }
 
             lineChartData.value = monthlyData.toList()
@@ -159,12 +183,13 @@ class DetailStatistikViewModel(
 
 class DetailStatistikViewModelFactory(
     private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val bookRepository: BookRepository
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(DetailStatistikViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return DetailStatistikViewModel(transactionRepository, categoryRepository) as T
+            return DetailStatistikViewModel(transactionRepository, categoryRepository, bookRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

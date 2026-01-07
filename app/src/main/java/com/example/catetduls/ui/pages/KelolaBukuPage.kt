@@ -1,23 +1,31 @@
 package com.example.catetduls.ui.pages
 
-import android.app.AlertDialog
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.catetduls.R
+import com.example.catetduls.data.getBookRepository
 import com.example.catetduls.ui.adapter.BookAdapter
+import com.example.catetduls.ui.utils.animateClick
+import com.example.catetduls.ui.utils.showCustomDialog
+import com.example.catetduls.ui.utils.showSnackbar
 import com.example.catetduls.ui.viewmodel.KelolaBukuViewModel
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class KelolaBukuPage : Fragment() {
@@ -28,6 +36,8 @@ class KelolaBukuPage : Fragment() {
     private lateinit var etSearch: TextInputEditText
     private lateinit var rvBooks: RecyclerView
     private lateinit var fabAdd: FloatingActionButton
+    private lateinit var emptyState: View
+    private lateinit var loadingOverlay: FrameLayout
 
     override fun onCreateView(
             inflater: LayoutInflater,
@@ -50,20 +60,14 @@ class KelolaBukuPage : Fragment() {
         etSearch = view.findViewById(R.id.et_search)
         rvBooks = view.findViewById(R.id.rv_books)
         fabAdd = view.findViewById(R.id.fab_add)
+        emptyState = view.findViewById(R.id.empty_state)
+        loadingOverlay = view.findViewById(R.id.loading_overlay)
     }
 
     private fun setupRecyclerView() {
         adapter =
                 BookAdapter(
-                        onEdit = { book ->
-                            // Navigate to Edit Form
-                            val form = FormBukuPage.newInstance(book)
-                            parentFragmentManager
-                                    .beginTransaction()
-                                    .replace(R.id.fragment_container, form)
-                                    .addToBackStack(null)
-                                    .commit()
-                        },
+                        onEdit = { book -> showFormDialog(book) },
                         onDelete = { book ->
                             if (book.isActive) {
                                 Toast.makeText(
@@ -88,12 +92,7 @@ class KelolaBukuPage : Fragment() {
                                             )
                             prefs.edit().putInt("active_book_id", book.id).apply()
 
-                            Toast.makeText(
-                                            requireContext(),
-                                            "Buku ${book.name} diaktifkan",
-                                            Toast.LENGTH_SHORT
-                                    )
-                                    .show()
+                            showSnackbar("Buku ${book.name} diaktifkan")
                         }
                 )
 
@@ -125,30 +124,99 @@ class KelolaBukuPage : Fragment() {
                 }
         )
 
-        // Add Listener
-        fabAdd.setOnClickListener {
-            // Navigate to Add Form
-            val form = FormBukuPage.newInstance(null)
-            parentFragmentManager
-                    .beginTransaction()
-                    .replace(R.id.fragment_container, form)
-                    .addToBackStack(null)
-                    .commit()
-        }
+        // Add Listener with animation
+        fabAdd.setOnClickListener { animateClick(it) { showFormDialog(null) } }
     }
 
     private fun observeData() {
-        viewModel.filteredBooks.observe(viewLifecycleOwner) { books -> adapter.submitList(books) }
+        viewModel.filteredBooks.observe(viewLifecycleOwner) { books ->
+            adapter.submitList(books)
+
+            if (books.isEmpty()) {
+                rvBooks.visibility = View.GONE
+                emptyState.visibility = View.VISIBLE
+            } else {
+                rvBooks.visibility = View.VISIBLE
+                emptyState.visibility = View.GONE
+            }
+        }
     }
 
     private fun showDeleteConfirmation(book: com.example.catetduls.data.Book) {
-        AlertDialog.Builder(requireContext())
-                .setTitle("Hapus Buku")
-                .setMessage(
-                        "Apakah Anda yakin ingin menghapus buku '${book.name}'? Semua data transaksi di dalamnya akan ikut terhapus."
-                )
-                .setPositiveButton("Hapus") { _, _ -> viewModel.deleteBook(book) }
-                .setNegativeButton("Batal", null)
-                .show()
+        showCustomDialog(
+                icon = R.drawable.ic_delete_24,
+                iconTint = R.color.danger,
+                title = "Hapus Buku",
+                message =
+                        "Apakah Anda yakin ingin menghapus buku '${book.name}'? Semua data transaksi di dalamnya akan ikut terhapus.",
+                confirmText = "Ya, Hapus",
+                confirmColor = R.color.danger,
+                onConfirm = {
+                    viewModel.deleteBook(book)
+                    showSnackbar("Buku ${book.name} berhasil dihapus")
+                }
+        )
+    }
+
+    private fun showFormDialog(book: com.example.catetduls.data.Book?) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_form_buku, null)
+        val dialog =
+                MaterialAlertDialogBuilder(requireContext())
+                        .setView(dialogView)
+                        .setCancelable(true)
+                        .create()
+
+        dialog.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
+
+        val tvTitle = dialogView.findViewById<android.widget.TextView>(R.id.tv_dialog_title)
+        val etName = dialogView.findViewById<TextInputEditText>(R.id.et_name)
+        val btnCancel = dialogView.findViewById<MaterialButton>(R.id.btn_cancel)
+        val btnSave = dialogView.findViewById<MaterialButton>(R.id.btn_save)
+
+        if (book != null) {
+            tvTitle.text = "Edit Buku"
+            etName.setText(book.name)
+        } else {
+            tvTitle.text = "Tambah Buku"
+        }
+
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
+        btnSave.setOnClickListener {
+            val name = etName.text.toString()
+
+            if (name.isBlank()) {
+                showSnackbar("Nama buku tidak boleh kosong", true)
+                return@setOnClickListener
+            }
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val repo = requireContext().getBookRepository()
+                if (book == null) {
+                    val newBook = com.example.catetduls.data.Book(name = name, isActive = false)
+                    repo.insert(newBook)
+                    showSnackbar("Buku $name berhasil ditambahkan")
+                } else {
+                    val updated = book.copy(name = name)
+                    repo.update(updated)
+                    showSnackbar("Buku $name berhasil diupdate")
+                }
+                dialog.dismiss()
+            }
+        }
+
+        dialog.show()
+
+        dialogView.alpha = 0f
+        dialogView.scaleX = 0.9f
+        dialogView.scaleY = 0.9f
+        dialogView
+                .animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(250)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .start()
     }
 }

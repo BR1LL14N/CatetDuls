@@ -49,6 +49,20 @@ constructor(private val categoryDao: CategoryDao, private val bookRepository: Bo
         return categoryDao.getAllCategoriesSync(getActiveBookId())
     }
 
+    suspend fun getCategoriesByBookIdSync(bookId: Int): List<Category> {
+        return categoryDao.getAllCategoriesSync(bookId)
+    }
+
+    suspend fun insertCategoryFromBackup(category: Category) {
+        categoryDao.insertCategory(
+                category.copy(
+                        isSynced = false,
+                        syncAction = null,
+                        lastSyncAt = System.currentTimeMillis()
+                )
+        )
+    }
+
     fun getCategoryById(id: Int): Flow<Category?> {
         return categoryDao.getCategoryById(id)
     }
@@ -70,7 +84,7 @@ constructor(private val categoryDao: CategoryDao, private val bookRepository: Bo
                         createdAt = System.currentTimeMillis(),
                         updatedAt = System.currentTimeMillis()
                 )
-        // Ensure bookId is set
+
         val currentBookId =
                 if (categoryToInsert.bookId == 0) getActiveBookId() else categoryToInsert.bookId
         val finalCategory = categoryToInsert.copy(bookId = currentBookId)
@@ -94,6 +108,10 @@ constructor(private val categoryDao: CategoryDao, private val bookRepository: Bo
                     )
                 }
         categoryDao.insertAll(categoriesToInsert)
+    }
+
+    suspend fun getCategoryByIdSync(id: Int): Category? {
+        return categoryDao.getCategoryByIdSync(id)
     }
 
     // ===================================
@@ -191,6 +209,10 @@ constructor(private val categoryDao: CategoryDao, private val bookRepository: Bo
 
     override suspend fun getByServerId(serverId: String): Category? {
         return categoryDao.getByServerId(serverId)
+    }
+
+    override suspend fun markAsUnsynced(id: Long, action: String) {
+        categoryDao.markAsUnsynced(id.toInt(), action, System.currentTimeMillis())
     }
 
     suspend fun getCategoryIdByType(type: TransactionType, bookId: Int): Int? {

@@ -12,14 +12,15 @@ import androidx.lifecycle.asLiveData
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.catetduls.R
-import com.example.catetduls.data.DailySummary
 import com.example.catetduls.data.getTransactionRepository
 import com.example.catetduls.ui.adapter.CalendarAdapter
-import com.example.catetduls.ui.adapter.CalendarDayCell
 import com.example.catetduls.viewmodel.CalendarViewModel
 import com.example.catetduls.viewmodel.CalendarViewModelFactory
+import androidx.lifecycle.lifecycleScope // Import lifecycleScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
+import com.example.catetduls.data.getBookRepository // Import Extension
 import java.util.*
-import kotlin.collections.ArrayList
 
 class CalendarPage : Fragment() {
 
@@ -38,10 +39,16 @@ class CalendarPage : Fragment() {
     private var calendarAdapter: CalendarAdapter? = null
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+            inflater: LayoutInflater,
+            container: ViewGroup?,
+            savedInstanceState: Bundle?
     ): View? {
         return inflater.inflate(R.layout.fragment_kalender_transaksi, container, false)
     }
+
+    // State Global
+    private var currentCurrencySymbol: String = "Rp"
+    private var currentCurrencyCode: String = "IDR"
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -54,6 +61,29 @@ class CalendarPage : Fragment() {
         initViews(view)
         setupCalendarGrid()
         setupListeners()
+        
+        // Fetch Currency AND THEN Observe Data
+        fetchCurrencyAndObserve()
+    }
+
+    private fun fetchCurrencyAndObserve() {
+        val bookRepository = requireContext().getBookRepository()
+        viewLifecycleOwner.lifecycleScope.launch {
+            bookRepository.getActiveBook().collect { book ->
+                if (book != null) {
+                    // PERBAIKAN DI SINI: Gunakan Elvis Operator (?:)
+                    // Jika book.currencyCode null, gunakan "IDR"
+                    currentCurrencyCode = book.currencyCode ?: "IDR"
+
+                    // Jika book.currencySymbol null, gunakan "Rp"
+                    currentCurrencySymbol = book.currencySymbol ?: "Rp"
+
+                    calendarAdapter?.updateCurrency(currentCurrencyCode, currentCurrencySymbol)
+
+                    // ... sisa kode komentar Anda ...
+                }
+            }
+        }
         observeData()
     }
 
@@ -73,20 +103,30 @@ class CalendarPage : Fragment() {
     }
 
     private fun setupCalendarGrid() {
-        // Pass click listener to adapter
-        calendarAdapter = CalendarAdapter(emptyList()) { timestamp ->
-            // On Day Click -> Navigate to TransaksiPage
-            if (activity is NavigationCallback) {
-                val fragment = TransaksiPage()
-                val args = Bundle()
-                args.putLong("ARG_INITIAL_DATE", timestamp)
-                args.putInt("ARG_INITIAL_TAB_MODE", 0) // 0 = Harian
-                fragment.arguments = args
-                
-                (activity as NavigationCallback).navigateTo(fragment)
-            }
-        }
-        
+        // Inisialisasi Adapter
+        // Inisialisasi Adapter
+        calendarAdapter =
+                CalendarAdapter(
+                        emptyList(),
+                        { timestamp ->
+                            // Saat tanggal diklik
+                            viewModel.selectDate(timestamp)
+
+                            // On Day Click -> Navigate to TransaksiPage
+                            if (activity is NavigationCallback) {
+                                val fragment = TransaksiPage()
+                                val args = Bundle()
+                                args.putLong("ARG_INITIAL_DATE", timestamp)
+                                args.putInt("ARG_INITIAL_TAB_MODE", 0) // 0 = Harian
+                                fragment.arguments = args
+
+                                (activity as NavigationCallback).navigateTo(fragment)
+                            }
+                        },
+                        "IDR",
+                        "Rp"
+                )
+
         // Fixed 6 rows, but span is 7
         rvCalendarGrid.layoutManager = GridLayoutManager(requireContext(), 7)
         rvCalendarGrid.adapter = calendarAdapter
@@ -99,21 +139,33 @@ class CalendarPage : Fragment() {
         }
 
         // Observe Ringkasan Bulanan (Summary Bar)
+        // Need current currency code. Since we don't have it as property in Fragment (fetched in local scope),
+        // we should elevate `currentCurrencyCode` to class level or fetch it here again.
+        // Or better, let ViewModel handle this if passed, but easier to do here consistent with Dashboard.
+        // Let's rely on the fact that we need to fetch it.
+        
+        // Wait, I need currentCurrencyCode available here.
+        // I will declare it at class level first.
+        
         viewModel.monthlyIncome.observe(viewLifecycleOwner) { income ->
-            tvMonthlyIncome.text = viewModel.formatCurrency(income ?: 0.0)
+            val converted = com.example.catetduls.utils.CurrencyHelper.convertIdrTo(income ?: 0.0, currentCurrencyCode)
+            tvMonthlyIncome.text = com.example.catetduls.utils.CurrencyHelper.format(converted, currentCurrencySymbol)
         }
         viewModel.monthlyExpense.observe(viewLifecycleOwner) { expense ->
-            tvMonthlyExpense.text = viewModel.formatCurrency(expense ?: 0.0)
+            val converted = com.example.catetduls.utils.CurrencyHelper.convertIdrTo(expense ?: 0.0, currentCurrencyCode)
+            tvMonthlyExpense.text = com.example.catetduls.utils.CurrencyHelper.format(converted, currentCurrencySymbol)
         }
         viewModel.monthlyTotal.observe(viewLifecycleOwner) { total ->
-            tvMonthlyTotal.text = viewModel.formatCurrency(total ?: 0.0)
+            val converted = com.example.catetduls.utils.CurrencyHelper.convertIdrTo(total ?: 0.0, currentCurrencyCode)
+            tvMonthlyTotal.text = com.example.catetduls.utils.CurrencyHelper.format(converted, currentCurrencySymbol)
         }
 
         // Observe Data Kalender untuk Grid (New Logic: List is prepared in VM)
         viewModel.calendarGridCells.observe(viewLifecycleOwner) { cells ->
-             calendarAdapter?.submitList(cells)
+            calendarAdapter?.submitList(cells)
         }
 
-        // Removed logic for manual padding and dynamic height calculation as grid is now fixed logic in VM.
+        // Removed logic for manual padding and dynamic height calculation as grid is now fixed
+        // logic in VM.
     }
 }

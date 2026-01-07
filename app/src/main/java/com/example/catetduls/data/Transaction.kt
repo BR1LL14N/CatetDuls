@@ -1,13 +1,15 @@
 package com.example.catetduls.data
 
+import android.os.Parcelable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.google.gson.annotations.SerializedName
+import kotlinx.parcelize.Parcelize
 
-/** Entity untuk Transaksi Sekarang setiap transaksi terikat pada kategori dan dompet */
+@Parcelize
 @Entity(
         tableName = "transactions",
         foreignKeys =
@@ -32,30 +34,31 @@ import com.google.gson.annotations.SerializedName
                         Index(value = ["type"])]
 )
 data class Transaction(
-        @PrimaryKey(autoGenerate = true) override val id: Int = 0,
+        @PrimaryKey(autoGenerate = true) @SerializedName("local_id") override val id: Int = 0,
         val type: TransactionType,
         val amount: Double,
-        @com.google.gson.annotations.SerializedName("category_id") val categoryId: Int,
-        @com.google.gson.annotations.SerializedName("wallet_id") val walletId: Int,
-        val date: Long = System.currentTimeMillis(),
-        val notes: String = "",
-        @ColumnInfo(name = "book_id")
-        @SerializedName("book_id") // Agar cocok dengan JSON API "book_id"
-        val bookId: Int = 0,
-        @ColumnInfo(name = "image_path") val imagePath: String? = null,
+        @SerializedName("category_id") val categoryId: Int,
+        @SerializedName("wallet_id") val walletId: Int,
+        @SerializedName("created_at_ms") val date: Long = System.currentTimeMillis(),
+        @SerializedName("note") val notes: String = "",
+        @ColumnInfo(name = "book_id") @SerializedName("book_id") val bookId: Int = 0,
+        @ColumnInfo(name = "image_path") @SerializedName("image_url") val imagePath: String? = null,
+
+        // --- Sync Metadata ---
+
         @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
         @ColumnInfo(name = "updated_at") override val updatedAt: Long = System.currentTimeMillis(),
-        @ColumnInfo(name = "server_id") override val serverId: String? = null,
+        @ColumnInfo(name = "server_id") @SerializedName("id") override val serverId: String? = null,
         @ColumnInfo(name = "is_synced") override val isSynced: Boolean = false,
         @ColumnInfo(name = "is_deleted") override val isDeleted: Boolean = false,
-        @ColumnInfo(name = "last_sync_at") override val lastSyncAt: Long,
+        @ColumnInfo(name = "last_sync_at") override val lastSyncAt: Long = 0,
         @ColumnInfo(name = "sync_action") override val syncAction: String? = null
-) : SyncableEntity {
+) : SyncableEntity, Parcelable {
 
-    fun isIncome(): Boolean = type == TransactionType.PEMASUKAN
-    fun isExpense(): Boolean = type == TransactionType.PENGELUARAN
+        fun isIncome(): Boolean = type == TransactionType.PEMASUKAN
+        fun isExpense(): Boolean = type == TransactionType.PENGELUARAN
 
-    fun isValid(): Boolean {
-        return amount > 0 && categoryId > 0 && walletId > 0
-    }
+        fun isValid(): Boolean {
+                return amount > 0 && categoryId > 0 && walletId > 0
+        }
 }

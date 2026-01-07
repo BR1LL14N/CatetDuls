@@ -1,22 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:padding="16dp">
 
+    <!-- Search Bar -->
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/til_search"
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="8dp"
         android:hint="Cari Kategori..."
-        app:startIconDrawable="@drawable/ic_search"  app:layout_constraintHorizontal_weight="1"   app:layout_constraintTop_toTopOf="parent"
+        app:startIconDrawable="@drawable/ic_search"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/spinner_filter_type">
+        app:layout_constraintEnd_toStartOf="@id/spinner_filter_type"
+        app:layout_constraintWidth_percent="0.6">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/et_search"
@@ -25,14 +31,21 @@
             android:inputType="text" />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <!-- Filter Spinner -->
     <Spinner
         android:id="@+id/spinner_filter_type"
-        android:layout_width="wrap_content"  android:layout_height="0dp"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:minHeight="56dp"
+        android:background="@drawable/bg_spinner"
         android:entries="@array/category_filter_options"
-        app:layout_constraintTop_toTopOf="@+id/til_search"
-        app:layout_constraintBottom_toBottomOf="@+id/til_search"
+        app:layout_constraintTop_toTopOf="@id/til_search"
+        app:layout_constraintBottom_toBottomOf="@id/til_search"
+        app:layout_constraintStart_toEndOf="@id/til_search"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- RecyclerView -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_categories"
         android:layout_width="0dp"
@@ -42,8 +55,21 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        tools:listitem="@layout/item_kategori" />
+        tools:listitem="@layout/item_category" />
 
+    <!-- Empty State -->
+    <include
+        android:id="@+id/empty_state"
+        layout="@layout/layout_empty_state"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- FAB -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_add"
         android:layout_width="wrap_content"
@@ -54,3 +80,8 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
+
+<!-- Loading Overlay -->
+<include layout="@layout/loading_overlay" />
+
+</FrameLayout>

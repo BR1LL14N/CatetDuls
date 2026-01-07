@@ -15,13 +15,20 @@ import com.example.catetduls.data.*
 import com.example.catetduls.data.local.TokenManager
 import com.example.catetduls.data.remote.ApiResponse
 import com.example.catetduls.data.remote.ApiService
+import com.example.catetduls.data.remote.BookRequest
+import com.example.catetduls.data.remote.CategoryRequest
 import com.example.catetduls.data.remote.CreateResponse
 import com.example.catetduls.data.remote.MessageResponse
 import com.example.catetduls.data.remote.PaginatedData
+import com.example.catetduls.data.remote.TransactionRequest
+import com.example.catetduls.data.remote.WalletRequest
 import com.example.catetduls.utils.ConnectionManager
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.io.IOException
+import kotlinx.coroutines.flow.firstOrNull
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 
 @HiltWorker
@@ -34,352 +41,1273 @@ constructor(
         private val walletRepository: WalletRepository,
         private val categoryRepository: CategoryRepository,
         private val transactionRepository: TransactionRepository,
+        private val userRepository: UserRepository, // Injected
         private val apiService: ApiService
 ) : CoroutineWorker(appContext, workerParams) {
 
-    companion object {
-        private const val TAG = "DataSyncWorker"
-        private const val PREF_NAME = "sync_prefs"
-        private const val KEY_LAST_SYNC = "last_sync_at"
-        private const val NOTIFICATION_ID = 1001
-        private const val CHANNEL_ID = "data_sync_channel"
-    }
-
-    private fun getLastSyncAt(): Long {
-        val prefs = applicationContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        return prefs.getLong(KEY_LAST_SYNC, 0L)
-    }
-
-    private fun setLastSyncAt(time: Long) {
-        val prefs = applicationContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putLong(KEY_LAST_SYNC, time).apply()
-    }
-
-    override suspend fun doWork(): Result {
-        Log.d(TAG, "[SYNC] 🔄 Sync Worker dimulai...")
-
-        // CEK AUTENTIKASI - Jangan sync jika user belum login
-        if (!TokenManager.isLoggedIn(applicationContext)) {
-            Log.w(TAG, "[SYNC] 🚫 User belum login. Sync dibatalkan (tidak perlu retry).")
-            return Result.failure() // Bukan retry, karena user harus login dulu
+        companion object {
+                private const val TAG = "DataSyncWorker"
+                private const val PREF_NAME = "sync_prefs"
+                private const val KEY_LAST_SYNC = "last_sync_at"
+                private const val NOTIFICATION_ID = 1001
+                private const val CHANNEL_ID = "data_sync_channel"
         }
-        Log.d(TAG, "[SYNC] ✅ User terautentikasi. Melanjutkan proses sync...")
 
-        // CEK KONEKSI INTERNET
-        if (!ConnectionManager.isOnline(applicationContext)) {
-            Log.w(TAG, "[SYNC] 📡 Tidak ada koneksi internet. Menunggu koneksi...")
-            return Result.retry()
+        private fun getLastSyncAt(): Long {
+                val prefs = applicationContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                return prefs.getLong(KEY_LAST_SYNC, 0L)
         }
-        Log.d(TAG, "[SYNC] 🌐 Koneksi internet tersedia.")
 
-        // TAMPILKAN NOTIFIKASI SYNC
-        setForeground(createForegroundInfo("Memulai sinkronisasi..."))
-
-        try {
-            // --- PUSH: Kirim perubahan lokal ke server ---
-            Log.d(TAG, "[SYNC] 📤 Memulai PUSH sync (Lokal → Server)...")
-            val pushSuccess = performPushSync()
-            if (!pushSuccess) {
-                Log.e(TAG, "[SYNC] ❌ PUSH sync gagal. Akan mencoba lagi nanti...")
-                return Result.retry()
-            }
-
-            // --- PULL: Tarik perubahan dari server ke lokal ---
-            Log.d(TAG, "[SYNC] 📥 Memulai PULL sync (Server → Lokal)...")
-            val pullSuccess = performPullSync()
-            if (!pullSuccess) {
-                Log.e(TAG, "[SYNC] ❌ PULL sync gagal. Akan mencoba lagi nanti...")
-                return Result.retry()
-            }
-
-            // --- CLEANUP: Bersihkan data yang sudah dihapus ---
-            Log.d(TAG, "[SYNC] 🗑️ Membersihkan data yang sudah di-sync...")
-            transactionRepository.cleanupSyncedDeletes()
-
-            val currentTime = System.currentTimeMillis()
-            setLastSyncAt(currentTime)
-            Log.i(TAG, "[SYNC] ✅ Sinkronisasi selesai! Waktu sync terakhir: $currentTime")
-
-            return Result.success()
-        } catch (e: Exception) {
-            Log.e(TAG, "[SYNC] ⛔ Error kritis saat sync: ${e.message}", e)
-            return Result.retry()
+        private fun setLastSyncAt(time: Long) {
+                val prefs = applicationContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                prefs.edit().putLong(KEY_LAST_SYNC, time).apply()
         }
-    }
 
-    private suspend fun performPushSync(): Boolean {
-        Log.d(TAG, "[PUSH] 📤 Memulai proses PUSH sync...")
+        override suspend fun doWork(): Result {
+                Log.d(TAG, "[SYNC] 🔄 Sync Worker dimulai...")
 
-        try {
-            pushUnitChanges<Book>(
-                    repository = bookRepository as SyncRepository<Book>,
-                    createApi = { book -> apiService.createBook(book) },
-                    updateApi = { book -> apiService.updateBook(book.serverId!!, book) },
-                    deleteApi = { book -> apiService.deleteBook(book.serverId!!) }
-            )
+                // REPAIR: Cek data zombie sebelum mulai
+                repairZombieData()
 
-            pushUnitChanges<Wallet>(
-                    repository = walletRepository as SyncRepository<Wallet>,
-                    createApi = { wallet -> apiService.createWallet(wallet) },
-                    updateApi = { wallet -> apiService.updateWallet(wallet.serverId!!, wallet) },
-                    deleteApi = { wallet -> apiService.deleteWallet(wallet.serverId!!) }
-            )
-
-            pushComplexChanges<Category>(
-                    repository = categoryRepository as SyncRepository<Category>,
-                    createApi = { category -> apiService.createCategory(category) },
-                    updateApi = { category ->
-                        apiService.updateCategory(category.serverId!!.toLong(), category)
-                    },
-                    deleteApi = { category -> apiService.deleteCategory(category.serverId!!) }
-            )
-
-            pushComplexChanges<Transaction>(
-                    repository = transactionRepository as SyncRepository<Transaction>,
-                    createApi = { transaction -> apiService.createTransaction(transaction) },
-                    updateApi = { transaction ->
-                        apiService.updateTransaction(transaction.serverId!!.toLong(), transaction)
-                    },
-                    deleteApi = { transaction ->
-                        apiService.deleteTransaction(transaction.serverId!!)
-                    }
-            )
-
-            Log.i(TAG, "[PUSH] ✅ PUSH sync berhasil diselesaikan.")
-            return true
-        } catch (e: Exception) {
-            Log.e(TAG, "[PUSH] ❌ Error saat PUSH sync: ${e.message}", e)
-            throw e // Tetap lemparkan error agar doWork bisa menangkap dan me-retry
-        }
-    }
-
-    private suspend inline fun <reified T : SyncableEntity> pushUnitChanges(
-            repository: SyncRepository<T>,
-            createApi: suspend (T) -> Response<CreateResponse>,
-            updateApi: suspend (T) -> Response<Unit>,
-            deleteApi: suspend (T) -> Response<Unit>
-    ) {
-
-        val unsyncedItems = repository.getAllUnsynced()
-        val currentSyncTime = System.currentTimeMillis()
-
-        for (item in unsyncedItems) {
-            try {
-                when (item.syncAction) {
-                    "CREATE" -> {
-                        val response = createApi(item)
-                        if (response.isSuccessful && response.body() != null) {
-                            val serverId =
-                                    response.body()!!.data?.server_id
-                                            ?: item.serverId
-                                                    ?: throw IOException(
-                                                    "Server ID missing in response"
-                                            )
-                            repository.updateSyncStatus(item.id.toLong(), serverId, currentSyncTime)
-                        } else throw IOException("CREATE failed: ${response.code()}")
-                    }
-                    "UPDATE" -> {
-                        val response = updateApi(item)
-                        if (response.isSuccessful) {
-                            repository.updateSyncStatus(
-                                    item.id.toLong(),
-                                    item.serverId!!,
-                                    currentSyncTime
-                            )
-                        } else throw IOException("UPDATE failed: ${response.code()}")
-                    }
-                    "DELETE" -> {
-                        val response = deleteApi(item)
-                        if (response.isSuccessful) {
-                            repository.deleteByIdPermanently(item.id.toLong())
-                        } else throw IOException("DELETE failed: ${response.code()}")
-                    }
+                // CEK AUTENTIKASI - Jangan sync jika user belum login
+                if (!TokenManager.isLoggedIn(applicationContext)) {
+                        Log.w(
+                                TAG,
+                                "[SYNC] 🚫 User belum login. Sync dibatalkan (tidak perlu retry)."
+                        )
+                        return Result.failure() // Bukan retry, karena user harus login dulu
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "[PUSH] ❌ Aksi PUSH gagal untuk item ID ${item.id}: ${e.message}")
-                throw e
-            }
-        }
-    }
 
-    private suspend inline fun <reified T : SyncableEntity> pushComplexChanges(
-            repository: SyncRepository<T>,
-            createApi: suspend (T) -> Response<CreateResponse>,
-            updateApi: suspend (T) -> Response<MessageResponse>,
-            deleteApi: suspend (T) -> Response<MessageResponse>
-    ) {
-        val unsyncedItems = repository.getAllUnsynced()
-        val currentSyncTime = System.currentTimeMillis()
+                // ===== TAMBAHAN: CEK TOKEN EXPIRY =====
+                if (TokenManager.isAccessTokenExpired(applicationContext)) {
+                        Log.w(
+                                TAG,
+                                "[SYNC] ⚠️ Access token expired! Clearing tokens and requiring re-login."
+                        )
+                        TokenManager.clearTokens(applicationContext)
 
-        for (item in unsyncedItems) {
-            try {
-                when (item.syncAction) {
-                    "CREATE" -> {
-                        val response = createApi(item)
-                        if (response.isSuccessful && response.body() != null) {
-                            val serverId =
-                                    response.body()!!.data?.server_id
-                                            ?: item.serverId
-                                                    ?: throw IOException(
-                                                    "Server ID missing in response"
-                                            )
-                            repository.updateSyncStatus(item.id.toLong(), serverId, currentSyncTime)
-                        } else throw IOException("CREATE failed: ${response.code()}")
-                    }
-                    "UPDATE" -> {
-                        val response = updateApi(item)
-                        if (response.isSuccessful) {
-                            repository.updateSyncStatus(
-                                    item.id.toLong(),
-                                    item.serverId!!,
-                                    currentSyncTime
-                            )
-                        } else throw IOException("UPDATE failed: ${response.code()}")
-                    }
-                    "DELETE" -> {
-                        val response = deleteApi(item)
-                        if (response.isSuccessful) {
-                            repository.deleteByIdPermanently(item.id.toLong())
-                        } else throw IOException("DELETE failed: ${response.code()}")
-                    }
+                        // Clear active book juga untuk force login screen
+                        val prefs =
+                                applicationContext.getSharedPreferences(
+                                        "app_settings",
+                                        Context.MODE_PRIVATE
+                                )
+                        prefs.edit().remove("active_book_id").apply()
+
+                        return Result.failure() // Stop sync, user harus login ulang
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "[PUSH] ❌ Aksi PUSH gagal untuk item ID ${item.id}: ${e.message}")
-                throw e
-            }
-        }
-    }
+                // =======================================
 
-    private suspend fun performPullSync(): Boolean {
-        val lastSyncTime = getLastSyncAt()
-        Log.d(TAG, "[PULL] 📥 Memulai PULL sync sejak timestamp: $lastSyncTime...")
+                Log.d(TAG, "[SYNC] ✅ User terautentikasi. Melanjutkan proses sync...")
 
-        try {
-            pullEntityChanges<Book>(
-                    remoteApi = apiService.getUpdatedBooks(lastSyncTime),
-                    repository = bookRepository as SyncRepository<Book>
-            )
-            pullEntityChanges<Wallet>(
-                    remoteApi = apiService.getUpdatedWallets(lastSyncTime),
-                    repository = walletRepository as SyncRepository<Wallet>
-            )
-            pullEntityChanges<Category>(
-                    remoteApi = apiService.getUpdatedCategories(lastSyncTime),
-                    repository = categoryRepository as SyncRepository<Category>
-            )
-            pullPaginatedEntityChanges<Transaction>(
-                    remoteApi = apiService.getUpdatedTransactions(lastSyncTime),
-                    repository = transactionRepository as SyncRepository<Transaction>
-            )
+                // CEK KONEKSI INTERNET
+                if (!ConnectionManager.isOnline(applicationContext)) {
+                        Log.w(TAG, "[SYNC] 📡 Tidak ada koneksi internet. Menunggu koneksi...")
+                        return Result.retry()
+                }
+                Log.d(TAG, "[SYNC] 🌐 Koneksi internet tersedia.")
 
-            Log.i(TAG, "[PULL] ✅ PULL sync berhasil diselesaikan.")
-            return true
-        } catch (e: Exception) {
-            Log.e(TAG, "[PULL] ❌ Error saat PULL sync: ${e.message}", e)
-            return false
-        }
-    }
+                // TAMPILKAN NOTIFIKASI SYNC
+                setForeground(createForegroundInfo("Memulai sinkronisasi..."))
 
-    private suspend inline fun <reified T : SyncableEntity> pullEntityChanges(
-            remoteApi: Response<ApiResponse<List<T>>>,
-            repository: SyncRepository<T>
-    ) {
-        val apiBody =
-                remoteApi.body()
-                        ?: throw IOException("PULL failed: null body, code ${remoteApi.code()}")
+                try {
+                        // --- SYNC USER PROFILE ---
+                        Log.d(TAG, "[SYNC] 👤 Mengecek status sync profil user...")
+                        syncUserProfile()
 
-        val items = apiBody.data ?: emptyList()
-        Log.d(TAG, "[PULL] 📦 Menerima ${items.size} item untuk ${T::class.java.simpleName}")
-        try {
-            Log.d(
-                    TAG,
-                    "Response Data for ${T::class.java.simpleName}: ${com.google.gson.Gson().toJson(items)}"
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to log response data: ${e.message}")
-        }
+                        // --- PUSH: Kirim perubahan lokal ke server ---
+                        Log.d(TAG, "[SYNC] 📤 Memulai PUSH sync (Lokal → Server)...")
+                        val pushSuccess = performPushSync()
+                        if (!pushSuccess) {
+                                Log.e(
+                                        TAG,
+                                        "[SYNC] ❌ PUSH sync gagal. Menghentikan worker (Failure)."
+                                )
+                                return Result.failure() // Stop retraining on logic/data errors
+                        }
 
-        for (remoteItem in items) {
-            val localItem = remoteItem.serverId?.let { repository.getByServerId(it) }
+                        // --- PULL: Tarik perubahan dari server ke lokal ---
+                        Log.d(TAG, "[SYNC] 📥 Memulai PULL sync (Server → Lokal)...")
+                        val pullSuccess = performPullSync()
+                        if (!pullSuccess) {
+                                Log.e(
+                                        TAG,
+                                        "[SYNC] ❌ PULL sync gagal. Menghentikan worker (Failure)."
+                                )
+                                return Result.failure() // Stop retrying on logic/data errors
+                        }
 
-            if (remoteItem.isDeleted) {
-                localItem?.let { repository.deleteByIdPermanently(it.id.toLong()) }
-            } else if (localItem == null || remoteItem.updatedAt > localItem.updatedAt) {
-                repository.saveFromRemote(remoteItem)
-            }
-        }
-    }
-    private suspend inline fun <reified T : SyncableEntity> pullPaginatedEntityChanges(
-            remoteApi: Response<ApiResponse<PaginatedData<T>>>,
-            repository: SyncRepository<T>
-    ) {
-        val apiBody =
-                remoteApi.body()
-                        ?: throw IOException("PULL failed: null body, code ${remoteApi.code()}")
+                        // --- CLEANUP: Bersihkan data yang sudah dihapus ---
+                        Log.d(TAG, "[SYNC] 🗑️ Membersihkan data yang sudah di-sync...")
+                        transactionRepository.cleanupSyncedDeletes()
 
-        // Extract list from PaginatedData (apiBody.data is PaginatedData, and .data inside it is
-        // the list)
-        val items = apiBody.data?.data ?: emptyList()
-        Log.d(
-                TAG,
-                "[PULL] 📦 Menerima ${items.size} item (paginated) untuk ${T::class.java.simpleName}"
-        )
-        try {
-            Log.d(
-                    TAG,
-                    "Response Data for ${T::class.java.simpleName}: ${com.google.gson.Gson().toJson(items)}"
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to log response data: ${e.message}")
+                        val currentTime = System.currentTimeMillis()
+                        setLastSyncAt(currentTime)
+                        Log.i(
+                                TAG,
+                                "[SYNC] ✅ Sinkronisasi selesai! Waktu sync terakhir: $currentTime"
+                        )
+
+                        return Result.success()
+                } catch (e: Exception) {
+                        Log.e(TAG, "[SYNC] ⛔ Error kritis saat sync: ${e.message}", e)
+
+                        // ===== HANDLE 401 UNAUTHORIZED =====
+                        if (e.message?.contains("401") == true) {
+                                Log.e(
+                                        TAG,
+                                        "[SYNC] 🔐 401 Unauthorized - Token expired! Clearing session..."
+                                )
+                                TokenManager.clearTokens(applicationContext)
+
+                                val prefs =
+                                        applicationContext.getSharedPreferences(
+                                                "app_settings",
+                                                Context.MODE_PRIVATE
+                                        )
+                                prefs.edit().remove("active_book_id").apply()
+                        }
+                        // ===================================
+
+                        return Result.failure() // Stop retrying on critical errors
+                }
         }
 
-        for (remoteItem in items) {
-            val localItem = remoteItem.serverId?.let { repository.getByServerId(it) }
+        private suspend fun syncUserProfile() {
+                try {
+                        val currentUser = userRepository.getLocalUser() ?: return
 
-            if (remoteItem.isDeleted) {
-                localItem?.let { repository.deleteByIdPermanently(it.id.toLong()) }
-            } else if (localItem == null || remoteItem.updatedAt > localItem.updatedAt) {
-                repository.saveFromRemote(remoteItem)
-            }
+                        // ONLY try to upload if checking explicitly marked as NOT SYNCED
+                        // This avoids trying to upload "images/profile.jpg" (remote path) as a local file
+                        if (!currentUser.is_synced && !currentUser.photo_url.isNullOrEmpty()) {
+
+                                val file = java.io.File(currentUser.photo_url)
+                                if (file.exists()) {
+                                        Log.d(TAG, "[SYNC_USER] Found local photo pending upload: ${currentUser.photo_url}")
+
+                                        val result = userRepository.uploadPhoto(file)
+
+                                        result.onSuccess {
+                                                Log.d(TAG, "[SYNC_USER] ✅ Photo upload success! Remote URL: ${it.photo_url}")
+                                                
+                                                // Update local user: set new URL AND set is_synced = true
+                                                val updatedUser = currentUser.copy(
+                                                    photo_url = it.photo_url,
+                                                    is_synced = true,
+                                                    last_synced_at = System.currentTimeMillis()
+                                                )
+                                                userRepository.updateUser(updatedUser)
+                                        }.onFailure {
+                                                Log.e(TAG, "[SYNC_USER] ❌ Photo upload failed: ${it.message}")
+                                        }
+                                } else {
+                                        // Case: marked unsynced but file not found (maybe relative path from server?)
+                                        // If it looks like a server path, we should assume it's actually synced
+                                        if (currentUser.photo_url.contains("/")) { // Basic sanity check
+                                             Log.w(TAG, "[SYNC_USER] ⚠️ File not found: ${currentUser.photo_url}. Assuming already remote or lost.")
+                                        }
+                                }
+                        } else {
+                                Log.d(TAG, "[SYNC_USER] No unsynced local photo changes.")
+                        }
+                } catch (e: Exception) {
+                        Log.e(TAG, "[SYNC_USER] Failed: ${e.message}", e)
+                }
         }
-    }
 
-    /** Buat notifikasi foreground untuk sync */
-    private fun createForegroundInfo(progress: String): ForegroundInfo {
-        // 1. Buat Notification Channel (Wajib untuk Android O+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Sinkronisasi Data",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Notifikasi untuk proses sinkronisasi data"
-            }
+        private suspend fun performPushSync(): Boolean {
+                Log.d(TAG, "[PUSH] 📤 Memulai proses PUSH sync...")
 
-            val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+                try {
+                        // DEBUG: Cek status semua buku sebelum push
+                        val allBooks = bookRepository.getAllBooks().firstOrNull() ?: emptyList()
+                        Log.d(TAG, "[DEBUG_BOOK] Total buku di DB: ${allBooks.size}")
+                        allBooks.forEach { book ->
+                                Log.d(
+                                        TAG,
+                                        "[DEBUG_BOOK] Book ID: ${book.id}, Name: ${book.name}, ServerID: ${book.serverId}, IsSynced: ${book.isSynced}, Action: ${book.syncAction}"
+                                )
+                        }
+
+                        pushUnitChanges<Book>(
+                                repository = bookRepository as SyncRepository<Book>,
+                                createApi = { book ->
+                                        val request =
+                                                BookRequest(
+                                                        name = book.name,
+                                                        description = book.description
+                                                                        ?: "", // Safety: Handle
+                                                        // null description
+                                                        icon = book.icon ?: "📖", // Safety
+                                                        color = book.color ?: "#000000" // Safety
+                                                )
+                                        apiService.createBook(request)
+                                }, // UPDATE: Mapping sama seperti create
+                                updateApi = { book ->
+                                        // Cek ServerID sebelum kirim request
+                                        val safeServerId =
+                                                book.serverId
+                                                        ?: throw IOException(
+                                                                "Cannot update Book ID ${book.id}: Server ID is missing (NULL)"
+                                                        )
+
+                                        val request =
+                                                BookRequest(
+                                                        name = book.name,
+                                                        description = book.description ?: "",
+                                                        icon = book.icon ?: "📖",
+                                                        color = book.color ?: "#000000"
+                                                )
+                                        apiService.updateBook(safeServerId, request)
+                                },
+                                deleteApi = { book ->
+                                        val safeServerId =
+                                                book.serverId
+                                                        ?: throw IOException(
+                                                                "Cannot delete Book ID ${book.id}: Server ID is missing"
+                                                        )
+                                        apiService.deleteBook(safeServerId)
+                                }
+                        )
+
+                        pushUnitChanges<Wallet>(
+                                repository = walletRepository as SyncRepository<Wallet>,
+                                createApi = { wallet ->
+                                        // Cari Buku Induknya dulu untuk dapatkan Server ID
+                                        val book = bookRepository.getBookByIdSync(wallet.bookId)
+                                        // Jika Buku belum naik ke server (serverId null), Wallet
+                                        // JANGAN dikirim
+                                        // dulu (Tunda)
+                                        val serverBookId =
+                                                book?.serverId
+                                                        ?: throw IOException(
+                                                                "Induk Buku belum ter-sync, tunda sync Wallet"
+                                                        )
+
+                                        val request =
+                                                WalletRequest(
+                                                        bookId = serverBookId, // KIRIM SERVER ID!
+                                                        name = wallet.name,
+                                                        type = wallet.type.name, // Enum to String
+                                                        icon = wallet.icon,
+                                                        color = wallet.color ?: "#000000",
+                                                        initialBalance = wallet.initialBalance
+                                                )
+                                        apiService.createWallet(request)
+                                },
+                                updateApi = { wallet ->
+                                        val book = bookRepository.getBookByIdSync(wallet.bookId)
+                                        val serverBookId =
+                                                book?.serverId
+                                                        ?: throw IOException(
+                                                                "Induk Buku belum ter-sync"
+                                                        )
+
+                                        val request =
+                                                WalletRequest(
+                                                        bookId = serverBookId,
+                                                        name = wallet.name,
+                                                        type = wallet.type.name,
+                                                        icon = wallet.icon,
+                                                        color = wallet.color ?: "#000000",
+                                                        initialBalance = wallet.initialBalance
+                                                )
+                                        apiService.updateWallet(wallet.serverId!!, request)
+                                },
+                                deleteApi = { wallet -> apiService.deleteWallet(wallet.serverId!!) }
+                        )
+
+                        pushComplexChanges<Category>(
+                                repository = categoryRepository as SyncRepository<Category>,
+                                createApi = { category ->
+                                        val book = bookRepository.getBookByIdSync(category.bookId)
+                                        val serverBookId =
+                                                book?.serverId
+                                                        ?: throw IOException(
+                                                                "Induk Buku belum ter-sync"
+                                                        )
+
+                                        val request =
+                                                CategoryRequest(
+                                                        bookId = serverBookId, // KIRIM SERVER ID!
+                                                        name = category.name,
+                                                        type = category.type.name, // Enum to String
+                                                        icon = category.icon
+                                                )
+                                        apiService.createCategory(request)
+                                },
+                                updateApi = { category ->
+                                        val book = bookRepository.getBookByIdSync(category.bookId)
+                                        val serverBookId =
+                                                book?.serverId
+                                                        ?: throw IOException(
+                                                                "Induk Buku belum ter-sync"
+                                                        )
+
+                                        val request =
+                                                CategoryRequest(
+                                                        bookId = serverBookId,
+                                                        name = category.name,
+                                                        type = category.type.name,
+                                                        icon = category.icon
+                                                )
+                                        // Hati-hati: serverId di DB lokal String, tapi
+                                        // updateCategory minta Long di
+                                        // ApiService lama?
+                                        // Sebaiknya samakan jadi String di ApiService (Langkah 5 di
+                                        // atas sudah
+                                        // pakai String)
+                                        apiService.updateCategory(category.serverId!!, request)
+                                },
+                                deleteApi = { category ->
+                                        apiService.deleteCategory(category.serverId!!)
+                                }
+                        )
+
+                        pushComplexChanges<Transaction>(
+                                repository = transactionRepository as SyncRepository<Transaction>,
+                                createApi = { transaction ->
+                                        // 1. Cari ID Server untuk BUKU
+                                        val book =
+                                                bookRepository.getBookByIdSync(transaction.bookId)
+                                        if (book == null) {
+                                                Log.e(
+                                                        TAG,
+                                                        "[PUSH_TRANS_FAIL] Book Not Found! Trans ID: ${transaction.id}, Book ID: ${transaction.bookId}"
+                                                )
+                                        } else {
+                                                Log.d(
+                                                        TAG,
+                                                        "[PUSH_TRANS_CHECK] Trans ID: ${transaction.id} linked to Book ID: ${book.id}, ServerID: ${book.serverId}"
+                                                )
+                                        }
+                                        val serverBookId =
+                                                book?.serverId
+                                                        ?: throw IOException(
+                                                                "Parent Book belum sync (Trans ID: ${transaction.id}, Book ID: ${transaction.bookId})"
+                                                        )
+
+                                        // 2. Cari ID Server untuk WALLET
+                                        val wallet =
+                                                walletRepository.getWalletByIdSync(
+                                                        transaction.walletId
+                                                ) // Pastikan fungsi ini ada di Repo
+                                        val serverWalletId =
+                                                wallet?.serverId
+                                                        ?: throw IOException(
+                                                                "Parent Wallet belum sync"
+                                                        )
+
+                                        // 3. Cari ID Server untuk CATEGORY
+                                        val category =
+                                                categoryRepository.getCategoryByIdSync(
+                                                        transaction.categoryId
+                                                ) // Pastikan fungsi ini ada di Repo
+                                        val serverCategoryId =
+                                                category?.serverId
+                                                        ?: throw IOException(
+                                                                "Parent Category belum sync"
+                                                        )
+
+                                        // 4. Check if transaction has photo
+                                        val hasPhoto =
+                                                !transaction.imagePath.isNullOrEmpty() &&
+                                                        !transaction.imagePath.startsWith("http")
+
+                                        if (hasPhoto) {
+                                                // Use multipart upload
+                                                val photoFile =
+                                                        java.io.File(transaction.imagePath!!)
+                                                if (!photoFile.exists()) {
+                                                        Log.w(
+                                                                TAG,
+                                                                "[PUSH_TRANS] Photo file not found: ${transaction.imagePath}"
+                                                        )
+                                                        // Continue without photo
+                                                        val request =
+                                                                TransactionRequest(
+                                                                        bookId = serverBookId,
+                                                                        walletId = serverWalletId,
+                                                                        categoryId =
+                                                                                serverCategoryId,
+                                                                        amount = transaction.amount,
+                                                                        type =
+                                                                                transaction
+                                                                                        .type
+                                                                                        .name,
+                                                                        note = transaction.notes,
+                                                                        createdAt = transaction.date
+                                                                )
+                                                        apiService.createTransaction(request)
+                                                } else {
+                                                        val requestFile =
+                                                                okhttp3.RequestBody.create(
+                                                                        "image/*".toMediaTypeOrNull(),
+                                                                        photoFile
+                                                                )
+                                                        val photoPart =
+                                                                okhttp3.MultipartBody.Part
+                                                                        .createFormData(
+                                                                                "image",
+                                                                                photoFile.name,
+                                                                                requestFile
+                                                                        )
+
+                                                        val response =
+                                                                apiService
+                                                                        .createTransactionWithPhoto(
+                                                                                bookId =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        serverBookId
+                                                                                                ),
+                                                                                walletId =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        serverWalletId
+                                                                                                ),
+                                                                                categoryId =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        serverCategoryId
+                                                                                                ),
+                                                                                amount =
+                                                                                        transaction
+                                                                                                .amount
+                                                                                                .toLong()
+                                                                                                .toString()
+                                                                                                .toRequestBody(
+                                                                                                        "text/plain".toMediaTypeOrNull()
+                                                                                                ),
+                                                                                type =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        transaction
+                                                                                                                .type
+                                                                                                                .name
+                                                                                                ),
+                                                                                note =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        transaction
+                                                                                                                .notes
+                                                                                                ),
+                                                                                createdAt =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        transaction
+                                                                                                                .date
+                                                                                                                .toString()
+                                                                                                ),
+                                                                                image = photoPart
+                                                                        )
+
+                                                        if (response.isSuccessful &&
+                                                                        response.body() != null
+                                                        ) {
+                                                                // UPDATE LOCAL PHOTO URL WITH
+                                                                // REMOTE URL
+                                                                val remotePhotoUrl =
+                                                                        response.body()
+                                                                                ?.data
+                                                                                ?.image_url
+                                                                if (!remotePhotoUrl.isNullOrEmpty()
+                                                                ) {
+                                                                        Log.d(
+                                                                                TAG,
+                                                                                "[PUSH_TRANS] Photo synced! Updating local path to: $remotePhotoUrl"
+                                                                        )
+                                                                        transactionRepository
+                                                                                .updateTransactionImagePath(
+                                                                                        transaction
+                                                                                                .id,
+                                                                                        remotePhotoUrl
+                                                                                )
+                                                                }
+                                                        }
+                                                        response
+                                                }
+                                        } else {
+                                                // Use regular JSON request
+                                                val request =
+                                                        TransactionRequest(
+                                                                bookId = serverBookId,
+                                                                walletId = serverWalletId,
+                                                                categoryId = serverCategoryId,
+                                                                amount = transaction.amount,
+                                                                type =
+                                                                        transaction
+                                                                                .type
+                                                                                .name, // Enum ke
+                                                                // String
+                                                                note = transaction.notes,
+                                                                createdAt =
+                                                                        transaction.date // Pastikan
+                                                                // field
+                                                                // tanggal
+                                                                // sesuai
+                                                                )
+
+                                                apiService.createTransaction(request)
+                                        }
+                                },
+                                updateApi = { transaction ->
+                                        // Logic lookup ID sama persis dengan createApi di atas
+                                        val book =
+                                                bookRepository.getBookByIdSync(transaction.bookId)
+                                        val serverBookId =
+                                                book?.serverId
+                                                        ?: throw IOException(
+                                                                "Parent Book belum sync"
+                                                        )
+
+                                        val wallet =
+                                                walletRepository.getWalletByIdSync(
+                                                        transaction.walletId
+                                                )
+                                        val serverWalletId =
+                                                wallet?.serverId
+                                                        ?: throw IOException(
+                                                                "Parent Wallet belum sync"
+                                                        )
+
+                                        val category =
+                                                categoryRepository.getCategoryByIdSync(
+                                                        transaction.categoryId
+                                                )
+                                        val serverCategoryId =
+                                                category?.serverId
+                                                        ?: throw IOException(
+                                                                "Parent Category belum sync"
+                                                        )
+
+                                        // Check if transaction has photo
+                                        val hasPhoto =
+                                                !transaction.imagePath.isNullOrEmpty() &&
+                                                        !transaction.imagePath.startsWith("http")
+
+                                        if (hasPhoto) {
+                                                // Use multipart upload
+                                                val photoFile =
+                                                        java.io.File(transaction.imagePath!!)
+                                                if (!photoFile.exists()) {
+                                                        Log.w(
+                                                                TAG,
+                                                                "[PUSH_TRANS] Photo file not found: ${transaction.imagePath}"
+                                                        )
+                                                        // Continue without photo
+                                                        val request =
+                                                                TransactionRequest(
+                                                                        bookId = serverBookId,
+                                                                        walletId = serverWalletId,
+                                                                        categoryId =
+                                                                                serverCategoryId,
+                                                                        amount = transaction.amount,
+                                                                        type =
+                                                                                transaction
+                                                                                        .type
+                                                                                        .name,
+                                                                        note = transaction.notes,
+                                                                        createdAt = transaction.date
+                                                                )
+                                                        apiService.updateTransaction(
+                                                                transaction.serverId!!.toLong(),
+                                                                request
+                                                        )
+                                                } else {
+                                                        val requestFile =
+                                                                okhttp3.RequestBody.create(
+                                                                        "image/*".toMediaTypeOrNull(),
+                                                                        photoFile
+                                                                )
+                                                        val photoPart =
+                                                                okhttp3.MultipartBody.Part
+                                                                        .createFormData(
+                                                                                "image",
+                                                                                photoFile.name,
+                                                                                requestFile
+                                                                        )
+
+                                                        val response =
+                                                                apiService
+                                                                        .updateTransactionWithPhoto(
+                                                                                serverId =
+                                                                                        transaction
+                                                                                                        .serverId!!
+                                                                                                .toLong(),
+                                                                                bookId =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        serverBookId
+                                                                                                ),
+                                                                                walletId =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        serverWalletId
+                                                                                                ),
+                                                                                categoryId =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        serverCategoryId
+                                                                                                ),
+                                                                                amount =
+                                                                                        transaction
+                                                                                                .amount
+                                                                                                .toLong()
+                                                                                                .toString()
+                                                                                                .toRequestBody(
+                                                                                                        "text/plain".toMediaTypeOrNull()
+                                                                                                ),
+                                                                                type =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        transaction
+                                                                                                                .type
+                                                                                                                .name
+                                                                                                ),
+                                                                                note =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        transaction
+                                                                                                                .notes
+                                                                                                ),
+                                                                                createdAt =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        transaction
+                                                                                                                .date
+                                                                                                                .toString()
+                                                                                                ),
+                                                                                image = photoPart
+                                                                        )
+
+                                                        if (response.isSuccessful) {
+                                                                // Note: updateTransactionWithPhoto
+                                                                // might return CreateResponse or
+                                                                // unit depending on API
+                                                                // Checking if we can extract image
+                                                                // url from response if available
+                                                                // Assuming standard response format
+                                                                // if it returns data
+                                                                if (response.body() is
+                                                                                CreateResponse
+                                                                ) {
+                                                                        val body =
+                                                                                response.body() as
+                                                                                        CreateResponse
+                                                                        val remotePhotoUrl =
+                                                                                body.data?.image_url
+                                                                        if (!remotePhotoUrl
+                                                                                        .isNullOrEmpty()
+                                                                        ) {
+                                                                                Log.d(
+                                                                                        TAG,
+                                                                                        "[PUSH_TRANS_UPDATE] Photo synced! Updating local path to: $remotePhotoUrl"
+                                                                                )
+                                                                                transactionRepository
+                                                                                        .updateTransactionImagePath(
+                                                                                                transaction
+                                                                                                        .id,
+                                                                                                remotePhotoUrl
+                                                                                        )
+                                                                        }
+                                                                }
+                                                        }
+                                                        response
+                                                }
+                                        } else {
+                                                // Use regular JSON request
+                                                val request =
+                                                        TransactionRequest(
+                                                                bookId = serverBookId,
+                                                                walletId = serverWalletId,
+                                                                categoryId = serverCategoryId,
+                                                                amount = transaction.amount,
+                                                                type = transaction.type.name,
+                                                                note = transaction.notes,
+                                                                createdAt = transaction.date
+                                                        )
+
+                                                // Pastikan konversi ServerID (String -> Long) aman
+                                                // jika server minta
+                                                // Long
+                                                apiService.updateTransaction(
+                                                        transaction.serverId!!.toLong(),
+                                                        request
+                                                )
+                                        }
+                                },
+                                deleteApi = { transaction ->
+                                        apiService.deleteTransaction(transaction.serverId!!)
+                                }
+                        )
+
+                        Log.i(TAG, "[PUSH] ✅ PUSH sync berhasil diselesaikan.")
+                        return true
+                } catch (e: Exception) {
+                        Log.e(TAG, "[PUSH] ❌ Error saat PUSH sync: ${e.message}", e)
+                        throw e // Tetap lemparkan error agar doWork bisa menangkap dan me-retry
+                }
         }
 
-        // 2. Buat Objek Notifikasi
-        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-            .setContentTitle("Sinkronisasi Data")
-            .setContentText(progress)
-            .setSmallIcon(R.drawable.ic_sync_24) // Pastikan icon ini ada di drawable
-            .setOngoing(true)
-            // Tambahkan ini agar user bisa membatalkan jika macet (opsional tapi disarankan)
-            // .addAction(android.R.drawable.ic_delete, "Batal", workManager.createCancelPendingIntent(id))
-            .build()
+        private suspend inline fun <reified T : SyncableEntity> pushUnitChanges(
+                repository: SyncRepository<T>,
+                createApi: suspend (T) -> Response<CreateResponse>,
+                updateApi: suspend (T) -> Response<Unit>,
+                deleteApi: suspend (T) -> Response<Unit>
+        ) {
 
-        // 3. Return ForegroundInfo dengan Tipe Service (FIX UTAMA)
-        return if (Build.VERSION.SDK_INT >= 34) { // Android 14+
-            ForegroundInfo(
-                NOTIFICATION_ID,
-                notification,
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            )
-        } else {
-            // Android 13 ke bawah
-            ForegroundInfo(NOTIFICATION_ID, notification)
+                val unsyncedItems = repository.getAllUnsynced()
+                val currentSyncTime = System.currentTimeMillis()
+
+                for (item in unsyncedItems) {
+                        try {
+                                Log.d(
+                                        TAG,
+                                        "[PUSH] Processing item ID: ${item.id}, Action: ${item.syncAction}"
+                                )
+
+                                // FALLBACK: Jika syncAction NULL (misal dari default data lama),
+                                // tentukan aksi
+                                // berdasarkan serverId
+                                val effectiveAction =
+                                        item.syncAction
+                                                ?: if (item.serverId == null) "CREATE" else "UPDATE"
+
+                                when (effectiveAction) {
+                                        "CREATE" -> {
+                                                val response = createApi(item)
+
+                                                if (response.isSuccessful) {
+                                                        val body = response.body()
+
+                                                        if (body == null) {
+                                                                Log.e(
+                                                                        TAG,
+                                                                        "[PUSH] ❌ Response Body NULL untuk item ID ${item.id}"
+                                                                )
+                                                                throw IOException(
+                                                                        "Response Body is NULL"
+                                                                )
+                                                        }
+
+                                                        Log.d(
+                                                                TAG,
+                                                                "[PUSH] ✅ CREATE Success. Data: $body"
+                                                        )
+
+                                                        // === PERBAIKAN DI SINI ===
+                                                        // Kita panggil .server_id (sesuai class
+                                                        // CreatedData Anda)
+                                                        // Gson sudah otomatis memasukkan nilai JSON
+                                                        // "id" ke dalam variabel
+                                                        // .server_id ini
+                                                        val finalServerId =
+                                                                body.data?.server_id
+                                                                        ?: item.serverId
+                                                                                ?: throw IOException(
+                                                                                "Server ID tidak ditemukan di respon API"
+                                                                        )
+                                                        // ========================
+
+                                                        repository.updateSyncStatus(
+                                                                item.id.toLong(),
+                                                                finalServerId,
+                                                                currentSyncTime
+                                                        )
+                                                } else {
+                                                        val errorMsg =
+                                                                response.errorBody()?.string()
+                                                        Log.e(
+                                                                TAG,
+                                                                "[PUSH] ❌ CREATE Gagal. Code: ${response.code()}, Error: $errorMsg"
+                                                        )
+                                                        throw IOException(
+                                                                "CREATE failed: ${response.code()} - $errorMsg"
+                                                        )
+                                                }
+                                        }
+                                        "UPDATE" -> {
+                                                val response = updateApi(item)
+                                                if (response.isSuccessful) {
+                                                        val sId =
+                                                                item.serverId
+                                                                        ?: throw IOException(
+                                                                                "Item lokal tidak punya Server ID saat UPDATE"
+                                                                        )
+                                                        repository.updateSyncStatus(
+                                                                item.id.toLong(),
+                                                                sId,
+                                                                currentSyncTime
+                                                        )
+                                                } else {
+                                                        val errorMsg =
+                                                                response.errorBody()?.string()
+                                                        Log.e(
+                                                                TAG,
+                                                                "[PUSH] ❌ UPDATE Gagal. Code: ${response.code()}, Error: $errorMsg"
+                                                        )
+                                                        throw IOException(
+                                                                "UPDATE failed: ${response.code()}"
+                                                        )
+                                                }
+                                        }
+                                        "DELETE" -> {
+                                                val response = deleteApi(item)
+                                                if (response.isSuccessful) {
+                                                        repository.deleteByIdPermanently(
+                                                                item.id.toLong()
+                                                        )
+                                                } else {
+                                                        Log.e(
+                                                                TAG,
+                                                                "[PUSH] ❌ DELETE Gagal. Code: ${response.code()}"
+                                                        )
+                                                        throw IOException(
+                                                                "DELETE failed: ${response.code()}"
+                                                        )
+                                                }
+                                        }
+                                }
+                        } catch (e: Exception) {
+                                Log.e(
+                                        TAG,
+                                        "[PUSH] ❌ Exception processing item ID ${item.id}: ${e.message}",
+                                        e
+                                )
+                                throw e
+                        }
+                }
         }
-    }
+
+        private suspend inline fun <reified T : SyncableEntity> pushComplexChanges(
+                repository: SyncRepository<T>,
+                createApi: suspend (T) -> Response<CreateResponse>,
+                updateApi: suspend (T) -> Response<MessageResponse>,
+                deleteApi: suspend (T) -> Response<MessageResponse>
+        ) {
+                val unsyncedItems = repository.getAllUnsynced()
+                val currentSyncTime = System.currentTimeMillis()
+
+                for (item in unsyncedItems) {
+                        try {
+                                // FALLBACK: Jika syncAction NULL
+                                val effectiveAction =
+                                        item.syncAction
+                                                ?: if (item.serverId == null) "CREATE" else "UPDATE"
+
+                                when (effectiveAction) {
+                                        "CREATE" -> {
+                                                val response = createApi(item)
+                                                if (response.isSuccessful && response.body() != null
+                                                ) {
+                                                        val serverId =
+                                                                response.body()!!.data?.server_id
+                                                                        ?: item.serverId
+                                                                                ?: throw IOException(
+                                                                                "Server ID missing in response"
+                                                                        )
+                                                        repository.updateSyncStatus(
+                                                                item.id.toLong(),
+                                                                serverId,
+                                                                currentSyncTime
+                                                        )
+                                                } else
+                                                        throw IOException(
+                                                                "CREATE failed: ${response.code()}"
+                                                        )
+                                        }
+                                        "UPDATE" -> {
+                                                val response = updateApi(item)
+                                                if (response.isSuccessful) {
+                                                        repository.updateSyncStatus(
+                                                                item.id.toLong(),
+                                                                item.serverId!!,
+                                                                currentSyncTime
+                                                        )
+                                                } else
+                                                        throw IOException(
+                                                                "UPDATE failed: ${response.code()}"
+                                                        )
+                                        }
+                                        "DELETE" -> {
+                                                val response = deleteApi(item)
+                                                if (response.isSuccessful) {
+                                                        repository.deleteByIdPermanently(
+                                                                item.id.toLong()
+                                                        )
+                                                } else
+                                                        throw IOException(
+                                                                "DELETE failed: ${response.code()}"
+                                                        )
+                                        }
+                                }
+                        } catch (e: Exception) {
+                                Log.e(
+                                        TAG,
+                                        "[PUSH] ❌ Aksi PUSH gagal untuk item ID ${item.id}: ${e.message}"
+                                )
+                                throw e
+                        }
+                }
+        }
+
+        private suspend fun performPullSync(): Boolean {
+                val lastSyncTime = getLastSyncAt()
+                Log.d(TAG, "[PULL] 📥 Memulai PULL sync sejak timestamp: $lastSyncTime...")
+
+                var allSuccess = true
+
+                try {
+                        // 1. PULL BOOKS (Strict Order: Parent First)
+                        try {
+                                pullEntityChanges<Book>(
+                                        remoteApi = apiService.getUpdatedBooks(lastSyncTime),
+                                        repository = bookRepository as SyncRepository<Book>
+                                )
+                        } catch (e: Exception) {
+                                Log.e(TAG, "[PULL] ❌ Gagal pull Books: ${e.message}")
+                                return false // STOP: Jangan lanjut ke Child jika Parent gagal
+                        }
+
+                        // 2. PULL WALLETS
+                        try {
+                                pullEntityChanges<Wallet>(
+                                        remoteApi = apiService.getUpdatedWallets(lastSyncTime),
+                                        repository = walletRepository as SyncRepository<Wallet>
+                                )
+                        } catch (e: Exception) {
+                                Log.e(TAG, "[PULL] ❌ Gagal pull Wallets: ${e.message}")
+                                return false // STOP
+                        }
+
+                        // 3. PULL CATEGORIES
+                        try {
+                                pullEntityChanges<Category>(
+                                        remoteApi = apiService.getUpdatedCategories(lastSyncTime),
+                                        repository = categoryRepository as SyncRepository<Category>
+                                )
+                        } catch (e: Exception) {
+                                Log.e(TAG, "[PULL] ❌ Gagal pull Categories: ${e.message}")
+                                return false // STOP
+                        }
+
+                        // 4. PULL TRANSACTIONS
+                        try {
+                                pullPaginatedEntityChanges<Transaction>(
+                                        remoteApi = apiService.getUpdatedTransactions(lastSyncTime),
+                                        repository =
+                                                transactionRepository as SyncRepository<Transaction>
+                                )
+                        } catch (e: Exception) {
+                                Log.e(TAG, "[PULL] ❌ Gagal pull Transactions: ${e.message}")
+                                return false // STOP
+                        }
+
+                        Log.i(TAG, "[PULL] ✅ PULL sync berhasil diselesaikan.")
+                        return true
+                } finally {
+                        // --- RECONCILIATION ---
+                        // Must run to merge "Buku Utama" duplicates even if Sync partially failed
+                        // (e.g.
+                        // Categories error)
+                        try {
+                                reconcileDefaultBook()
+                        } catch (e: Exception) {
+                                Log.e(TAG, "[SYNC] ⚠️ Reconciliation failed: ${e.message}")
+                        }
+                }
+        }
+
+        /**
+         * Reconciles the "Default Book" state. Problem: A fresh install creates a default "Buku
+         * Utama" (ID=1). If sync pulls existing books (ID=2+), the user is stuck on ID=1 which has
+         * no server link.
+         *
+         * Solution:
+         * 1. Check if we have multiple books.
+         * 2. Identify the "Default Book" (server_id == null, usually ID 1, has 0 transactions).
+         * 3. Identify "Synced Books" (server_id != null).
+         * 4. If found, SWITCH active book to the first Synced Book and DELETE the empty Default
+         * Book.
+         */
+        private suspend fun reconcileDefaultBook() {
+                val allBooks = bookRepository.getAllBooks().firstOrNull() ?: return
+                val syncedBooks = allBooks.filter { !it.serverId.isNullOrBlank() }
+                val defaultBooks =
+                        allBooks.filter { it.serverId.isNullOrBlank() && it.syncAction == "CREATE" }
+
+                if (syncedBooks.isNotEmpty() && defaultBooks.isNotEmpty()) {
+                        Log.d(
+                                TAG,
+                                "[RECONCILE] Found ${syncedBooks.size} synced books and ${defaultBooks.size} default books."
+                        )
+
+                        for (defaultBook in defaultBooks) {
+                                // Check if default book is "empty" (no transactions)
+                                // We use TransactionRepository for this check
+                                val transactionCount =
+                                        transactionRepository.getTransactionCountByBookId(
+                                                defaultBook.id
+                                        )
+
+                                if (transactionCount == 0) {
+                                        val targetBook = syncedBooks.first()
+                                        Log.i(
+                                                TAG,
+                                                "[RECONCILE] 🔄 Switching active book from local '${defaultBook.name}' (ID ${defaultBook.id}) to synced '${targetBook.name}' (ID ${targetBook.id})"
+                                        )
+
+                                        // 1. Switch Active Book in DB
+                                        bookRepository.switchActiveBook(targetBook.id)
+
+                                        // 2. Switch Active Book in SharedPreferences
+                                        val prefs =
+                                                applicationContext.getSharedPreferences(
+                                                        "app_settings",
+                                                        Context.MODE_PRIVATE
+                                                )
+                                        prefs.edit().putInt("active_book_id", targetBook.id).apply()
+
+                                        // 3. Delete the empty default book permanently
+                                        bookRepository.deleteByIdPermanently(defaultBook.id)
+                                        Log.i(
+                                                TAG,
+                                                "[RECONCILE] 🗑️ Deleted empty default book ID ${defaultBook.id}"
+                                        )
+                                } else {
+                                        Log.w(
+                                                TAG,
+                                                "[RECONCILE] ⚠️ Default book ID ${defaultBook.id} is NOT empty ($transactionCount transactions). Skipping auto-delete."
+                                        )
+                                }
+                        }
+                }
+        }
+
+        private suspend inline fun <reified T : SyncableEntity> pullEntityChanges(
+                remoteApi: Response<ApiResponse<List<T>>>,
+                repository: SyncRepository<T>
+        ) {
+                val apiBody =
+                        remoteApi.body()
+                                ?: throw IOException(
+                                        "PULL failed: null body, code ${remoteApi.code()}"
+                                )
+
+                val items = apiBody.data ?: emptyList()
+                Log.d(
+                        TAG,
+                        "[PULL] 📦 Menerima ${items.size} item untuk ${T::class.java.simpleName}"
+                )
+                // Removed try-catch purely for logging payload to avoid noise if json fails,
+                // or keep it but ensure main loop throws.
+                try {
+                        Log.d(TAG, "Response Data: " + com.google.gson.Gson().toJson(items))
+                } catch (_: Exception) {}
+
+                for (remoteItem in items) {
+                        val localItem = remoteItem.serverId?.let { repository.getByServerId(it) }
+
+                        if (remoteItem.isDeleted) {
+                                localItem?.let { repository.deleteByIdPermanently(it.id.toLong()) }
+                        } else if (localItem == null || remoteItem.updatedAt > localItem.updatedAt
+                        ) {
+                                repository.saveFromRemote(remoteItem)
+                        }
+                }
+        }
+        private suspend inline fun <reified T : SyncableEntity> pullPaginatedEntityChanges(
+                remoteApi: Response<ApiResponse<PaginatedData<T>>>,
+                repository: SyncRepository<T>
+        ) {
+                val apiBody =
+                        remoteApi.body()
+                                ?: throw IOException(
+                                        "PULL failed: null body, code ${remoteApi.code()}"
+                                )
+
+                // Extract list from PaginatedData (apiBody.data is PaginatedData, and .data inside
+                // it is
+                // the list)
+                val items = apiBody.data?.data ?: emptyList()
+                Log.d(
+                        TAG,
+                        "[PULL] 📦 Menerima ${items.size} item (paginated) untuk ${T::class.java.simpleName}"
+                )
+                try {
+                        Log.d(TAG, "Response Data: " + com.google.gson.Gson().toJson(items))
+                } catch (_: Exception) {}
+
+                for (remoteItem in items) {
+                        val localItem = remoteItem.serverId?.let { repository.getByServerId(it) }
+
+                        if (remoteItem.isDeleted) {
+                                localItem?.let { repository.deleteByIdPermanently(it.id.toLong()) }
+                        } else if (localItem == null || remoteItem.updatedAt > localItem.updatedAt
+                        ) {
+                                repository.saveFromRemote(remoteItem)
+                        }
+                }
+        }
+
+        /**
+         * Override required method from CoroutineWorker This is called when WorkManager wants to
+         * show foreground notification
+         */
+        override suspend fun getForegroundInfo(): ForegroundInfo {
+                return createForegroundInfo("Sinkronisasi berjalan...")
+        }
+
+        /** Buat notifikasi foreground untuk sync */
+        private fun createForegroundInfo(progress: String): ForegroundInfo {
+                // 1. Buat Notification Channel (Wajib untuk Android O+)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        val channel =
+                                NotificationChannel(
+                                                CHANNEL_ID,
+                                                "Sinkronisasi Data",
+                                                NotificationManager.IMPORTANCE_LOW
+                                        )
+                                        .apply {
+                                                description =
+                                                        "Notifikasi untuk proses sinkronisasi data"
+                                        }
+
+                        val notificationManager =
+                                applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as
+                                        NotificationManager
+                        notificationManager.createNotificationChannel(channel)
+                }
+
+                // 2. Buat Objek Notifikasi
+                val notification =
+                        NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+                                .setContentTitle("Sinkronisasi Data")
+                                .setContentText(progress)
+                                .setSmallIcon(
+                                        R.drawable.ic_sync_24
+                                ) // Pastikan icon ini ada di drawable
+                                .setOngoing(true)
+                                // Tambahkan ini agar user bisa membatalkan jika macet (opsional
+                                // tapi
+                                // disarankan)
+                                // .addAction(android.R.drawable.ic_delete, "Batal",
+                                // workManager.createCancelPendingIntent(id))
+                                .build()
+
+                // 3. Return ForegroundInfo dengan Tipe Service (FIX UTAMA)
+                return if (Build.VERSION.SDK_INT >= 34) { // Android 14+
+                        ForegroundInfo(
+                                NOTIFICATION_ID,
+                                notification,
+                                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                        )
+                } else {
+                        // Android 13 ke bawah
+                        ForegroundInfo(NOTIFICATION_ID, notification)
+                }
+        }
+        /**
+         * Finds items that are marked as Synced (isSynced=true) but have no Server ID
+         * (serverId=null). This is an invalid state ("Zombie") and prevents them from being pushed.
+         * We reset them to Unsynced with action CREATE.
+         */
+        private suspend fun repairZombieData() {
+                repairEntityState(bookRepository as SyncRepository<Book>, "Book")
+                repairEntityState(walletRepository as SyncRepository<Wallet>, "Wallet")
+                repairEntityState(categoryRepository as SyncRepository<Category>, "Category")
+                repairEntityState(
+                        transactionRepository as SyncRepository<Transaction>,
+                        "Transaction"
+                )
+        }
+
+        private suspend inline fun <reified T : SyncableEntity> repairEntityState(
+                repository: SyncRepository<T>,
+                entityName: String
+        ) {
+                // Because SyncRepository is generic, we can't easily query "isSynced=1 AND
+                // serverId=null"
+                // universally
+                // without changing every DAO. BUT, we can assume that if we are in this state, we
+                // need to
+                // be careful.
+                // For safety/simplicity in this hotfix, we rely on the fact that if we just "touch"
+                // them it
+                // might be enough.
+                // But actually, we need to identify them.
+                // The safest way without new queries is to iterate all local items if the list is
+                // not huge.
+                // Or better: rely on the specific Repos if they have identifiers.
+
+                // For this specific bug fix, we will try to fetch ALL items (assuming < 1000 for
+                // these
+                // master entities)
+                // and check in memory. For Transaction it might be large, so we skip it for now or
+                // rely on
+                // specific logs.
+                // NOTE: Books/Wallets/Categories are small tables.
+
+                if (entityName == "Transaction") {
+                        // For transactions, iterating all might be slow.
+                        // But the critical "Zombie" parent issue is usually about
+                        // Book/Wallet/Category.
+                        // If a transaction itself is zombie, it just won't push.
+                        // We can skip Transaction for now to avoid performance hit, or only do it
+                        // if count <
+                        // 500.
+                        return
+                }
+
+                val allItems =
+                        when (entityName) {
+                                "Book" -> (repository as BookRepository).getAllBooks().firstOrNull()
+                                                ?: emptyList()
+                                "Wallet" ->
+                                        (repository as WalletRepository)
+                                                .getAllWallets()
+                                                .firstOrNull()
+                                                ?: emptyList()
+                                "Category" ->
+                                        (repository as CategoryRepository)
+                                                .getAllCategories()
+                                                .firstOrNull()
+                                                ?: emptyList()
+                                else -> emptyList()
+                        }
+
+                @Suppress("UNCHECKED_CAST") val items = allItems as List<T>
+
+                var repairedCount = 0
+                for (item in items) {
+                        if (item.isSynced && item.serverId == null) {
+                                Log.w(
+                                        TAG,
+                                        "[REPAIR] 🧟 Zombie $entityName detected! ID: ${item.id}. Resetting sync status..."
+                                )
+                                repository.markAsUnsynced(item.id.toLong(), "CREATE")
+                                repairedCount++
+                        }
+                }
+
+                if (repairedCount > 0) {
+                        Log.i(
+                                TAG,
+                                "[REPAIR] ✅ Successfully repaired $repairedCount zombie $entityName(s)."
+                        )
+                }
+        }
 }

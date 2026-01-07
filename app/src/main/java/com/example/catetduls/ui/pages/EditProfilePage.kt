@@ -45,26 +45,57 @@ class EditProfilePage : Fragment() {
     private var retryCount = 0
     private val maxRetries = 3
 
-    // Launcher Image Picker
-    private val pickMedia = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) {
-            Log.d("EditProfile", "Image selected: $uri")
+    private var currentPhotoPath: String? = null
 
-            // Preview lokal langsung
-            Glide.with(requireContext())
-                .load(uri)
-                .circleCrop()
-                .into(ivProfile)
+    // Launcher Image Picker (Gallery)
+    private val pickMedia =
+            registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                if (uri != null) {
+                    Log.d("EditProfile", "Image selected: $uri")
+                    Glide.with(requireContext()).load(uri).circleCrop().into(ivProfile)
+                    viewModel.updatePhoto(uri)
+                } else {
+                    Log.d("EditProfile", "No media selected")
+                }
+            }
 
-            // Upload ke server
-            viewModel.updatePhoto(uri)
-        } else {
-            Toast.makeText(requireContext(), "Tidak ada foto yang dipilih", Toast.LENGTH_SHORT).show()
-        }
+    // Launcher Camera
+    private val takePicture =
+            registerForActivityResult(ActivityResultContracts.TakePicture()) { isSuccess ->
+                if (isSuccess) {
+                    currentPhotoPath?.let { path ->
+                        val file = java.io.File(path)
+                        val uri =
+                                androidx.core.content.FileProvider.getUriForFile(
+                                        requireContext(),
+                                        "${requireContext().packageName}.fileprovider",
+                                        file
+                                )
+                        Log.d("EditProfile", "Photo taken: $uri")
+                        Glide.with(requireContext()).load(uri).circleCrop().into(ivProfile)
+                        viewModel.updatePhoto(uri)
+                    }
+                } else {
+                    Toast.makeText(requireContext(), "Gagal mengambil foto", Toast.LENGTH_SHORT)
+                            .show()
+                }
+            }
+
+    private fun createImageFile(): java.io.File {
+        val storageDir =
+                requireContext().getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES)
+        return java.io.File.createTempFile(
+                        "PROFILE_${System.currentTimeMillis()}_",
+                        ".jpg",
+                        storageDir
+                )
+                .apply { currentPhotoPath = absolutePath }
     }
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+            inflater: LayoutInflater,
+            container: ViewGroup?,
+            savedInstanceState: Bundle?
     ): View? {
         return inflater.inflate(R.layout.fragment_edit_profile, container, false)
     }
@@ -81,9 +112,7 @@ class EditProfilePage : Fragment() {
         viewChangePhoto = view.findViewById(R.id.view_change_photo)
 
         // Listener Foto
-        viewChangePhoto.setOnClickListener {
-            pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-        }
+        viewChangePhoto.setOnClickListener { showImageSourceDialog() }
 
         // Listener Simpan
         btnSave.setOnClickListener {
@@ -93,6 +122,46 @@ class EditProfilePage : Fragment() {
         }
 
         observeViewModel()
+    }
+
+    private fun showImageSourceDialog() {
+        val options = arrayOf("Ambil Foto (Kamera)", "Pilih dari Galeri")
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("Ganti Foto Profil")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> {
+                            // Camera
+                            try {
+                                val photoFile = createImageFile()
+                                val photoUri =
+                                        androidx.core.content.FileProvider.getUriForFile(
+                                                requireContext(),
+                                                "${requireContext().packageName}.fileprovider",
+                                                photoFile
+                                        )
+                                takePicture.launch(photoUri)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                Toast.makeText(
+                                                requireContext(),
+                                                "Gagal membuka kamera: ${e.message}",
+                                                Toast.LENGTH_SHORT
+                                        )
+                                        .show()
+                            }
+                        }
+                        1 -> {
+                            // Gallery
+                            pickMedia.launch(
+                                    PickVisualMediaRequest(
+                                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                                    )
+                            )
+                        }
+                    }
+                }
+                .show()
     }
 
     private fun observeViewModel() {
@@ -123,20 +192,36 @@ class EditProfilePage : Fragment() {
             // C. Hasil Update
             launch {
                 viewModel.updateResult.collect { result ->
-                    result?.onSuccess { updatedUser ->
-                        Toast.makeText(requireContext(), "Berhasil disimpan!", Toast.LENGTH_SHORT).show()
+                    result
+                            ?.onSuccess { updatedUser ->
+                                Toast.makeText(
+                                                requireContext(),
+                                                "Berhasil disimpan!",
+                                                Toast.LENGTH_SHORT
+                                        )
+                                        .show()
 
-                        // Delay untuk memastikan server sudah siap
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            retryCount = 0
-                            loadUserPhoto(updatedUser.photo_url)
-                        }, 500)
+                                // Delay untuk memastikan server sudah siap
+                                Handler(Looper.getMainLooper())
+                                        .postDelayed(
+                                                {
+                                                    retryCount = 0
+                                                    loadUserPhoto(updatedUser.photo_url)
+                                                },
+                                                500
+                                        )
 
-                        viewModel.resetState()
-                    }?.onFailure { e ->
-                        Toast.makeText(requireContext(), "Gagal: ${e.message}", Toast.LENGTH_LONG).show()
-                        viewModel.resetState()
-                    }
+                                viewModel.resetState()
+                            }
+                            ?.onFailure { e ->
+                                Toast.makeText(
+                                                requireContext(),
+                                                "Gagal: ${e.message}",
+                                                Toast.LENGTH_LONG
+                                        )
+                                        .show()
+                                viewModel.resetState()
+                            }
                 }
             }
         }
@@ -149,73 +234,108 @@ class EditProfilePage : Fragment() {
             return
         }
 
-        // Build full URL - pastikan format benar
-        val fullUrl = when {
-            photoUrl.startsWith("http://") || photoUrl.startsWith("https://") -> photoUrl
-            photoUrl.startsWith("/api/") -> "http://10.0.2.2:8000$photoUrl"
-            photoUrl.startsWith("/storage/") -> "http://10.0.2.2:8000$photoUrl"
-            else -> "http://10.0.2.2:8000/api/photos/$photoUrl"
-        }
+        // Determine load source: Local File or Remote URL
+        // Use GlideUrl for remote paths to add Auth Header
+        val loadModel: Any =
+                when {
+                    // 1. Local File Check (Absolute path & file exists)
+                    !photoUrl.startsWith("http") && java.io.File(photoUrl).exists() -> {
+                        Log.d("EditProfile", "Loading local file: $photoUrl")
+                        java.io.File(photoUrl)
+                    }
+                    // 2. Remote URL construction with Headers
+                    else -> {
+                        val fullUrl =
+                                when {
+                                    photoUrl.startsWith("http") -> photoUrl
+                                    photoUrl.startsWith("/api/") -> "http://10.0.2.2:8000$photoUrl"
+                                    photoUrl.startsWith("/storage/") -> "http://10.0.2.2:8000$photoUrl"
+                                    else -> "http://10.0.2.2:8000/api/photos/$photoUrl"
+                                }
 
-        Log.d("EditProfile", "Loading URL: $fullUrl (Attempt ${retryCount + 1}/$maxRetries)")
+                        val token = com.example.catetduls.data.local.TokenManager.getAccessToken(requireContext())
+                        if (token != null) {
+                            com.bumptech.glide.load.model.GlideUrl(
+                                    fullUrl,
+                                    com.bumptech.glide.load.model.LazyHeaders.Builder()
+                                            .addHeader("Authorization", "Bearer $token")
+                                            .build()
+                            )
+                        } else {
+                            fullUrl
+                        }
+                    }
+                }
+
+        Log.d(
+                "EditProfile",
+                "Loading Image from: $loadModel (Attempt ${retryCount + 1}/$maxRetries)"
+        )
 
         // Hapus tint default
         ivProfile.imageTintList = null
 
         Glide.with(requireContext())
-            .load(fullUrl)
-            .apply(
-                RequestOptions()
-                    .override(800, 800) // Resize untuk performa
-            )
-            .diskCacheStrategy(DiskCacheStrategy.NONE)
-            .skipMemoryCache(true)
-            .placeholder(R.drawable.ic_person_24)
-            .error(R.drawable.ic_person_24)
-            .listener(object : RequestListener<Drawable> {
-                override fun onLoadFailed(
-                    e: GlideException?,
-                    model: Any?,
-                    target: Target<Drawable>?,
-                    isFirstResource: Boolean
-                ): Boolean {
-                    Log.e("EditProfile", "Failed to load image: ${e?.message}")
-                    e?.logRootCauses("EditProfile")
+                .load(loadModel)
+                .apply(
+                        RequestOptions().override(800, 800) // Resize untuk performa
+                )
+                .diskCacheStrategy(DiskCacheStrategy.NONE)
+                .skipMemoryCache(true)
+                .placeholder(R.drawable.ic_person_24)
+                .error(R.drawable.ic_person_24)
+                .listener(
+                        object : RequestListener<Drawable> {
+                            override fun onLoadFailed(
+                                    e: GlideException?,
+                                    model: Any?,
+                                    target: Target<Drawable>?,
+                                    isFirstResource: Boolean
+                            ): Boolean {
+                                Log.e("EditProfile", "Failed to load image: ${e?.message}")
+                                e?.logRootCauses("EditProfile")
 
-                    // Retry logic
-                    if (retryCount < maxRetries) {
-                        retryCount++
-                        Log.d("EditProfile", "Retrying... ($retryCount/$maxRetries)")
+                                // Retry logic
+                                if (retryCount < maxRetries) {
+                                    retryCount++
+                                    Log.d("EditProfile", "Retrying... ($retryCount/$maxRetries)")
 
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            loadUserPhoto(photoUrl)
-                        }, 1000) // Retry setelah 1 detik
-                    } else {
-                        Log.e("EditProfile", "Max retries reached. Giving up.")
-                        Toast.makeText(
-                            requireContext(),
-                            "Gagal memuat foto profil",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                                    Handler(Looper.getMainLooper())
+                                            .postDelayed(
+                                                    { loadUserPhoto(photoUrl) },
+                                                    1000
+                                            ) // Retry setelah 1 detik
+                                } else {
+                                    Log.e("EditProfile", "Max retries reached. Giving up.")
+                                    Toast.makeText(
+                                                    requireContext(),
+                                                    "Gagal memuat foto profil",
+                                                    Toast.LENGTH_SHORT
+                                            )
+                                            .show()
+                                }
 
-                    return false
-                }
+                                return false
+                            }
 
-                override fun onResourceReady(
-                    resource: Drawable?,
-                    model: Any?,
-                    target: Target<Drawable>?,
-                    dataSource: DataSource?,
-                    isFirstResource: Boolean
-                ): Boolean {
-                    Log.d("EditProfile", "Image loaded successfully from: ${dataSource?.name}")
-                    retryCount = 0 // Reset retry count on success
-                    return false
-                }
-            })
-            .circleCrop()
-            .into(ivProfile)
+                            override fun onResourceReady(
+                                    resource: Drawable?,
+                                    model: Any?,
+                                    target: Target<Drawable>?,
+                                    dataSource: DataSource?,
+                                    isFirstResource: Boolean
+                            ): Boolean {
+                                Log.d(
+                                        "EditProfile",
+                                        "Image loaded successfully from: ${dataSource?.name}"
+                                )
+                                retryCount = 0 // Reset retry count on success
+                                return false
+                            }
+                        }
+                )
+                .circleCrop()
+                .into(ivProfile)
     }
 
     override fun onDestroyView() {

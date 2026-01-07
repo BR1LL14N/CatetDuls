@@ -6,16 +6,16 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.google.gson.annotations.SerializedName
 import kotlinx.parcelize.Parcelize
 
 enum class WalletType {
-    CASH,
-    BANK,
-    E_WALLET,
-    INVESTMENT
+    @SerializedName("CASH") CASH,
+    @SerializedName("BANK") BANK,
+    @SerializedName("E_WALLET") E_WALLET,
+    @SerializedName("INVESTMENT") INVESTMENT
 }
 
-/** Entity untuk Dompet Setiap dompet terikat pada satu buku */
 @Parcelize
 @Entity(
         tableName = "wallets",
@@ -30,8 +30,8 @@ enum class WalletType {
         indices = [Index(value = ["bookId"]), Index(value = ["type"])]
 )
 data class Wallet(
-        @PrimaryKey(autoGenerate = true) override val id: Int = 0,
-        @com.google.gson.annotations.SerializedName("book_id") val bookId: Int,
+        @PrimaryKey(autoGenerate = true) @SerializedName("local_id") override val id: Int = 0,
+        @SerializedName("book_id") val bookId: Int,
         val name: String,
         val type: WalletType,
         val icon: String = "💰",
@@ -42,7 +42,7 @@ data class Wallet(
         val isActive: Boolean = true,
         @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
         @ColumnInfo(name = "updated_at") override val updatedAt: Long = System.currentTimeMillis(),
-        @ColumnInfo(name = "server_id") override val serverId: String? = null,
+        @ColumnInfo(name = "server_id") @SerializedName("id") override val serverId: String? = null,
         @ColumnInfo(name = "is_synced") override val isSynced: Boolean = false,
         @ColumnInfo(name = "is_deleted") override val isDeleted: Boolean = false,
         @ColumnInfo(name = "last_sync_at") override val lastSyncAt: Long,
