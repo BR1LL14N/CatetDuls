@@ -1,8 +1,8 @@
 package com.example.catetduls.viewmodel
 
+// TransactionType
 import androidx.lifecycle.*
 import com.example.catetduls.data.* // Asumsi ini berisi kelas Transaction, Category, Wallet, dan
-// TransactionType
 import java.util.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +14,7 @@ class TambahViewModel(
         private val transactionRepository: TransactionRepository,
         private val categoryRepository: CategoryRepository,
         private val walletRepository: WalletRepository,
-        private val bookRepository: BookRepository, // Add BookRepository
+        private val bookRepository: BookRepository,
         private val activeWalletId: Int,
         private val activeBookId: Int
 ) : ViewModel() {
@@ -72,16 +72,16 @@ class TambahViewModel(
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 // Get Transfer Category ID on init
-                val id = categoryRepository.getCategoryIdByType(
-                    TransactionType.TRANSFER,
-                    activeBookId
-                )
+                val id =
+                        categoryRepository.getCategoryIdByType(
+                                TransactionType.TRANSFER,
+                                activeBookId
+                        )
                 _transferCategoryId.value = id
 
                 // Fetch Active Book Currency Code
                 val book = bookRepository.getBookByIdSync(activeBookId)
                 if (book != null) {
-                    // ✅ PERBAIKAN: Gunakan Elvis Operator (?:)
                     // Jika book.currencyCode null, gunakan "IDR" sebagai default
                     activeCurrencyCode = book.currencyCode ?: "IDR"
                 }
@@ -173,21 +173,21 @@ class TambahViewModel(
     private fun parseAmount(): Double? {
         val raw = _amount.value
         if (raw.isBlank()) return null
-        
+
         // Asumsi format input mengikuti Locale Indonesia (Titik = Ribuan, Koma = Desimal)
         // Contoh: "1.000.000" -> 1000000
         // Contoh: "10,50" -> 10.5
-        
+
         // 1. Hapus titik (ribuan)
         var cleaned = raw.replace(".", "")
-        
+
         // 2. Ganti koma dengan titik (untuk format Double standar program)
         cleaned = cleaned.replace(",", ".")
-        
+
         return cleaned.toDoubleOrNull()
     }
 
-    fun saveTransaction() {
+    fun saveTransaction(context: android.content.Context) {
         viewModelScope.launch {
             _isSaving.value = true
 
@@ -209,14 +209,14 @@ class TambahViewModel(
                 if (amountInIdr <= 0 || !isFormValid()) {
                     if (amountInIdr <= 0) {
                         _errorMessage.value = "Jumlah harus lebih dari 0"
-                    } else if (currentType == TransactionType.TRANSFER &&
-                                    _transferCategoryId.value == null
-                    ) {
-                        _errorMessage.value =
-                                "Kategori Transfer belum tersedia. Coba restart aplikasi."
                     } else if (currentType == TransactionType.TRANSFER) {
-                        _errorMessage.value =
-                                "Transfer tidak valid: Pastikan Dompet Sumber dan Tujuan berbeda dan jumlah diisi."
+                        if (_transferCategoryId.value == null) {
+                            _errorMessage.value =
+                                    "Kategori Transfer belum tersedia. Coba restart aplikasi."
+                        } else {
+                            _errorMessage.value =
+                                    "Transfer tidak valid: Pastikan Dompet Sumber dan Tujuan berbeda dan jumlah diisi."
+                        }
                     } else {
                         _errorMessage.value =
                                 "Transaksi tidak valid: Kategori dan Dompet harus dipilih."
@@ -231,43 +231,68 @@ class TambahViewModel(
                     return@launch
                 }
 
-                // --- Sync Metadata Preparation ---
+                // --- 3. IMAGE HANDLING LOGIC ---
+                var finalImagePath = _imagePath.value
+
+                // Jika path adalah Content URI (dari Galeri/Kamera), copy ke Internal Storage
+                // Jangan copy jika sudah berupa path file di internal storage atau URL remote
+                if (finalImagePath != null &&
+                                (finalImagePath.startsWith("content:") ||
+                                        finalImagePath.startsWith("file:"))
+                ) {
+                    val uri = android.net.Uri.parse(finalImagePath)
+                    val newPath =
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                copyImageToInternalStorage(context, uri)
+                            }
+
+                    if (newPath != null) {
+                        finalImagePath = newPath
+                    } else {
+                        android.util.Log.w(
+                                "TambahViewModel",
+                                "Failed to copy image to internal storage"
+                        )
+                        // Fallback: keep original URI (might fail later if temp permission lost,
+                        // but better than null)
+                    }
+                }
+
+                // --- 4. DATA PREPARATION ---
                 val syncAction = if (isEdit) "UPDATE" else "CREATE"
 
+                // Get existing for serverId
                 val existingTransaction =
                         if (isEdit) {
                             transactionRepository.getSingleTransactionById(_transactionId.value!!)
                         } else null
                 val existingServerId = existingTransaction?.serverId
 
-                // --- TRANSFER LOGIC (Dual Transaction) ---
+                // Check Transfer
                 if (currentType == TransactionType.TRANSFER) {
                     val sourceWalletId = _selectedWalletId.value
                     val targetWalletId = _selectedTargetWalletId.value!!
                     val transferCategoryId = _transferCategoryId.value!!
 
                     val timestamp = _date.value
-                    val imagePath = _imagePath.value
                     val notes = _notes.value
 
                     val sourceWalletName = getWalletNameById(sourceWalletId)
                     val targetWalletName = getWalletNameById(targetWalletId)
 
-                    // 1. EXPENSE Transaction (From Source Wallet)
+                    // 1. EXPENSE
                     val expenseTransaction =
                             Transaction(
                                     id = 0,
                                     type = TransactionType.PENGELUARAN,
-                                    amount = amountInIdr, // Save IDR
+                                    amount = amountInIdr,
                                     categoryId = transferCategoryId,
                                     date = timestamp,
                                     notes =
                                             "[TRANSFER OUT: dari ${sourceWalletName} ke ${targetWalletName}], $notes",
                                     walletId = sourceWalletId,
-                                    // ✅ FIX: Added bookId
                                     bookId = activeBookId,
-                                    imagePath = imagePath,
-                                    // === SYNC FIELDS ===
+                                    imagePath = finalImagePath, // PATH BARU
                                     createdAt = currentTime,
                                     updatedAt = currentTime,
                                     lastSyncAt = 0,
@@ -277,21 +302,19 @@ class TambahViewModel(
                                     isDeleted = false
                             )
 
-                    // 2. INCOME Transaction (To Target Wallet)
+                    // 2. INCOME
                     val incomeTransaction =
                             Transaction(
                                     id = 0,
                                     type = TransactionType.PEMASUKAN,
-                                    amount = amountInIdr, // Save IDR
+                                    amount = amountInIdr,
                                     categoryId = transferCategoryId,
                                     date = timestamp,
                                     notes =
                                             "[TRANSFER IN: dari ${sourceWalletName} ke ${targetWalletName}], $notes",
                                     walletId = targetWalletId,
-                                    // ✅ FIX: Added bookId
                                     bookId = activeBookId,
-                                    imagePath = imagePath,
-                                    // === SYNC FIELDS ===
+                                    imagePath = finalImagePath, // PATH BARU
                                     createdAt = currentTime,
                                     updatedAt = currentTime,
                                     lastSyncAt = 0,
@@ -321,9 +344,8 @@ class TambahViewModel(
                                     date = _date.value,
                                     notes = _notes.value,
                                     walletId = walletId,
-                                    // ✅ FIX: Added bookId
                                     bookId = activeBookId,
-                                    imagePath = _imagePath.value,
+                                    imagePath = finalImagePath, // PATH BARU
 
                                     // === SYNC FIELDS ===
                                     createdAt =
@@ -354,49 +376,55 @@ class TambahViewModel(
         }
     }
 
-    // ... (Other functions remain the same) ...
-
     fun loadTransaction(transactionId: Int) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
                 // Ensure we have the correct active currency code first
-                val book = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    bookRepository.getBookByIdSync(activeBookId)
-                }
+                val book =
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            bookRepository.getBookByIdSync(activeBookId)
+                        }
                 if (book != null) {
-                    // ✅ PERBAIKAN: Gunakan Elvis Operator (?:)
                     activeCurrencyCode = book.currencyCode ?: "IDR"
                 }
 
                 transactionRepository
-                    .getTransactionById(transactionId)
-                    .asLiveData()
-                    .observeForever { transaction ->
-                        if (transaction != null) {
-                            _transactionId.value = transaction.id
-                            _selectedType.value = transaction.type
-                            _selectedCategoryId.value = transaction.categoryId
+                        .getTransactionById(transactionId)
+                        .asLiveData()
+                        .observeForever { transaction ->
+                            if (transaction != null) {
+                                _transactionId.value = transaction.id
+                                _selectedType.value = transaction.type
+                                _selectedCategoryId.value = transaction.categoryId
 
-                            // Convert IDR -> Active Currency
-                            val converted = com.example.catetduls.utils.CurrencyHelper.convertIdrTo(transaction.amount, activeCurrencyCode)
+                                // Convert IDR -> Active Currency
+                                val converted =
+                                        com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
+                                                transaction.amount,
+                                                activeCurrencyCode
+                                        )
 
-                            // Format strictly with COMMA as decimal separator to match parseAmount logic
-                            // Use US locale to ensure dot is decimal, then swap to comma
-                            val formatted = if (converted % 1.0 == 0.0) {
-                                String.format(java.util.Locale.US, "%.0f", converted)
-                            } else {
-                                String.format(java.util.Locale.US, "%.2f", converted).replace('.', ',')
+                                // Format strictly with COMMA as decimal separator to match
+                                // parseAmount logic
+                                // Use US locale to ensure dot is decimal, then swap to comma
+                                val formatted =
+                                        if (converted % 1.0 == 0.0) {
+                                            String.format(java.util.Locale.US, "%.0f", converted)
+                                        } else {
+                                            String.format(java.util.Locale.US, "%.2f", converted)
+                                                    .replace('.', ',')
+                                        }
+                                // android.util.Log.d("TambahViewModel", "Formatted Strings:
+                                // $formatted")
+
+                                _amount.value = formatted
+                                _date.value = transaction.date
+                                _notes.value = transaction.notes
+                                _imagePath.value = transaction.imagePath
                             }
-                            // android.util.Log.d("TambahViewModel", "Formatted Strings: $formatted")
-
-                            _amount.value = formatted
-                            _date.value = transaction.date
-                            _notes.value = transaction.notes
-                            _imagePath.value = transaction.imagePath
+                            _isLoading.value = false
                         }
-                        _isLoading.value = false
-                    }
             } catch (e: Exception) {
                 _isLoading.value = false
                 _errorMessage.value = "Gagal memuat transaksi: ${e.message}"
@@ -439,14 +467,47 @@ class TambahViewModel(
 
         if (oldPath != null) {
             try {
-                val file = java.io.File(oldPath)
-                if (file.exists()) {
-                    file.delete()
-                    android.util.Log.d("TambahViewModel", "Image file deleted: $oldPath")
+                // Hanya hapus jika file lokal dan bukan URL
+                val isLocalFile = !oldPath.startsWith("http") && !oldPath.startsWith("content")
+                if (isLocalFile) {
+                    val file = java.io.File(oldPath)
+                    if (file.exists()) {
+                        file.delete()
+                        android.util.Log.d("TambahViewModel", "Image file deleted: $oldPath")
+                    }
                 }
             } catch (e: Exception) {
                 android.util.Log.e("TambahViewModel", "Error deleting image: ${e.message}")
             }
+        }
+    }
+
+    private fun copyImageToInternalStorage(
+            context: android.content.Context,
+            uri: android.net.Uri
+    ): String? {
+        return try {
+            val contentResolver = context.contentResolver
+            val inputStream = contentResolver.openInputStream(uri) ?: return null
+
+            // Create a dedicated directory for transaction images
+            val imagesDir = java.io.File(context.filesDir, "transaction_images")
+            if (!imagesDir.exists()) {
+                imagesDir.mkdirs()
+            }
+
+            // Generate a unique filename
+            val fileName = "IMG_${System.currentTimeMillis()}_${java.util.UUID.randomUUID()}.jpg"
+            val destFile = java.io.File(imagesDir, fileName)
+
+            val outputStream = java.io.FileOutputStream(destFile)
+
+            inputStream.use { input -> outputStream.use { output -> input.copyTo(output) } }
+
+            destFile.absolutePath
+        } catch (e: Exception) {
+            android.util.Log.e("TambahViewModel", "Error copying image: ${e.message}")
+            null
         }
     }
 
@@ -473,13 +534,13 @@ class TambahViewModel(
         val decimalPart = if (parts.size > 1) parts[1] else null
 
         val number = integerPart.toLongOrNull() ?: return value
-        
+
         // Consistent formatting with Fragment
         val symbols = java.text.DecimalFormatSymbols(Locale.US)
         symbols.groupingSeparator = '.'
         symbols.decimalSeparator = ','
         val decimalFormat = java.text.DecimalFormat("#,###", symbols)
-        
+
         val formattedInteger = decimalFormat.format(number)
 
         return if (decimalPart != null) {

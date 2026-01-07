@@ -1,33 +1,30 @@
 package com.example.catetduls.ui.viewmodel
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
-import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.catetduls.data.User
 import com.example.catetduls.data.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.io.FileOutputStream
-import java.io.InputStream
-import javax.inject.Inject
 
 @HiltViewModel
-class EditProfileViewModel @Inject constructor(
-    private val userRepository: UserRepository,
-    // 👇 PERBAIKAN: Tambahkan 'private val' dan ganti nama jadi 'applicationContext' agar aman
-    @ApplicationContext private val applicationContext: Context
+class EditProfileViewModel
+@Inject
+constructor(
+        private val userRepository: UserRepository,
+        @ApplicationContext private val applicationContext: Context
 ) : ViewModel() {
 
     private val _isLoading = MutableStateFlow(false)
@@ -44,9 +41,7 @@ class EditProfileViewModel @Inject constructor(
     }
 
     private fun loadCurrentUser() {
-        viewModelScope.launch {
-            _currentUser.value = userRepository.getCurrentUser()
-        }
+        viewModelScope.launch { _currentUser.value = userRepository.getCurrentUser() }
     }
 
     // Update Profile Text
@@ -63,21 +58,45 @@ class EditProfileViewModel @Inject constructor(
         }
     }
 
-    // Update Foto
+    // Update Foto (Offline-First)
     fun updatePhoto(uri: Uri) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // 1. Ubah URI Galeri menjadi File Asli di Cache
-                // 👇 Gunakan 'applicationContext' yang sudah dideklarasikan di atas
-                val file = uriToFile(uri, applicationContext)
+                // 1. Copy image to Internal Storage (Private & Persistent)
+                val newPath = copyImageToInternalStorage(uri, applicationContext)
 
-                if (file != null) {
-                    // 2. Kirim File ke Repository
-                    val result = userRepository.uploadPhoto(file)
-                    _updateResult.value = result
+                if (newPath != null) {
+                    val currentUser = _currentUser.value
+                    if (currentUser != null) {
+                        // 2. Update Local Database first (Optimistic UI)
+                        // Mark as unsynced so SyncWorker picks it up
+                        val updatedUser =
+                                currentUser.copy(
+                                        photo_url = newPath, // Local path
+                                        updated_at = System.currentTimeMillis().toString(),
+                                        is_synced = false
+                                )
+                        userRepository.saveUser(updatedUser)
+
+                        // Update UI immediately
+                        _currentUser.value = updatedUser
+
+                        // 3. Trigger One-Time Sync immediately (Background)
+                        // We do this via Repository or WorkManager (optional, but good for UX)
+                        // For now, we rely on the standard SyncWorker or we can trigger it manually
+                        // if needed.
+                        // Ideally, UI observes 'currentUser' so it updates automatically.
+
+                        _updateResult.value = Result.success(updatedUser)
+                    } else {
+                        _updateResult.value = Result.failure(Exception("User belum login"))
+                    }
                 } else {
-                    _updateResult.value = Result.failure(Exception("Gagal memproses file gambar"))
+                    _updateResult.value =
+                            Result.failure(
+                                    Exception("Gagal menyimpan file gambar ke internal storage")
+                            )
                 }
             } catch (e: Exception) {
                 _updateResult.value = Result.failure(e)
@@ -87,26 +106,35 @@ class EditProfileViewModel @Inject constructor(
         }
     }
 
-    // Helper: Salin Uri -> File Cache
-    private suspend fun uriToFile(uri: Uri, context: Context): File? = withContext(Dispatchers.IO) {
-        try {
-            val contentResolver = context.contentResolver
-            val tempFile = File.createTempFile("upload_img", ".jpg", context.cacheDir)
+    // Helper: Salin Uri -> File Internal Storage (Persistent)
+    private suspend fun copyImageToInternalStorage(uri: Uri, context: Context): String? =
+            withContext(Dispatchers.IO) {
+                try {
+                    // Create directory if not exists
+                    val directory = File(context.filesDir, "profile_images")
+                    if (!directory.exists()) {
+                        directory.mkdirs()
+                    }
 
-            val inputStream: InputStream? = contentResolver.openInputStream(uri)
-            val outputStream = FileOutputStream(tempFile)
+                    // Generate unique filename
+                    val fileName = "IMG_PROFILE_${System.currentTimeMillis()}.jpg"
+                    val file = File(directory, fileName)
 
-            inputStream?.copyTo(outputStream)
+                    val contentResolver = context.contentResolver
+                    val inputStream: InputStream? = contentResolver.openInputStream(uri)
+                    val outputStream = FileOutputStream(file)
 
-            inputStream?.close()
-            outputStream.close()
+                    inputStream?.use { input ->
+                        outputStream.use { output -> input.copyTo(output) }
+                    }
 
-            tempFile
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
+                    // Return absolute path
+                    file.absolutePath
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    null
+                }
+            }
 
     fun resetState() {
         _updateResult.value = null

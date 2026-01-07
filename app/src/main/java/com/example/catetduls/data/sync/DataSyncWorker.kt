@@ -28,6 +28,7 @@ import dagger.assisted.AssistedInject
 import java.io.IOException
 import kotlinx.coroutines.flow.firstOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 
 @HiltWorker
@@ -40,6 +41,7 @@ constructor(
         private val walletRepository: WalletRepository,
         private val categoryRepository: CategoryRepository,
         private val transactionRepository: TransactionRepository,
+        private val userRepository: UserRepository, // Injected
         private val apiService: ApiService
 ) : CoroutineWorker(appContext, workerParams) {
 
@@ -109,6 +111,10 @@ constructor(
                 setForeground(createForegroundInfo("Memulai sinkronisasi..."))
 
                 try {
+                        // --- SYNC USER PROFILE ---
+                        Log.d(TAG, "[SYNC] 👤 Mengecek status sync profil user...")
+                        syncUserProfile()
+
                         // --- PUSH: Kirim perubahan lokal ke server ---
                         Log.d(TAG, "[SYNC] 📤 Memulai PUSH sync (Lokal → Server)...")
                         val pushSuccess = performPushSync()
@@ -164,6 +170,48 @@ constructor(
                         // ===================================
 
                         return Result.failure() // Stop retrying on critical errors
+                }
+        }
+
+        private suspend fun syncUserProfile() {
+                try {
+                        val currentUser = userRepository.getLocalUser() ?: return
+
+                        // ONLY try to upload if checking explicitly marked as NOT SYNCED
+                        // This avoids trying to upload "images/profile.jpg" (remote path) as a local file
+                        if (!currentUser.is_synced && !currentUser.photo_url.isNullOrEmpty()) {
+
+                                val file = java.io.File(currentUser.photo_url)
+                                if (file.exists()) {
+                                        Log.d(TAG, "[SYNC_USER] Found local photo pending upload: ${currentUser.photo_url}")
+
+                                        val result = userRepository.uploadPhoto(file)
+
+                                        result.onSuccess {
+                                                Log.d(TAG, "[SYNC_USER] ✅ Photo upload success! Remote URL: ${it.photo_url}")
+                                                
+                                                // Update local user: set new URL AND set is_synced = true
+                                                val updatedUser = currentUser.copy(
+                                                    photo_url = it.photo_url,
+                                                    is_synced = true,
+                                                    last_synced_at = System.currentTimeMillis()
+                                                )
+                                                userRepository.updateUser(updatedUser)
+                                        }.onFailure {
+                                                Log.e(TAG, "[SYNC_USER] ❌ Photo upload failed: ${it.message}")
+                                        }
+                                } else {
+                                        // Case: marked unsynced but file not found (maybe relative path from server?)
+                                        // If it looks like a server path, we should assume it's actually synced
+                                        if (currentUser.photo_url.contains("/")) { // Basic sanity check
+                                             Log.w(TAG, "[SYNC_USER] ⚠️ File not found: ${currentUser.photo_url}. Assuming already remote or lost.")
+                                        }
+                                }
+                        } else {
+                                Log.d(TAG, "[SYNC_USER] No unsynced local photo changes.")
+                        }
+                } catch (e: Exception) {
+                        Log.e(TAG, "[SYNC_USER] Failed: ${e.message}", e)
                 }
         }
 
@@ -405,48 +453,85 @@ constructor(
                                                                                 requestFile
                                                                         )
 
-                                                        apiService.createTransactionWithPhoto(
-                                                                bookId =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                serverBookId
-                                                                        ),
-                                                                walletId =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                serverWalletId
-                                                                        ),
-                                                                categoryId =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                serverCategoryId
-                                                                        ),
-                                                                amount =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                transaction.amount
-                                                                                        .toString()
-                                                                        ),
-                                                                type =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                transaction
-                                                                                        .type
-                                                                                        .name
-                                                                        ),
-                                                                note =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                transaction.notes
-                                                                        ),
-                                                                createdAt =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                transaction.date
-                                                                                        .toString()
-                                                                        ),
-                                                                image = photoPart
-                                                        )
+                                                        val response =
+                                                                apiService
+                                                                        .createTransactionWithPhoto(
+                                                                                bookId =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        serverBookId
+                                                                                                ),
+                                                                                walletId =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        serverWalletId
+                                                                                                ),
+                                                                                categoryId =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        serverCategoryId
+                                                                                                ),
+                                                                                amount =
+                                                                                        transaction
+                                                                                                .amount
+                                                                                                .toLong()
+                                                                                                .toString()
+                                                                                                .toRequestBody(
+                                                                                                        "text/plain".toMediaTypeOrNull()
+                                                                                                ),
+                                                                                type =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        transaction
+                                                                                                                .type
+                                                                                                                .name
+                                                                                                ),
+                                                                                note =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        transaction
+                                                                                                                .notes
+                                                                                                ),
+                                                                                createdAt =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        transaction
+                                                                                                                .date
+                                                                                                                .toString()
+                                                                                                ),
+                                                                                image = photoPart
+                                                                        )
+
+                                                        if (response.isSuccessful &&
+                                                                        response.body() != null
+                                                        ) {
+                                                                // UPDATE LOCAL PHOTO URL WITH
+                                                                // REMOTE URL
+                                                                val remotePhotoUrl =
+                                                                        response.body()
+                                                                                ?.data
+                                                                                ?.image_url
+                                                                if (!remotePhotoUrl.isNullOrEmpty()
+                                                                ) {
+                                                                        Log.d(
+                                                                                TAG,
+                                                                                "[PUSH_TRANS] Photo synced! Updating local path to: $remotePhotoUrl"
+                                                                        )
+                                                                        transactionRepository
+                                                                                .updateTransactionImagePath(
+                                                                                        transaction
+                                                                                                .id,
+                                                                                        remotePhotoUrl
+                                                                                )
+                                                                }
+                                                        }
+                                                        response
                                                 }
                                         } else {
                                                 // Use regular JSON request
@@ -549,51 +634,98 @@ constructor(
                                                                                 requestFile
                                                                         )
 
-                                                        apiService.updateTransactionWithPhoto(
-                                                                serverId =
-                                                                        transaction.serverId!!
-                                                                                .toLong(),
-                                                                bookId =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                serverBookId
-                                                                        ),
-                                                                walletId =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                serverWalletId
-                                                                        ),
-                                                                categoryId =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                serverCategoryId
-                                                                        ),
-                                                                amount =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                transaction.amount
-                                                                                        .toString()
-                                                                        ),
-                                                                type =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                transaction
-                                                                                        .type
-                                                                                        .name
-                                                                        ),
-                                                                note =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                transaction.notes
-                                                                        ),
-                                                                createdAt =
-                                                                        okhttp3.RequestBody.create(
-                                                                                "text/plain".toMediaTypeOrNull(),
-                                                                                transaction.date
-                                                                                        .toString()
-                                                                        ),
-                                                                image = photoPart
-                                                        )
+                                                        val response =
+                                                                apiService
+                                                                        .updateTransactionWithPhoto(
+                                                                                serverId =
+                                                                                        transaction
+                                                                                                        .serverId!!
+                                                                                                .toLong(),
+                                                                                bookId =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        serverBookId
+                                                                                                ),
+                                                                                walletId =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        serverWalletId
+                                                                                                ),
+                                                                                categoryId =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        serverCategoryId
+                                                                                                ),
+                                                                                amount =
+                                                                                        transaction
+                                                                                                .amount
+                                                                                                .toLong()
+                                                                                                .toString()
+                                                                                                .toRequestBody(
+                                                                                                        "text/plain".toMediaTypeOrNull()
+                                                                                                ),
+                                                                                type =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        transaction
+                                                                                                                .type
+                                                                                                                .name
+                                                                                                ),
+                                                                                note =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        transaction
+                                                                                                                .notes
+                                                                                                ),
+                                                                                createdAt =
+                                                                                        okhttp3.RequestBody
+                                                                                                .create(
+                                                                                                        "text/plain".toMediaTypeOrNull(),
+                                                                                                        transaction
+                                                                                                                .date
+                                                                                                                .toString()
+                                                                                                ),
+                                                                                image = photoPart
+                                                                        )
+
+                                                        if (response.isSuccessful) {
+                                                                // Note: updateTransactionWithPhoto
+                                                                // might return CreateResponse or
+                                                                // unit depending on API
+                                                                // Checking if we can extract image
+                                                                // url from response if available
+                                                                // Assuming standard response format
+                                                                // if it returns data
+                                                                if (response.body() is
+                                                                                CreateResponse
+                                                                ) {
+                                                                        val body =
+                                                                                response.body() as
+                                                                                        CreateResponse
+                                                                        val remotePhotoUrl =
+                                                                                body.data?.image_url
+                                                                        if (!remotePhotoUrl
+                                                                                        .isNullOrEmpty()
+                                                                        ) {
+                                                                                Log.d(
+                                                                                        TAG,
+                                                                                        "[PUSH_TRANS_UPDATE] Photo synced! Updating local path to: $remotePhotoUrl"
+                                                                                )
+                                                                                transactionRepository
+                                                                                        .updateTransactionImagePath(
+                                                                                                transaction
+                                                                                                        .id,
+                                                                                                remotePhotoUrl
+                                                                                        )
+                                                                        }
+                                                                }
+                                                        }
+                                                        response
                                                 }
                                         } else {
                                                 // Use regular JSON request

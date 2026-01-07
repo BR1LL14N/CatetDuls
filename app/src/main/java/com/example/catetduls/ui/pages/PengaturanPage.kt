@@ -14,13 +14,14 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels // Import Hilt ktx
+import androidx.fragment.app.viewModels
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
 import com.example.catetduls.R
 import com.example.catetduls.data.AppDatabase
 import com.example.catetduls.data.getBookRepository // Import Extension
-import com.example.catetduls.viewmodel.PengaturanViewModel
+import com.example.catetduls.ui.viewmodel.PengaturanViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -61,6 +62,9 @@ class PengaturanPage : Fragment() {
     private lateinit var tvActiveCurrency: TextView
     private lateinit var loadingOverlay: FrameLayout
     private lateinit var loadingText: TextView
+    private lateinit var ivProfileSetting: ImageView
+    private lateinit var cardProfileImage: androidx.cardview.widget.CardView
+    private lateinit var tvUserEmail: TextView
 
     // ===============================================
     // LAUNCHER UNTUK EXPORT FILE
@@ -221,6 +225,11 @@ class PengaturanPage : Fragment() {
         btnEditProfile = view.findViewById(R.id.btn_edit_profile)
         loadingOverlay = view.findViewById(R.id.loading_overlay)
         loadingText = view.findViewById(R.id.loading_text)
+
+        // Profile Views
+        ivProfileSetting = view.findViewById(R.id.iv_profile_setting)
+        cardProfileImage = view.findViewById(R.id.card_profile_image)
+        tvUserEmail = view.findViewById(R.id.tv_user_email)
     }
 
     private fun setupCardAnimations(view: View) {
@@ -395,6 +404,44 @@ class PengaturanPage : Fragment() {
                         .show()
             }
         }
+    }
+
+    // ===============================================
+    // HELPER
+    // ===============================================
+
+    private fun loadUserPhoto(photoUrl: String?) {
+        if (photoUrl.isNullOrEmpty()) {
+            ivProfileSetting.setImageResource(R.drawable.ic_person_24)
+            return
+        }
+
+        // Determine load source: Local File or Remote URL
+        val loadModel: Any =
+                when {
+                    // 1. Local File Check (Absolute path & file exists)
+                    !photoUrl.startsWith("http") && java.io.File(photoUrl).exists() -> {
+                        java.io.File(photoUrl)
+                    }
+                    // 2. Remote URL construction
+                    photoUrl.startsWith("http") -> photoUrl
+                    photoUrl.startsWith("/api/") -> "http://10.0.2.2:8000$photoUrl"
+                    photoUrl.startsWith("/storage/") -> "http://10.0.2.2:8000$photoUrl"
+                    else -> "http://10.0.2.2:8000/api/photos/$photoUrl"
+                }
+
+        // Hapus tint default
+        ivProfileSetting.imageTintList = null
+
+        Glide.with(this)
+                .load(loadModel)
+                .apply(com.bumptech.glide.request.RequestOptions().override(400, 400))
+                .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.NONE)
+                .skipMemoryCache(true)
+                .placeholder(R.drawable.ic_person_24)
+                .error(R.drawable.ic_person_24)
+                .circleCrop()
+                .into(ivProfileSetting)
     }
 
     // ===============================================
@@ -660,9 +707,22 @@ class PengaturanPage : Fragment() {
             }
         }
 
-        // Observe Username
-        viewModel.userName.asLiveData().observe(viewLifecycleOwner) { name ->
-            tvUserStatus.text = "Halo, $name"
+        // Observe Username & Photo
+        viewModel.currentUser.asLiveData().observe(viewLifecycleOwner) { user ->
+            if (user != null) {
+                tvUserStatus.text = "Halo, ${user.name}"
+                tvUserEmail.text = user.email
+                tvUserEmail.visibility = View.VISIBLE
+                cardProfileImage.visibility = View.VISIBLE
+                btnAuthAction.text = "Keluar Akun"
+
+                loadUserPhoto(user.photo_url)
+            } else {
+                tvUserStatus.text = "Halo, Tamu"
+                tvUserEmail.visibility = View.GONE
+                cardProfileImage.visibility = View.GONE
+                btnAuthAction.text = "Masuk Akun"
+            }
         }
 
         // Observe Success Message

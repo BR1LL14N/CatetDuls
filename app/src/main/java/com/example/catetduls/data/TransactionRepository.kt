@@ -195,6 +195,10 @@ constructor(
         transactionDao.updateSyncStatus(localId, serverId, lastSyncAt)
     }
 
+    suspend fun updateTransactionImagePath(id: Int, imagePath: String) {
+        transactionDao.updateTransactionImagePath(id, imagePath)
+    }
+
     /** Menyimpan data transaksi yang diterima dari server (untuk operasi PULL/READ dari server) */
     override suspend fun saveFromRemote(entity: Transaction) {
         // Cek data lama berdasarkan serverId

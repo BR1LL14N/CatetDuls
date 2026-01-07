@@ -1,4 +1,4 @@
-package com.example.catetduls.viewmodel
+package com.example.catetduls.ui.viewmodel
 
 // import com.example.catetduls.data.repository.UserRepository
 import android.content.Context
@@ -47,6 +47,9 @@ constructor(
 
     private val _userName = MutableStateFlow("Tamu")
     val userName: StateFlow<String> = _userName.asStateFlow()
+
+    private val _currentUser = MutableStateFlow<User?>(null)
+    val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
     // ========================================
     // Theme Settings
@@ -125,17 +128,21 @@ constructor(
                 try {
                     if (token != null) {
                         val user = userRepository.getCurrentUser()
+                        _currentUser.value = user
                         _userName.value = user?.name ?: "Pengguna"
                     } else {
+                        _currentUser.value = null
                         _userName.value = "Tamu"
                     }
                 } catch (e: Exception) {
+                    _currentUser.value = null
                     _userName.value = "Tamu"
                     e.printStackTrace()
                 }
             }
         } catch (e: Exception) {
             _isLoggedIn.value = false
+            _currentUser.value = null
             _userName.value = "Tamu"
             e.printStackTrace()
         }
@@ -148,6 +155,7 @@ constructor(
                 val result = userRepository.logout()
                 if (result.isSuccess) {
                     _isLoggedIn.value = false
+                    _currentUser.value = null
                     _userName.value = "Tamu"
                     _successMessage.value = "Berhasil keluar"
                 } else {
@@ -334,7 +342,9 @@ constructor(
         // Categories
         sb.append("\n-- Categories\n")
         categories.forEach { category ->
-            sb.append("INSERT OR REPLACE INTO categories (id, bookId, name, icon, type, isDefault, created_at, updated_at, server_id, is_synced, is_deleted, last_sync_at, sync_action) VALUES ")
+            sb.append(
+                    "INSERT OR REPLACE INTO categories (id, bookId, name, icon, type, isDefault, created_at, updated_at, server_id, is_synced, is_deleted, last_sync_at, sync_action) VALUES "
+            )
             val serverId = category.serverId?.let { "'${escapeSql(it)}'" } ?: "NULL"
             val syncAction = category.syncAction?.let { "'${escapeSql(it)}'" } ?: "NULL"
             sb.append(
@@ -371,7 +381,10 @@ constructor(
                 val gson = com.google.gson.Gson()
                 val backupData = gson.fromJson(jsonString, BackupData::class.java)
 
-                android.util.Log.d("PengaturanViewModel", "Restoring backup: ${backupData.books.size} books, ${backupData.wallets.size} wallets, ${backupData.categories.size} categories, ${backupData.transactions.size} transactions")
+                android.util.Log.d(
+                        "PengaturanViewModel",
+                        "Restoring backup: ${backupData.books.size} books, ${backupData.wallets.size} wallets, ${backupData.categories.size} categories, ${backupData.transactions.size} transactions"
+                )
 
                 // Insert books
                 backupData.books.forEach { book ->
@@ -379,7 +392,11 @@ constructor(
                         bookRepository.insertBookFromBackup(book)
                         android.util.Log.d("PengaturanViewModel", "Inserted book: ${book.name}")
                     } catch (e: Exception) {
-                        android.util.Log.e("PengaturanViewModel", "Failed to insert book: ${book.name}", e)
+                        android.util.Log.e(
+                                "PengaturanViewModel",
+                                "Failed to insert book: ${book.name}",
+                                e
+                        )
                         throw Exception("Gagal insert buku '${book.name}': ${e.message}")
                     }
                 }
@@ -390,7 +407,11 @@ constructor(
                         walletRepository.insertWalletFromBackup(wallet)
                         android.util.Log.d("PengaturanViewModel", "Inserted wallet: ${wallet.name}")
                     } catch (e: Exception) {
-                        android.util.Log.e("PengaturanViewModel", "Failed to insert wallet: ${wallet.name}", e)
+                        android.util.Log.e(
+                                "PengaturanViewModel",
+                                "Failed to insert wallet: ${wallet.name}",
+                                e
+                        )
                         throw Exception("Gagal insert wallet '${wallet.name}': ${e.message}")
                     }
                 }
@@ -399,9 +420,16 @@ constructor(
                 backupData.categories.forEach { category ->
                     try {
                         categoryRepository.insertCategoryFromBackup(category)
-                        android.util.Log.d("PengaturanViewModel", "Inserted category: ${category.name}")
+                        android.util.Log.d(
+                                "PengaturanViewModel",
+                                "Inserted category: ${category.name}"
+                        )
                     } catch (e: Exception) {
-                        android.util.Log.e("PengaturanViewModel", "Failed to insert category: ${category.name}", e)
+                        android.util.Log.e(
+                                "PengaturanViewModel",
+                                "Failed to insert category: ${category.name}",
+                                e
+                        )
                         throw Exception("Gagal insert kategori '${category.name}': ${e.message}")
                     }
                 }
@@ -411,7 +439,11 @@ constructor(
                     try {
                         transactionRepository.insertTransactionFromBackup(transaction)
                     } catch (e: Exception) {
-                        android.util.Log.e("PengaturanViewModel", "Failed to insert transaction ID: ${transaction.id}", e)
+                        android.util.Log.e(
+                                "PengaturanViewModel",
+                                "Failed to insert transaction ID: ${transaction.id}",
+                                e
+                        )
                         throw Exception("Gagal insert transaksi: ${e.message}")
                     }
                 }
@@ -446,10 +478,16 @@ constructor(
                                             (it.uppercase().startsWith("INSERT"))
                                 }
 
-                        android.util.Log.d("PengaturanViewModel", "Total SQL statements found: ${statements.size}")
-                        
+                        android.util.Log.d(
+                                "PengaturanViewModel",
+                                "Total SQL statements found: ${statements.size}"
+                        )
+
                         if (statements.isEmpty()) {
-                            android.util.Log.e("PengaturanViewModel", "No valid INSERT statements found")
+                            android.util.Log.e(
+                                    "PengaturanViewModel",
+                                    "No valid INSERT statements found"
+                            )
                             return@withContext Pair(
                                     false,
                                     "File SQL tidak mengandung statement INSERT yang valid"
@@ -461,18 +499,22 @@ constructor(
                         val errors = mutableListOf<String>()
 
                         // Sort statements by table dependency order
-                        val sortedStatements = statements.sortedBy { statement ->
-                            val upperStatement = statement.uppercase()
-                            when {
-                                upperStatement.contains("INTO BOOKS") -> 1
-                                upperStatement.contains("INTO WALLETS") -> 2
-                                upperStatement.contains("INTO CATEGORIES") -> 3
-                                upperStatement.contains("INTO TRANSACTIONS") -> 4
-                                else -> 5
-                            }
-                        }
-                        
-                        android.util.Log.d("PengaturanViewModel", "Sorted ${sortedStatements.size} statements by dependency order")
+                        val sortedStatements =
+                                statements.sortedBy { statement ->
+                                    val upperStatement = statement.uppercase()
+                                    when {
+                                        upperStatement.contains("INTO BOOKS") -> 1
+                                        upperStatement.contains("INTO WALLETS") -> 2
+                                        upperStatement.contains("INTO CATEGORIES") -> 3
+                                        upperStatement.contains("INTO TRANSACTIONS") -> 4
+                                        else -> 5
+                                    }
+                                }
+
+                        android.util.Log.d(
+                                "PengaturanViewModel",
+                                "Sorted ${sortedStatements.size} statements by dependency order"
+                        )
 
                         // Counters for each table
                         var booksInserted = 0
@@ -487,14 +529,16 @@ constructor(
                                     // Add semicolon back for execution
                                     db.openHelper.writableDatabase.execSQL("$statement;")
                                     successCount++
-                                    
+
                                     // Track per-table success
                                     val upperStatement = statement.uppercase()
                                     when {
                                         upperStatement.contains("INTO BOOKS") -> booksInserted++
                                         upperStatement.contains("INTO WALLETS") -> walletsInserted++
-                                        upperStatement.contains("INTO CATEGORIES") -> categoriesInserted++
-                                        upperStatement.contains("INTO TRANSACTIONS") -> transactionsInserted++
+                                        upperStatement.contains("INTO CATEGORIES") ->
+                                                categoriesInserted++
+                                        upperStatement.contains("INTO TRANSACTIONS") ->
+                                                transactionsInserted++
                                     }
                                 } catch (e: Exception) {
                                     errorCount++
@@ -508,9 +552,15 @@ constructor(
                                 }
                             }
                         }
-                        
-                        android.util.Log.d("PengaturanViewModel", "Restore completed: $successCount success, $errorCount errors")
-                        android.util.Log.d("PengaturanViewModel", "Per-table: Books=$booksInserted, Wallets=$walletsInserted, Categories=$categoriesInserted, Transactions=$transactionsInserted")
+
+                        android.util.Log.d(
+                                "PengaturanViewModel",
+                                "Restore completed: $successCount success, $errorCount errors"
+                        )
+                        android.util.Log.d(
+                                "PengaturanViewModel",
+                                "Per-table: Books=$booksInserted, Wallets=$walletsInserted, Categories=$categoriesInserted, Transactions=$transactionsInserted"
+                        )
 
                         // Return result
                         if (successCount > 0) {

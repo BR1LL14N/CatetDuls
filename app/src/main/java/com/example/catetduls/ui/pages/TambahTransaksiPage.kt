@@ -668,12 +668,16 @@ class TambahTransaksiPage : Fragment() {
 
     private fun setImageProof(uri: Uri) {
         imageUri = uri
-        ivProofImage.setImageURI(uri)
+        // Update ViewModel immediately
+        viewModel.setImagePath(uri.toString())
+
+        // Use Glide to load image
+        com.bumptech.glide.Glide.with(this).load(uri).into(ivProofImage)
+
         ivProofImage.visibility = View.VISIBLE
         // Menggunakan String literal
         btnAddPhoto.setText("Hapus Foto")
         btnAddPhoto.setIconResource(R.drawable.ic_baseline_close_24)
-        // Note: viewModel.setImagePath akan di-set saat btnSimpan diklik
     }
 
     private fun resetImageProof() {
@@ -851,7 +855,6 @@ class TambahTransaksiPage : Fragment() {
             btnLanjut.visibility = View.GONE
 
             // Ambil input dari UI
-            // Ambil input dari UI
             val rawAmount = etAmount.text.toString().replace(Regex("[^0-9,]"), "")
             val notes = etNotes.text.toString()
 
@@ -859,25 +862,13 @@ class TambahTransaksiPage : Fragment() {
             viewModel.setAmount(rawAmount)
             viewModel.setNotes(notes)
 
-            // Penanganan Gambar: simpan ke internal storage sebelum menyimpan transaksi
-            // PERBAIKAN: Mengganti isEditMode.value dengan pemanggilan fungsi isEditMode()
-            if (imageUri != null && viewModel.isEditMode() == false) {
-                // Hanya simpan jika ini transaksi baru atau jika uri adalah temp uri dari kamera
-                val newPath = saveImageToInternalStorage(imageUri!!)
-                if (newPath != null) {
-                    viewModel.setImagePath(newPath)
-                } else {
-                    viewModel.setImagePath(null)
-                    Toast.makeText(requireContext(), "Gagal menyimpan foto", Toast.LENGTH_SHORT)
-                            .show()
-                }
-            } else if (imageUri == null) {
-                viewModel.setImagePath(null)
-            }
-            // Jika imageUri != null dan isEditMode = true, asumsi path lama sudah benar
+            // Logic penyimpanan gambar sudah dipindah ke ViewModel.saveTransaction
+            // Kita hanya perlu memastikan imagePath di ViewModel sudah benar (handled by
+            // setImageProof)
 
             if (viewModel.isFormValid()) {
-                viewModel.saveTransaction()
+                // Pass context for file operations
+                viewModel.saveTransaction(requireContext())
             } else {
                 Toast.makeText(
                                 requireContext(),
@@ -980,34 +971,27 @@ class TambahTransaksiPage : Fragment() {
                 }
 
                 launch {
-                    viewModel.imagePath.collect { path ->
-                        // Tentukan apakah kita dalam mode edit
-                        val isEditing = viewModel.isEditMode()
+                    launch {
+                        viewModel.imagePath.collect { path ->
+                            if (!path.isNullOrEmpty()) {
+                                // Gunakan Glide untuk memuat gambar (mendukung File path, Content
+                                // Uri, dan URL remote)
+                                com.bumptech.glide.Glide.with(this@TambahTransaksiPage)
+                                        .load(path)
+                                        .placeholder(
+                                                R.drawable.ic_photo_24
+                                        ) // Placeholder jika loading
+                                        .error(R.drawable.ic_baseline_close_24) // Error image
+                                        .into(ivProofImage)
 
-                        if (path != null) {
-                            val file = File(path)
-                            if (file.exists()) {
-                                val uri = Uri.fromFile(file)
-                                imageUri = uri
-
-                                ivProofImage.setImageURI(uri)
                                 ivProofImage.visibility = View.VISIBLE
                                 btnAddPhoto.setText("Hapus Foto")
                                 btnAddPhoto.setIconResource(R.drawable.ic_baseline_close_24)
-                            } else {
-                                resetImageProof()
-                            }
-                        } else {
-                            // PERBAIKAN: Mengganti isEditMode.value dengan pemanggilan fungsi
-                            // isEditMode()
-                            if (imageUri != null && isEditing == false) {
-                                // Jika path di ViewModel null dan ini bukan proses edit
-                                resetImageProof()
-                            } else if (imageUri != null) {
-                                // Jika imageUri masih ada tapi path null (misal imageUri adalah
-                                // temp uri)
-                                // Biarkan UI tetap menampilkan imageUri, namun path akan di-set
-                                // null saat simpan
+
+                                // Keep local reference for dialogs
+                                try {
+                                    imageUri = Uri.parse(path)
+                                } catch (_: Exception) {}
                             } else {
                                 resetImageProof()
                             }
@@ -1145,41 +1129,7 @@ class TambahTransaksiPage : Fragment() {
         }
     }
 
-    private fun saveImageToInternalStorage(uri: Uri): String? {
-        return try {
-            val context = requireContext()
-            // Menggunakan contentResolver.openInputStream
-            val inputStream = context.contentResolver.openInputStream(uri)
-            if (inputStream == null) {
-                return null
-            }
-
-            val directory = File(context.filesDir, "transaction_images")
-            if (!directory.exists()) {
-                directory.mkdirs()
-            }
-
-            val fileName = "IMG_${System.currentTimeMillis()}_${UUID.randomUUID()}.jpg"
-            val file = File(directory, fileName)
-
-            val outputStream = java.io.FileOutputStream(file)
-            inputStream.copyTo(outputStream)
-
-            inputStream.close()
-            outputStream.close()
-
-            if (file.exists() && file.length() > 0) {
-                file.absolutePath
-            } else {
-                file.delete()
-                null
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-            null
-        }
-    }
+    // saveImageToInternalStorage removed - logic moved to ViewModel
 
     private fun triggerImmediateSync() {
         val workRequest =

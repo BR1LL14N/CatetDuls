@@ -67,6 +67,9 @@ interface TransactionDao {
     )
     suspend fun updateSyncStatus(localId: Int, serverId: String, lastSyncAt: Long)
 
+    @Query("UPDATE transactions SET image_path = :imagePath WHERE id = :id")
+    suspend fun updateTransactionImagePath(id: Int, imagePath: String)
+
     @Query("DELETE FROM transactions WHERE is_deleted = 1 AND is_synced = 1")
     suspend fun cleanupSyncedDeletes(): Unit
 

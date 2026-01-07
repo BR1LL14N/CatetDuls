@@ -357,11 +357,19 @@ constructor(
 
                     if (currentUser != null) {
                         // Update data user lokal dengan data baru dari remote
+                        // Update data user lokal dengan data baru dari remote
+                        // PENTING: Jangan timpa photo_url jika kita punya foto lokal yang belum di-sync!
+                        val finalPhotoUrl = if (!currentUser.is_synced && !currentUser.photo_url.isNullOrEmpty() && !currentUser.photo_url.startsWith("http")) {
+                            currentUser.photo_url // Keep local path
+                        } else {
+                            remoteUser.photo_url // Use remote path
+                        }
+
                         val updatedUser =
                                 currentUser.copy(
                                         name = remoteUser.name,
                                         email = remoteUser.email,
-                                        photo_url = remoteUser.photo_url,
+                                        photo_url = finalPhotoUrl,
                                         updated_at = remoteUser.updated_at ?: currentUser.updated_at
                                 )
 

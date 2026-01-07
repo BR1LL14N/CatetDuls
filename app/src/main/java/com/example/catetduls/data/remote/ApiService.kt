@@ -26,7 +26,10 @@ data class RemoteUser(
         val updated_at: String?
 )
 
-data class PhotoUploadData(val photo_url: String)
+data class PhotoUploadData(
+    @SerializedName("photo_url", alternate = ["image_url", "url"])
+    val photo_url: String
+)
 
 interface ApiService {
         // ===================================
@@ -305,7 +308,10 @@ interface ApiService {
 
 data class CreateResponse(val success: Boolean, val message: String, val data: CreatedData?)
 
-data class CreatedData(@SerializedName("id") val server_id: String)
+data class CreatedData(
+        @SerializedName("id") val server_id: String,
+        @SerializedName("image_url") val image_url: String? = null
+)
 
 data class MessageResponse(val message: String)
 
