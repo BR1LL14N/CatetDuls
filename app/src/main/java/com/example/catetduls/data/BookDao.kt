@@ -22,6 +22,8 @@ interface BookDao {
 
     @Query("SELECT COUNT(*) FROM books") suspend fun getBookCount(): Int
 
+    @Query("SELECT * FROM books ORDER BY created_at DESC") suspend fun getAllBooksSync(): List<Book>
+
     @Update suspend fun update(book: Book)
 
     @Query("UPDATE books SET isActive = 0") suspend fun deactivateAllBooks()
