@@ -85,6 +85,7 @@ constructor(
                                         icon = "💵",
                                         color = "#4CAF50",
                                         initialBalance = 0.0,
+                                        isActive = true,
                                         lastSyncAt = 0L
                                 ),
                                 Wallet(
@@ -94,6 +95,17 @@ constructor(
                                         icon = "🏦",
                                         color = "#2196F3",
                                         initialBalance = 0.0,
+                                        isActive = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Wallet(
+                                        bookId = bookId,
+                                        name = "E-Wallet",
+                                        type = WalletType.E_WALLET,
+                                        icon = "📱",
+                                        color = "#FF9800",
+                                        initialBalance = 0.0,
+                                        isActive = true,
                                         lastSyncAt = 0L
                                 )
                         )
@@ -103,45 +115,152 @@ constructor(
         private suspend fun createDefaultCategoriesForBook(bookId: Int) {
                 val defaultCategories =
                         listOf(
-                                // Income categories
+                                // Kategori Pengeluaran
                                 Category(
                                         bookId = bookId,
-                                        name = "Gaji",
-                                        type = TransactionType.PEMASUKAN,
-                                        icon = "💰",
-                                        isDefault = true,
-                                        lastSyncAt = 0L
-                                ),
-                                Category(
-                                        bookId = bookId,
-                                        name = "Bonus",
-                                        type = TransactionType.PEMASUKAN,
-                                        icon = "🎁",
-                                        isDefault = true,
-                                        lastSyncAt = 0L
-                                ),
-                                // Expense categories
-                                Category(
-                                        bookId = bookId,
-                                        name = "Makanan",
-                                        type = TransactionType.PENGELUARAN,
+                                        name = "Makanan & Minuman",
                                         icon = "🍔",
+                                        type = TransactionType.PENGELUARAN,
                                         isDefault = true,
                                         lastSyncAt = 0L
                                 ),
                                 Category(
                                         bookId = bookId,
                                         name = "Transport",
+                                        icon = "🚌",
                                         type = TransactionType.PENGELUARAN,
-                                        icon = "🚗",
                                         isDefault = true,
                                         lastSyncAt = 0L
                                 ),
                                 Category(
                                         bookId = bookId,
                                         name = "Belanja",
-                                        type = TransactionType.PENGELUARAN,
                                         icon = "🛒",
+                                        type = TransactionType.PENGELUARAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Hiburan",
+                                        icon = "🎮",
+                                        type = TransactionType.PENGELUARAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Kesehatan",
+                                        icon = "💊",
+                                        type = TransactionType.PENGELUARAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Pendidikan",
+                                        icon = "📚",
+                                        type = TransactionType.PENGELUARAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Tagihan",
+                                        icon = "💡",
+                                        type = TransactionType.PENGELUARAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Rumah Tangga",
+                                        icon = "🏠",
+                                        type = TransactionType.PENGELUARAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Olahraga",
+                                        icon = "⚽",
+                                        type = TransactionType.PENGELUARAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Kecantikan",
+                                        icon = "💄",
+                                        type = TransactionType.PENGELUARAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+
+                                // Kategori Pemasukan
+                                Category(
+                                        bookId = bookId,
+                                        name = "Gaji",
+                                        icon = "💼",
+                                        type = TransactionType.PEMASUKAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Bonus",
+                                        icon = "💰",
+                                        type = TransactionType.PEMASUKAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Investasi",
+                                        icon = "📈",
+                                        type = TransactionType.PEMASUKAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Hadiah",
+                                        icon = "🎁",
+                                        type = TransactionType.PEMASUKAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Freelance",
+                                        icon = "💻",
+                                        type = TransactionType.PEMASUKAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+
+                                // Kategori Lainnya
+                                Category(
+                                        bookId = bookId,
+                                        name = "Lainnya (Pemasukan)",
+                                        icon = "⚙️",
+                                        type = TransactionType.PEMASUKAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Lainnya (Pengeluaran)",
+                                        icon = "⚙️",
+                                        type = TransactionType.PENGELUARAN,
+                                        isDefault = true,
+                                        lastSyncAt = 0L
+                                ),
+                                Category(
+                                        bookId = bookId,
+                                        name = "Transfer",
+                                        icon = "🔄️",
+                                        type = TransactionType.TRANSFER,
                                         isDefault = true,
                                         lastSyncAt = 0L
                                 )

@@ -51,6 +51,8 @@ class PengaturanPage : Fragment() {
     private lateinit var tvAppVersion: TextView
     private lateinit var tvTotalTransaksi: TextView
     private lateinit var tvTotalKategori: TextView
+    private lateinit var tvTotalWallet: TextView
+    private lateinit var tvTotalBuku: TextView
 
     private lateinit var btnEditProfile: MaterialButton
 
@@ -214,6 +216,8 @@ class PengaturanPage : Fragment() {
         tvAppVersion = view.findViewById(R.id.tv_app_version)
         tvTotalTransaksi = view.findViewById(R.id.tv_total_transaksi)
         tvTotalKategori = view.findViewById(R.id.tv_total_kategori)
+        tvTotalWallet = view.findViewById(R.id.tv_total_wallet)
+        tvTotalBuku = view.findViewById(R.id.tv_total_buku)
 
         // Init View Baru
         btnAuthAction = view.findViewById(R.id.btn_auth_action)
@@ -489,38 +493,16 @@ class PengaturanPage : Fragment() {
                                 return
                             }
 
-            // Detect file format based on content
-            val isJson = fileContent.trim().startsWith("{")
-            val isSql =
-                    fileContent.trim().uppercase().let {
-                        it.contains("INSERT INTO") || it.contains("INSERT OR REPLACE INTO")
-                    }
-
+            // Validate JSON format
             val success =
-                    when {
-                        isJson -> {
-                            // Validate JSON format
-                            try {
-                                val gson = com.google.gson.Gson()
-                                gson.fromJson(fileContent, com.google.gson.JsonObject::class.java)
-                                viewModel.restoreFromJson(fileContent)
-                            } catch (e: Exception) {
-                                showSnackbar("Format JSON tidak valid", true)
-                                loadingOverlay.visibility = View.GONE
-                                return
-                            }
-                        }
-                        isSql -> {
-                            viewModel.restoreFromSql(fileContent)
-                        }
-                        else -> {
-                            showSnackbar(
-                                    "Format file tidak dikenali. Gunakan file JSON atau SQL",
-                                    true
-                            )
-                            loadingOverlay.visibility = View.GONE
-                            return
-                        }
+                    try {
+                        val gson = com.google.gson.Gson()
+                        gson.fromJson(fileContent, com.google.gson.JsonObject::class.java)
+                        viewModel.restoreFromJson(fileContent)
+                    } catch (e: Exception) {
+                        showSnackbar("Format JSON tidak valid", true)
+                        loadingOverlay.visibility = View.GONE
+                        return
                     }
 
             loadingOverlay.visibility = View.GONE
@@ -766,11 +748,25 @@ class PengaturanPage : Fragment() {
                             database.categoryDao().getAllCategoriesSync(activeBookId).size
                         }
 
+                val walletCount =
+                        kotlinx.coroutines.withContext<Int>(kotlinx.coroutines.Dispatchers.IO) {
+                            database.walletDao().getWalletsSync(activeBookId).size
+                        }
+
+                val bookCount =
+                        kotlinx.coroutines.withContext<Int>(kotlinx.coroutines.Dispatchers.IO) {
+                            database.bookDao().getAllBooksSync().size
+                        }
+
                 tvTotalTransaksi.text = "Total Transaksi: $transactionCount"
                 tvTotalKategori.text = "Total Kategori: $categoryCount"
+                tvTotalWallet.text = "Total Dompet: $walletCount"
+                tvTotalBuku.text = "Total Buku: $bookCount"
             } catch (e: Exception) {
                 tvTotalTransaksi.text = "Total Transaksi: -"
                 tvTotalKategori.text = "Total Kategori: -"
+                tvTotalWallet.text = "Total Dompet: -"
+                tvTotalBuku.text = "Total Buku: -"
             }
         }
     }
@@ -1662,13 +1658,6 @@ class PengaturanPage : Fragment() {
         btnCancel.setOnClickListener { dialog.dismiss() }
 
         btnGenerate.setOnClickListener {
-            val selectedFormat =
-                    when (rgBackupFormat.checkedRadioButtonId) {
-                        R.id.rb_json -> "json"
-                        R.id.rb_sql -> "sql"
-                        else -> "json"
-                    }
-
             val selectedBookText = actvBookSelection.text.toString()
             val selectedBookId =
                     if (selectedBookText == "Semua Buku") null
@@ -1682,13 +1671,9 @@ class PengaturanPage : Fragment() {
 
             dialog.dismiss()
 
-            // Launch file picker
-            val fileName = "backup_${System.currentTimeMillis()}.$selectedFormat"
-            if (selectedFormat == "json") {
-                createJsonFileLauncher.launch(fileName)
-            } else {
-                createSqlFileLauncher.launch(fileName)
-            }
+            // Launch file picker for JSON only
+            val fileName = "backup_${System.currentTimeMillis()}.json"
+            createJsonFileLauncher.launch(fileName)
         }
 
         dialog.show()
@@ -1725,7 +1710,7 @@ class PengaturanPage : Fragment() {
 
         btnChooseFile.setOnClickListener {
             dialog.dismiss()
-            restoreFileLauncher.launch(arrayOf("application/json", "application/sql"))
+            restoreFileLauncher.launch(arrayOf("application/json"))
         }
 
         dialog.show()

@@ -13,8 +13,10 @@ import com.example.catetduls.data.Wallet
 import java.text.NumberFormat
 import java.util.Locale
 
-class WalletAdapter(private val onEdit: (Wallet) -> Unit) :
-        ListAdapter<Wallet, WalletAdapter.ViewHolder>(WalletDiffCallback()) {
+class WalletAdapter(private val onEdit: (com.example.catetduls.data.Wallet) -> Unit) :
+        ListAdapter<com.example.catetduls.data.WalletWithStats, WalletAdapter.ViewHolder>(
+                WalletDiffCallback()
+        ) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view =
@@ -40,23 +42,28 @@ class WalletAdapter(private val onEdit: (Wallet) -> Unit) :
                 itemView.findViewById(R.id.tv_type) // Bisa dipakai untuk menampilkan Saldo
         private val btnEdit: ImageButton = itemView.findViewById(R.id.btn_edit)
 
-        fun bind(wallet: Wallet) {
+        fun bind(walletWithStats: com.example.catetduls.data.WalletWithStats) {
+            val wallet = walletWithStats.wallet
             tvIcon.text = wallet.icon
             tvName.text = wallet.name
 
-            // Format Saldo
+            // Format Saldo - menggunakan netBalance yang dihitung dari transaksi
             val formatter = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
             formatter.maximumFractionDigits = 0
-            tvType.text = formatter.format(wallet.currentBalance)
+            tvType.text = formatter.format(walletWithStats.netBalance)
 
             btnEdit.setOnClickListener { onEdit(wallet) }
         }
     }
 
-    class WalletDiffCallback : DiffUtil.ItemCallback<Wallet>() {
-        override fun areItemsTheSame(oldItem: Wallet, newItem: Wallet): Boolean =
-                oldItem.id == newItem.id
-        override fun areContentsTheSame(oldItem: Wallet, newItem: Wallet): Boolean =
-                oldItem == newItem
+    class WalletDiffCallback : DiffUtil.ItemCallback<com.example.catetduls.data.WalletWithStats>() {
+        override fun areItemsTheSame(
+                oldItem: com.example.catetduls.data.WalletWithStats,
+                newItem: com.example.catetduls.data.WalletWithStats
+        ): Boolean = oldItem.wallet.id == newItem.wallet.id
+        override fun areContentsTheSame(
+                oldItem: com.example.catetduls.data.WalletWithStats,
+                newItem: com.example.catetduls.data.WalletWithStats
+        ): Boolean = oldItem == newItem
     }
 }

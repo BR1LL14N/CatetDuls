@@ -31,6 +31,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import java.io.File
 import java.util.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class TambahTransaksiPage : Fragment() {
@@ -1072,60 +1073,156 @@ class TambahTransaksiPage : Fragment() {
                 return@observe
             }
 
-            val walletNames = wallets.map { "${it.icon} ${it.name}" }
-            val adapter =
-                    ArrayAdapter(
-                            requireContext(),
-                            android.R.layout.simple_spinner_item,
-                            walletNames
-                    )
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            spinnerWallet.adapter = adapter
-            spinnerWalletTarget.adapter = adapter // Atur adapter untuk Dompet Tujuan
+            // Format wallet names with calculated balance from transactions
+            viewLifecycleOwner.lifecycleScope.launch {
+                val database = com.example.catetduls.data.AppDatabase.getDatabase(requireContext())
+                val allTransactions =
+                        database.transactionDao().getAllTransactions(wallets.first().bookId).first()
 
-            // --- Logika Dompet Sumber (spinnerWallet) ---
-            var selectedSourceIndex = 0
-            val currentSourceId = viewModel.selectedWalletId.value
-            if (currentSourceId > 0) {
-                val existingIndex = wallets.indexOfFirst { it.id == currentSourceId }
-                if (existingIndex != -1) {
-                    selectedSourceIndex = existingIndex
+                // Get current book's currency for conversion
+                val book = database.bookDao().getBookByIdSync(wallets.first().bookId)
+                val currencyCode = book?.currencyCode ?: "IDR"
+                val currencySymbol = book?.currencySymbol ?: "Rp"
+
+                // Create wallet data with name and balance separated
+                data class WalletDisplayData(
+                        val wallet: Wallet,
+                        val name: String,
+                        val balance: String
+                )
+
+                val walletDisplayData =
+                        wallets.map { wallet ->
+                            // Calculate actual balance from transactions for this wallet (in IDR)
+                            val walletTransactions =
+                                    allTransactions.filter { it.walletId == wallet.id }
+                            val income =
+                                    walletTransactions
+                                            .filter {
+                                                it.type ==
+                                                        com.example.catetduls.data.TransactionType
+                                                                .PEMASUKAN
+                                            }
+                                            .sumOf { it.amount }
+                            val expense =
+                                    walletTransactions
+                                            .filter {
+                                                it.type ==
+                                                        com.example.catetduls.data.TransactionType
+                                                                .PENGELUARAN
+                                            }
+                                            .sumOf { it.amount }
+                            val actualBalanceIdr = wallet.initialBalance + income - expense
+
+                            // Convert from IDR to active currency
+                            val actualBalance =
+                                    com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
+                                            actualBalanceIdr,
+                                            currencyCode
+                                    )
+
+                            // Format with currency symbol
+                            val formatted =
+                                    com.example.catetduls.utils.CurrencyHelper.format(
+                                            actualBalance,
+                                            currencySymbol
+                                    )
+                            WalletDisplayData(wallet, "${wallet.icon} ${wallet.name}", formatted)
+                        }
+
+                // Create custom adapter with two TextViews
+                val adapter =
+                        object : android.widget.BaseAdapter() {
+                            override fun getCount() = walletDisplayData.size
+                            override fun getItem(position: Int) = walletDisplayData[position]
+                            override fun getItemId(position: Int) = position.toLong()
+
+                            override fun getView(
+                                    position: Int,
+                                    convertView: android.view.View?,
+                                    parent: android.view.ViewGroup
+                            ): android.view.View {
+                                val view =
+                                        convertView
+                                                ?: layoutInflater.inflate(
+                                                        R.layout.item_wallet_spinner,
+                                                        parent,
+                                                        false
+                                                )
+                                val data = walletDisplayData[position]
+                                view.findViewById<TextView>(R.id.tv_wallet_info).text = data.name
+                                view.findViewById<TextView>(R.id.tv_wallet_balance).text =
+                                        data.balance
+                                return view
+                            }
+
+                            override fun getDropDownView(
+                                    position: Int,
+                                    convertView: android.view.View?,
+                                    parent: android.view.ViewGroup
+                            ): android.view.View {
+                                val view =
+                                        convertView
+                                                ?: layoutInflater.inflate(
+                                                        R.layout.item_wallet_spinner_dropdown,
+                                                        parent,
+                                                        false
+                                                )
+                                val data = walletDisplayData[position]
+                                view.findViewById<TextView>(R.id.tv_wallet_info).text = data.name
+                                view.findViewById<TextView>(R.id.tv_wallet_balance).text =
+                                        data.balance
+                                return view
+                            }
+                        }
+
+                spinnerWallet.adapter = adapter
+                spinnerWalletTarget.adapter = adapter // Atur adapter untuk Dompet Tujuan
+
+                // --- Logika Dompet Sumber (spinnerWallet) ---
+                var selectedSourceIndex = 0
+                val currentSourceId = viewModel.selectedWalletId.value
+                if (currentSourceId > 0) {
+                    val existingIndex = wallets.indexOfFirst { it.id == currentSourceId }
+                    if (existingIndex != -1) {
+                        selectedSourceIndex = existingIndex
+                    }
                 }
-            }
-            spinnerWallet.setSelection(selectedSourceIndex, false)
-            if (wallets.isNotEmpty() && selectedSourceIndex >= 0) {
-                viewModel.setWallet(wallets[selectedSourceIndex].id)
-            }
-            setupWalletSpinnerListener(walletsList)
-
-            // --- Logika Dompet Tujuan (spinnerWalletTarget) ---
-            var selectedTargetIndex = -1
-            val currentTargetId = viewModel.selectedTargetWalletId.value
-
-            if (currentTargetId != null && currentTargetId > 0) {
-                val existingIndex = wallets.indexOfFirst { it.id == currentTargetId }
-                if (existingIndex != -1) {
-                    selectedTargetIndex = existingIndex
+                spinnerWallet.setSelection(selectedSourceIndex, false)
+                if (wallets.isNotEmpty() && selectedSourceIndex >= 0) {
+                    viewModel.setWallet(wallets[selectedSourceIndex].id)
                 }
-            } else if (viewModel.selectedType.value == TransactionType.TRANSFER) {
-                // Jika Transfer dan Dompet Tujuan belum di-set, default ke dompet yang berbeda
-                if (wallets.size > 1) {
-                    selectedTargetIndex = if (selectedSourceIndex == 0) 1 else 0
+                setupWalletSpinnerListener(walletsList)
+
+                // --- Logika Dompet Tujuan (spinnerWalletTarget) ---
+                var selectedTargetIndex = -1
+                val currentTargetId = viewModel.selectedTargetWalletId.value
+
+                if (currentTargetId != null && currentTargetId > 0) {
+                    val existingIndex = wallets.indexOfFirst { it.id == currentTargetId }
+                    if (existingIndex != -1) {
+                        selectedTargetIndex = existingIndex
+                    }
+                } else if (viewModel.selectedType.value == TransactionType.TRANSFER) {
+                    // Jika Transfer dan Dompet Tujuan belum di-set, default ke dompet yang berbeda
+                    if (wallets.size > 1) {
+                        selectedTargetIndex = if (selectedSourceIndex == 0) 1 else 0
+                    }
                 }
-            }
 
-            if (selectedTargetIndex != -1) {
-                spinnerWalletTarget.setSelection(selectedTargetIndex, false)
-                viewModel.setTargetWallet(wallets[selectedTargetIndex].id)
-            } else {
-                // Jika tidak ada dompet tujuan yang valid atau hanya satu dompet
-                spinnerWalletTarget.setSelection(0, false)
-                viewModel.setTargetWallet(
-                        if (wallets.isNotEmpty()) wallets[0].id else null
-                ) // Set default
-            }
+                if (selectedTargetIndex != -1) {
+                    spinnerWalletTarget.setSelection(selectedTargetIndex, false)
+                    viewModel.setTargetWallet(wallets[selectedTargetIndex].id)
+                } else {
+                    // Jika tidak ada dompet tujuan yang valid atau hanya satu dompet
+                    spinnerWalletTarget.setSelection(0, false)
+                    viewModel.setTargetWallet(
+                            if (wallets.isNotEmpty()) wallets[0].id else null
+                    ) // Set default
+                }
 
-            setupTargetWalletSpinnerListener(walletsList)
+                setupTargetWalletSpinnerListener(walletsList)
+            }
         }
     }
 

@@ -92,18 +92,10 @@
 
                 <com.google.android.material.radiobutton.MaterialRadioButton
                     android:id="@+id/rb_restore_json"
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
                     android:checked="true"
                     android:text="JSON" />
-
-                <com.google.android.material.radiobutton.MaterialRadioButton
-                    android:id="@+id/rb_restore_sql"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="SQL" />
 
             </RadioGroup>
 

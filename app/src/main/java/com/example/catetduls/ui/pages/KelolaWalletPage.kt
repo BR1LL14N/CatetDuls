@@ -39,7 +39,8 @@ class KelolaWalletPage : Fragment() {
     private lateinit var loadingOverlay: FrameLayout
 
     private val searchQuery = MutableStateFlow("")
-    private val allWallets = MutableStateFlow<List<Wallet>>(emptyList())
+    private val allWallets =
+            MutableStateFlow<List<com.example.catetduls.data.WalletWithStats>>(emptyList())
 
     override fun onCreateView(
             inflater: LayoutInflater,
@@ -108,7 +109,7 @@ class KelolaWalletPage : Fragment() {
 
     private fun observeData(walletRepo: com.example.catetduls.data.WalletRepository) {
         viewLifecycleOwner.lifecycleScope.launch {
-            walletRepo.getWalletsByBook(activeBookId).collect { wallets ->
+            walletRepo.getWalletsWithStats(activeBookId).collect { wallets ->
                 allWallets.value = wallets
             }
         }
@@ -118,7 +119,7 @@ class KelolaWalletPage : Fragment() {
                 if (query.isBlank()) {
                     wallets
                 } else {
-                    wallets.filter { it.name.contains(query, ignoreCase = true) }
+                    wallets.filter { it.wallet.name.contains(query, ignoreCase = true) }
                 }
             }
                     .collect { filtered ->
