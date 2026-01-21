@@ -15,6 +15,9 @@ import com.example.catetduls.data.*
 import com.example.catetduls.data.local.TokenManager
 import com.example.catetduls.data.remote.ApiResponse
 import com.example.catetduls.data.remote.ApiService
+import com.example.catetduls.data.remote.BookClosingRequest
+import com.example.catetduls.data.remote.MemoRequest
+import com.example.catetduls.data.remote.TagRequest
 import com.example.catetduls.data.remote.BookRequest
 import com.example.catetduls.data.remote.CategoryRequest
 import com.example.catetduls.data.remote.CreateResponse
@@ -28,7 +31,9 @@ import dagger.assisted.AssistedInject
 import java.io.IOException
 import kotlinx.coroutines.flow.firstOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import retrofit2.Response
 
 @HiltWorker
@@ -41,6 +46,9 @@ constructor(
         private val walletRepository: WalletRepository,
         private val categoryRepository: CategoryRepository,
         private val transactionRepository: TransactionRepository,
+        private val bookClosingRepository: BookClosingRepository,
+        private val memoRepository: MemoRepository,
+        private val tagRepository: TagRepository,
         private val userRepository: UserRepository, // Injected
         private val apiService: ApiService
 ) : CoroutineWorker(appContext, workerParams) {
@@ -317,7 +325,91 @@ constructor(
                                 deleteApi = { wallet -> apiService.deleteWallet(wallet.serverId!!) }
                         )
 
-                        pushComplexChanges<Category>(
+
+
+                        // --- SYNC TAGS (Independent) ---
+                        pushUnitChanges<TagEntity>(
+                                repository = tagRepository as SyncRepository<TagEntity>,
+                                createApi = { tag ->
+                                        apiService.createTag(TagRequest(name = tag.name, color = tag.color))
+                                },
+                                updateApi = { tag ->
+                                        apiService.updateTag(tag.serverId!!, TagRequest(name = tag.name, color = tag.color))
+                                },
+                                deleteApi = { tag -> apiService.deleteTag(tag.serverId!!) }
+                        )
+
+                        // --- SYNC BOOK CLOSINGS (Depends on Book) ---
+                        pushUnitChanges<BookClosing>(
+                                repository = bookClosingRepository as SyncRepository<BookClosing>,
+                                createApi = { closing ->
+                                        val book = bookRepository.getBookByIdSync(closing.bookId)
+                                        val serverBookId = book?.serverId ?: throw IOException("Induk Buku belum ter-sync")
+                                        
+                                        val request = BookClosingRequest(
+                                            bookId = serverBookId,
+                                            periodStart = closing.periodStart,
+                                            periodEnd = closing.periodEnd,
+                                            periodLabel = closing.periodLabel,
+                                            closedAt = closing.closedAt,
+                                            finalBalance = closing.finalBalance,
+                                            isVerified = closing.isVerified,
+                                            notes = closing.notes
+                                        )
+                                        apiService.createBookClosing(request)
+                                },
+                                updateApi = { closing ->
+                                        val book = bookRepository.getBookByIdSync(closing.bookId)
+                                        val serverBookId = book?.serverId ?: throw IOException("Induk Buku belum ter-sync")
+
+                                        val request = BookClosingRequest(
+                                                bookId = serverBookId,
+                                                periodStart = closing.periodStart,
+                                                periodEnd = closing.periodEnd,
+                                                periodLabel = closing.periodLabel,
+                                                closedAt = closing.closedAt,
+                                                finalBalance = closing.finalBalance,
+                                                isVerified = closing.isVerified,
+                                                notes = closing.notes
+                                        )
+                                        apiService.updateBookClosing(closing.serverId!!, request)
+                                },
+                                deleteApi = { closing -> apiService.deleteBookClosing(closing.serverId!!) }
+                        )
+
+                        // --- SYNC MEMOS (Depends on Book) ---
+                        pushUnitChanges<Memo>(
+                                repository = memoRepository as SyncRepository<Memo>,
+                                createApi = { memo ->
+                                        val book = bookRepository.getBookByIdSync(memo.bookId)
+                                        val serverBookId = book?.serverId ?: throw IOException("Induk Buku belum ter-sync")
+                                        
+                                        val request = MemoRequest(
+                                                bookId = serverBookId,
+                                                title = memo.title,
+                                                content = memo.content,
+                                                tags = memo.tags,
+                                                date = memo.date
+                                        )
+                                        apiService.createMemo(request)
+                                },
+                                updateApi = { memo ->
+                                        val book = bookRepository.getBookByIdSync(memo.bookId)
+                                        val serverBookId = book?.serverId ?: throw IOException("Induk Buku belum ter-sync")
+
+                                        val request = MemoRequest(
+                                                bookId = serverBookId,
+                                                title = memo.title,
+                                                content = memo.content,
+                                                tags = memo.tags,
+                                                date = memo.date
+                                        )
+                                        apiService.updateMemo(memo.serverId!!, request)
+                                },
+                                deleteApi = { memo -> apiService.deleteMemo(memo.serverId!!) }
+                        )
+                        // --- SYNC CATEGORIES ---
+                        pushUnitChanges<Category>(
                                 repository = categoryRepository as SyncRepository<Category>,
                                 createApi = { category ->
                                         val book = bookRepository.getBookByIdSync(category.bookId)
@@ -440,73 +532,19 @@ constructor(
                                                                 )
                                                         apiService.createTransaction(request)
                                                 } else {
-                                                        val requestFile =
-                                                                okhttp3.RequestBody.create(
-                                                                        "image/*".toMediaTypeOrNull(),
-                                                                        photoFile
-                                                                )
-                                                        val photoPart =
-                                                                okhttp3.MultipartBody.Part
-                                                                        .createFormData(
-                                                                                "image",
-                                                                                photoFile.name,
-                                                                                requestFile
-                                                                        )
+                                                        val requestFile = photoFile.asRequestBody("image/*".toMediaTypeOrNull())
+                                                        val photoPart = MultipartBody.Part.createFormData("image", photoFile.name, requestFile)
 
-                                                        val response =
-                                                                apiService
-                                                                        .createTransactionWithPhoto(
-                                                                                bookId =
-                                                                                        okhttp3.RequestBody
-                                                                                                .create(
-                                                                                                        "text/plain".toMediaTypeOrNull(),
-                                                                                                        serverBookId
-                                                                                                ),
-                                                                                walletId =
-                                                                                        okhttp3.RequestBody
-                                                                                                .create(
-                                                                                                        "text/plain".toMediaTypeOrNull(),
-                                                                                                        serverWalletId
-                                                                                                ),
-                                                                                categoryId =
-                                                                                        okhttp3.RequestBody
-                                                                                                .create(
-                                                                                                        "text/plain".toMediaTypeOrNull(),
-                                                                                                        serverCategoryId
-                                                                                                ),
-                                                                                amount =
-                                                                                        transaction
-                                                                                                .amount
-                                                                                                .toLong()
-                                                                                                .toString()
-                                                                                                .toRequestBody(
-                                                                                                        "text/plain".toMediaTypeOrNull()
-                                                                                                ),
-                                                                                type =
-                                                                                        okhttp3.RequestBody
-                                                                                                .create(
-                                                                                                        "text/plain".toMediaTypeOrNull(),
-                                                                                                        transaction
-                                                                                                                .type
-                                                                                                                .name
-                                                                                                ),
-                                                                                note =
-                                                                                        okhttp3.RequestBody
-                                                                                                .create(
-                                                                                                        "text/plain".toMediaTypeOrNull(),
-                                                                                                        transaction
-                                                                                                                .notes
-                                                                                                ),
-                                                                                createdAt =
-                                                                                        okhttp3.RequestBody
-                                                                                                .create(
-                                                                                                        "text/plain".toMediaTypeOrNull(),
-                                                                                                        transaction
-                                                                                                                .date
-                                                                                                                .toString()
-                                                                                                ),
-                                                                                image = photoPart
-                                                                        )
+                                                        val response = apiService.createTransactionWithPhoto(
+                                                                bookId = serverBookId.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                walletId = serverWalletId.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                categoryId = serverCategoryId.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                amount = transaction.amount.toLong().toString().toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                type = transaction.type.name.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                note = transaction.notes.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                createdAt = transaction.date.toString().toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                image = photoPart
+                                                        )
 
                                                         if (response.isSuccessful &&
                                                                         response.body() != null
@@ -621,77 +659,20 @@ constructor(
                                                                 request
                                                         )
                                                 } else {
-                                                        val requestFile =
-                                                                okhttp3.RequestBody.create(
-                                                                        "image/*".toMediaTypeOrNull(),
-                                                                        photoFile
-                                                                )
-                                                        val photoPart =
-                                                                okhttp3.MultipartBody.Part
-                                                                        .createFormData(
-                                                                                "image",
-                                                                                photoFile.name,
-                                                                                requestFile
-                                                                        )
+                                                        val requestFile = photoFile.asRequestBody("image/*".toMediaTypeOrNull())
+                                                        val photoPart = MultipartBody.Part.createFormData("image", photoFile.name, requestFile)
 
-                                                        val response =
-                                                                apiService
-                                                                        .updateTransactionWithPhoto(
-                                                                                serverId =
-                                                                                        transaction
-                                                                                                        .serverId!!
-                                                                                                .toLong(),
-                                                                                bookId =
-                                                                                        okhttp3.RequestBody
-                                                                                                .create(
-                                                                                                        "text/plain".toMediaTypeOrNull(),
-                                                                                                        serverBookId
-                                                                                                ),
-                                                                                walletId =
-                                                                                        okhttp3.RequestBody
-                                                                                                .create(
-                                                                                                        "text/plain".toMediaTypeOrNull(),
-                                                                                                        serverWalletId
-                                                                                                ),
-                                                                                categoryId =
-                                                                                        okhttp3.RequestBody
-                                                                                                .create(
-                                                                                                        "text/plain".toMediaTypeOrNull(),
-                                                                                                        serverCategoryId
-                                                                                                ),
-                                                                                amount =
-                                                                                        transaction
-                                                                                                .amount
-                                                                                                .toLong()
-                                                                                                .toString()
-                                                                                                .toRequestBody(
-                                                                                                        "text/plain".toMediaTypeOrNull()
-                                                                                                ),
-                                                                                type =
-                                                                                        okhttp3.RequestBody
-                                                                                                .create(
-                                                                                                        "text/plain".toMediaTypeOrNull(),
-                                                                                                        transaction
-                                                                                                                .type
-                                                                                                                .name
-                                                                                                ),
-                                                                                note =
-                                                                                        okhttp3.RequestBody
-                                                                                                .create(
-                                                                                                        "text/plain".toMediaTypeOrNull(),
-                                                                                                        transaction
-                                                                                                                .notes
-                                                                                                ),
-                                                                                createdAt =
-                                                                                        okhttp3.RequestBody
-                                                                                                .create(
-                                                                                                        "text/plain".toMediaTypeOrNull(),
-                                                                                                        transaction
-                                                                                                                .date
-                                                                                                                .toString()
-                                                                                                ),
-                                                                                image = photoPart
-                                                                        )
+                                                        val response = apiService.updateTransactionWithPhoto(
+                                                                serverId = transaction.serverId!!.toLong(),
+                                                                bookId = serverBookId.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                walletId = serverWalletId.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                categoryId = serverCategoryId.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                amount = transaction.amount.toLong().toString().toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                type = transaction.type.name.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                note = transaction.notes.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                createdAt = transaction.date.toString().toRequestBody("text/plain".toMediaTypeOrNull()),
+                                                                image = photoPart
+                                                        )
 
                                                         if (response.isSuccessful) {
                                                                 // Note: updateTransactionWithPhoto
@@ -765,8 +746,8 @@ constructor(
         private suspend inline fun <reified T : SyncableEntity> pushUnitChanges(
                 repository: SyncRepository<T>,
                 createApi: suspend (T) -> Response<CreateResponse>,
-                updateApi: suspend (T) -> Response<Unit>,
-                deleteApi: suspend (T) -> Response<Unit>
+                updateApi: suspend (T) -> Response<out Any?>,
+                deleteApi: suspend (T) -> Response<out Any?>
         ) {
 
                 val unsyncedItems = repository.getAllUnsynced()
@@ -1004,6 +985,36 @@ constructor(
                                 return false // STOP
                         }
 
+                        // 3a. PULL TAGS
+                        try {
+                                pullEntityChanges<TagEntity>(
+                                    remoteApi = apiService.getTags(lastSyncTime),
+                                    repository = tagRepository as SyncRepository<TagEntity>
+                                )
+                        } catch (e: Exception) {
+                             Log.e(TAG, "[PULL] ❌ Gagal pull Tags: ${e.message}")
+                        }
+
+                        // 3b. PULL BOOK CLOSINGS
+                        try {
+                                pullEntityChanges<BookClosing>(
+                                    remoteApi = apiService.getBookClosings(lastSyncTime),
+                                    repository = bookClosingRepository as SyncRepository<BookClosing>
+                                )
+                        } catch (e: Exception) {
+                            Log.e(TAG, "[PULL] ❌ Gagal pull Book Closings: ${e.message}")
+                        }
+
+                        // 3c. PULL MEMOS
+                        try {
+                                pullEntityChanges<Memo>(
+                                    remoteApi = apiService.getMemos(lastSyncTime),
+                                    repository = memoRepository as SyncRepository<Memo>
+                                )
+                        } catch (e: Exception) {
+                            Log.e(TAG, "[PULL] ❌ Gagal pull Memos: ${e.message}")
+                        }
+
                         // 4. PULL TRANSACTIONS
                         try {
                                 pullPaginatedEntityChanges<Transaction>(
@@ -1229,6 +1240,9 @@ constructor(
                 repairEntityState(bookRepository as SyncRepository<Book>, "Book")
                 repairEntityState(walletRepository as SyncRepository<Wallet>, "Wallet")
                 repairEntityState(categoryRepository as SyncRepository<Category>, "Category")
+                repairEntityState(tagRepository as SyncRepository<TagEntity>, "Tag")
+                repairEntityState(bookClosingRepository as SyncRepository<BookClosing>, "BookClosing")
+                repairEntityState(memoRepository as SyncRepository<Memo>, "Memo")
                 repairEntityState(
                         transactionRepository as SyncRepository<Transaction>,
                         "Transaction"

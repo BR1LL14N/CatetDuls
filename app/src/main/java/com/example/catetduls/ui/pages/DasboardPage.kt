@@ -203,16 +203,10 @@ class DashboardPage : Fragment() {
         val categoryRepository = requireContext().getCategoryRepository()
 
         viewLifecycleOwner.lifecycleScope.launch {
-            // PERBAIKAN: Gunakan .collect(), bukan .first()
-            // Agar Dashboard selalu update real-time jika ada perubahan kategori
             categoryRepository.getAllCategories().collect { categories ->
 
-                // 1. Update Map Kategori terbaru
                 categoryMap = categories.associateBy { it.id }
 
-                // 2. Refresh Adapter Transaksi
-                // Kita perlu memaksa adapter untuk me-refresh tampilan
-                // agar nama kategori yang baru (dari Map) segera muncul.
                 if (transactionAdapter.currentList.isNotEmpty()) {
                     transactionAdapter.notifyDataSetChanged()
                 }
@@ -226,12 +220,9 @@ class DashboardPage : Fragment() {
                 TransactionAdapter(
                         onItemClick = { transaction -> },
                         getCategoryName = { categoryId ->
-                            // Jika categoryId ditemukan, ambil namanya. Jika tidak, gunakan
-                            // "Unknown".
                             categoryMap[categoryId]?.name ?: "Unknown"
                         },
                         getCategoryIcon = { categoryId ->
-                            // Jika categoryId ditemukan, ambil ikonnya. Jika tidak, gunakan "⚙️".
                             categoryMap[categoryId]?.icon ?: "⚙️"
                         }
                 )
@@ -245,7 +236,6 @@ class DashboardPage : Fragment() {
 
     private fun setupClickListeners() {
         tvViewAll.setOnClickListener {
-            // Pindah ke tab Transaksi
             requireActivity()
                     .findViewById<
                             com.google.android.material.bottomnavigation.BottomNavigationView>(

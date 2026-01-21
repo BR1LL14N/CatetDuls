@@ -262,6 +262,8 @@
 
                     </com.google.android.material.card.MaterialCardView>
 
+
+
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/card_kelola_wallet"
                         android:layout_width="match_parent"
@@ -295,6 +297,53 @@
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
                                 android:text="Kelola Dompet"
+                                android:textColor="@color/text_primary"
+                                android:textSize="16sp" />
+
+                            <ImageView
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:contentDescription="Next"
+                                android:src="@drawable/ic_arrow_forward_24"
+                                app:tint="@color/text_secondary" />
+
+                        </LinearLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/card_kelola_tags"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="16dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground"
+                        app:cardBackgroundColor="@color/surface_variant"
+                        app:cardCornerRadius="12dp"
+                        app:cardElevation="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:padding="16dp">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:padding="8dp"
+                                android:src="@drawable/ic_edit_24"
+                                android:background="@drawable/bg_circle_primary"
+                                app:tint="@color/white"
+                                android:layout_marginEnd="16dp" />
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Kelola Tag Memo"
                                 android:textColor="@color/text_primary"
                                 android:textSize="16sp" />
 

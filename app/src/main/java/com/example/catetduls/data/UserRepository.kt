@@ -95,17 +95,12 @@ constructor(
                     userDao.deleteAllUsers()
                     userDao.insertUser(localUser)
 
-                    if (authData.refresh_token != null) {
-                        TokenManager.saveTokens(
-                                context = context,
-                                accessToken = authData.token,
-                                refreshToken = authData.refresh_token,
-                                expiresIn = authData.expires_in ?: 3600L
-                        )
-                    } else {
-
-                        TokenManager.saveToken(context, authData.token)
-                    }
+                    TokenManager.saveTokens(
+                            context = context,
+                            accessToken = authData.token,
+                            refreshToken = authData.refresh_token ?: authData.token,
+                            expiresIn = authData.expires_in ?: 3600L
+                    )
 
                     Result.success(localUser)
                 } else {

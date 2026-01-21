@@ -20,7 +20,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-    private const val BASE_URL = "http://172.14.1.135:8000/api/"
+    private const val BASE_URL = "http://192.168.14.54:8000/api/"
     private const val TIMEOUT_SECONDS = 30L
 
     @Provides

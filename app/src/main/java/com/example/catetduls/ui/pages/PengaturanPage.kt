@@ -42,6 +42,7 @@ class PengaturanPage : Fragment() {
     // Views
     private lateinit var cardKelolaBuku: MaterialCardView
     private lateinit var cardKelolaKategori: MaterialCardView
+    private lateinit var cardKelolaTags: MaterialCardView
     private lateinit var cardKelolaWallet: MaterialCardView
     private lateinit var btnBackup: MaterialButton
     private lateinit var btnRestore: MaterialButton
@@ -207,6 +208,7 @@ class PengaturanPage : Fragment() {
     private fun initViews(view: View) {
         cardKelolaBuku = view.findViewById(R.id.card_kelola_buku)
         cardKelolaKategori = view.findViewById(R.id.card_kelola_kategori)
+        cardKelolaTags = view.findViewById(R.id.card_kelola_tags)
         cardKelolaWallet = view.findViewById(R.id.card_kelola_wallet)
         btnBackup = view.findViewById(R.id.btn_backup)
         btnRestore = view.findViewById(R.id.btn_restore)
@@ -369,6 +371,14 @@ class PengaturanPage : Fragment() {
                     confirmColor = R.color.primary,
                     onConfirm = { viewModel.resetCategoriesToDefault() }
             )
+        }
+
+        cardKelolaTags.setOnClickListener {
+            if (activity is com.example.catetduls.ui.pages.NavigationCallback) {
+                (activity as com.example.catetduls.ui.pages.NavigationCallback).navigateTo(
+                        ManageTagsFragment()
+                )
+            }
         }
 
         // LOGIN / LOGOUT Button Listener

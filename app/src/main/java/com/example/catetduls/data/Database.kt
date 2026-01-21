@@ -14,15 +14,26 @@ import kotlinx.coroutines.launch
 /**
  * Room Database untuk FinNote dengan Multi-Book Support
  *
- * Database ini berisi 4 tabel:
+ * Database ini berisi 6 tabel:
  * 1. books - Menyimpan buku/akun
  * 2. wallets - Menyimpan dompet per buku
  * 3. categories - Menyimpan kategori per buku
  * 4. transactions - Menyimpan transaksi per dompet
+ * 5. book_closings - Menyimpan data tutup buku periode
+ * 6. memos - Menyimpan catatan/memo
  */
 @Database(
-        entities = [Book::class, Wallet::class, Category::class, Transaction::class, User::class],
-        version = 3,
+        entities =
+                [
+                        Book::class,
+                        Wallet::class,
+                        Category::class,
+                        Transaction::class,
+                        User::class,
+                        BookClosing::class,
+                        Memo::class,
+                        TagEntity::class],
+        version = 5,
         exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -32,8 +43,10 @@ abstract class AppDatabase : RoomDatabase() {
         abstract fun walletDao(): WalletDao
         abstract fun categoryDao(): CategoryDao
         abstract fun transactionDao(): TransactionDao
-
         abstract fun userDao(): UserDao
+        abstract fun bookClosingDao(): BookClosingDao
+        abstract fun memoDao(): MemoDao
+        abstract fun tagDao(): TagDao
 
         companion object {
                 @Volatile private var INSTANCE: AppDatabase? = null
@@ -222,6 +235,82 @@ abstract class AppDatabase : RoomDatabase() {
                                 }
                         }
 
+                val MIGRATION_4_5 =
+                        object : Migration(4, 5) {
+                                override fun migrate(database: SupportSQLiteDatabase) {
+                                        // 1. Create Tags table
+                                        database.execSQL(
+                                                """
+                                                CREATE TABLE IF NOT EXISTS `tags` (
+                                                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                                                    `name` TEXT NOT NULL, 
+                                                    `color` INTEGER NOT NULL, 
+                                                    `created_at` INTEGER NOT NULL, 
+                                                    `updated_at` INTEGER NOT NULL, 
+                                                    `server_id` TEXT, 
+                                                    `is_synced` INTEGER NOT NULL, 
+                                                    `is_deleted` INTEGER NOT NULL, 
+                                                    `last_sync_at` INTEGER NOT NULL, 
+                                                    `sync_action` TEXT
+                                                )
+                                            """
+                                        )
+
+                                        // 2. Create index for tags.name
+                                        database.execSQL(
+                                                "CREATE UNIQUE INDEX IF NOT EXISTS `index_tags_name` ON `tags` (`name`)"
+                                        )
+
+                                        // 3. Rename Memo.tag to Memo.tags
+                                        // Since SQLite doesn't support RENAME COLUMN in older
+                                        // versions easily with other constraints,
+                                        // we will create a new table and copy data.
+
+                                        // Create new Memo table
+                                        database.execSQL(
+                                                """
+                                                CREATE TABLE IF NOT EXISTS `memos_new` (
+                                                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                                                    `book_id` INTEGER NOT NULL, 
+                                                    `title` TEXT NOT NULL, 
+                                                    `content` TEXT NOT NULL, 
+                                                    `tags` TEXT NOT NULL DEFAULT '', 
+                                                    `date` INTEGER NOT NULL, 
+                                                    `created_at` INTEGER NOT NULL, 
+                                                    `updated_at` INTEGER NOT NULL, 
+                                                    `server_id` TEXT, 
+                                                    `is_synced` INTEGER NOT NULL, 
+                                                    `is_deleted` INTEGER NOT NULL, 
+                                                    `last_sync_at` INTEGER NOT NULL, 
+                                                    `sync_action` TEXT,
+                                                    FOREIGN KEY(`book_id`) REFERENCES `books`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                                                )
+                                            """
+                                        )
+
+                                        database.execSQL(
+                                                """
+                                                INSERT INTO memos_new (id, book_id, title, content, tags, date, created_at, updated_at, server_id, is_synced, is_deleted, last_sync_at, sync_action)
+                                                SELECT id, book_id, title, content, tag, date, created_at, updated_at, server_id, is_synced, is_deleted, last_sync_at, sync_action FROM memos
+                                            """
+                                        )
+
+                                        // Drop old table
+                                        database.execSQL("DROP TABLE memos")
+
+                                        // Rename new table to memos
+                                        database.execSQL("ALTER TABLE memos_new RENAME TO memos")
+
+                                        // Recreate indices
+                                        database.execSQL(
+                                                "CREATE INDEX IF NOT EXISTS `index_memos_book_id` ON `memos` (`book_id`)"
+                                        )
+                                        database.execSQL(
+                                                "CREATE INDEX IF NOT EXISTS `index_memos_date` ON `memos` (`date`)"
+                                        )
+                                }
+                        }
+
                 fun getDatabase(context: Context): AppDatabase {
                         return INSTANCE
                                 ?: synchronized(this) {
@@ -231,8 +320,14 @@ abstract class AppDatabase : RoomDatabase() {
                                                                 AppDatabase::class.java,
                                                                 "finnote_database"
                                                         )
-                                                        .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                                                        .addMigrations(
+                                                                MIGRATION_2_3,
+                                                                MIGRATION_3_4,
+                                                                MIGRATION_4_5
+                                                        )
                                                         .addCallback(DatabaseCallback(context))
+                                                        // Ensure non-destructive migration if
+                                                        // possible, but fallback is set
                                                         .fallbackToDestructiveMigration()
                                                         .build()
 
@@ -260,6 +355,7 @@ abstract class AppDatabase : RoomDatabase() {
                         val bookDao = database.bookDao()
                         val walletDao = database.walletDao()
                         val categoryDao = database.categoryDao()
+                        val tagDao = database.tagDao()
 
                         val defaultBook =
                                 Book(
@@ -281,6 +377,8 @@ abstract class AppDatabase : RoomDatabase() {
                         insertDefaultWallets(walletDao, bookId)
 
                         insertDefaultCategories(categoryDao, bookId)
+
+                        insertDefaultTags(tagDao)
                 }
 
                 private suspend fun insertDefaultWallets(walletDao: WalletDao, bookId: Int) {
@@ -485,6 +583,21 @@ abstract class AppDatabase : RoomDatabase() {
 
                         categoryDao.insertAll(defaultCategories)
                 }
+
+                private suspend fun insertDefaultTags(tagDao: TagDao) {
+                        val defaultTags =
+                                listOf(
+                                        TagEntity(name = "Penting", color = "#F44336"), // Red
+                                        TagEntity(name = "Pribadi", color = "#2196F3"), // Blue
+                                        TagEntity(name = "Pekerjaan", color = "#4CAF50"), // Green
+                                        TagEntity(name = "Ide", color = "#FFC107"), // Amber
+                                        TagEntity(name = "Tagihan", color = "#9C27B0") // Purple
+                                )
+                        // Check if empty before inserting to avoid duplication
+                        if (tagDao.getAllTagsList().isEmpty()) {
+                                defaultTags.forEach { tagDao.insert(it) }
+                        }
+                }
         }
 }
 
@@ -512,4 +625,9 @@ fun Context.getTransactionRepository(): TransactionRepository {
         val bookRepository =
                 BookRepository(database.bookDao(), database.walletDao(), database.categoryDao())
         return TransactionRepository(database.transactionDao(), bookRepository)
+}
+
+fun Context.getTagRepository(): TagRepository {
+        val database = AppDatabase.getDatabase(this)
+        return TagRepository(database.tagDao())
 }

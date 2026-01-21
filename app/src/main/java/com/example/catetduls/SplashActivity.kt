@@ -37,7 +37,7 @@ class SplashActivity : AppCompatActivity() {
 
 
         Handler(Looper.getMainLooper()).postDelayed({
-
+            //ekspilit
             val i = Intent(this, MainActivity::class.java)
             startActivity(i)
 

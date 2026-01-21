@@ -15,6 +15,7 @@ class TambahViewModel(
         private val categoryRepository: CategoryRepository,
         private val walletRepository: WalletRepository,
         private val bookRepository: BookRepository,
+        private val bookClosingRepository: BookClosingRepository, // Added
         private val activeWalletId: Int,
         private val activeBookId: Int
 ) : ViewModel() {
@@ -34,6 +35,13 @@ class TambahViewModel(
 
     private val _imagePath = MutableStateFlow<String?>(null)
     val imagePath: StateFlow<String?> = _imagePath.asStateFlow()
+
+    // === Validation States ===
+    private val _isBookActive = MutableStateFlow(true)
+    val isBookActive: StateFlow<Boolean> = _isBookActive.asStateFlow()
+
+    private val _isDateClosed = MutableStateFlow(false)
+    val isDateClosed: StateFlow<Boolean> = _isDateClosed.asStateFlow()
 
     // === Form Data ===
     private val _transactionId = MutableStateFlow<Int?>(null)
@@ -79,12 +87,15 @@ class TambahViewModel(
                         )
                 _transferCategoryId.value = id
 
-                // Fetch Active Book Currency Code
+                // Fetch Active Book Currency Code & Status
                 val book = bookRepository.getBookByIdSync(activeBookId)
                 if (book != null) {
-                    // Jika book.currencyCode null, gunakan "IDR" sebagai default
                     activeCurrencyCode = book.currencyCode ?: "IDR"
+                    _isBookActive.value = book.isActive
                 }
+
+                // Validate initial date
+                validateDate(_date.value)
             } catch (e: Exception) {
                 android.util.Log.e("TambahViewModel", "Failed to fetch Init Data: ${e.message}")
             }
@@ -156,10 +167,6 @@ class TambahViewModel(
     fun setAmount(value: String) {
         val cleaned = value.replace(Regex("[^0-9,.]"), "")
         _amount.value = cleaned
-    }
-
-    fun setDate(timestamp: Long) {
-        _date.value = timestamp
     }
 
     fun setNotes(value: String) {
@@ -420,6 +427,7 @@ class TambahViewModel(
 
                                 _amount.value = formatted
                                 _date.value = transaction.date
+                                validateDate(transaction.date) // Trigger Validation
                                 _notes.value = transaction.notes
                                 _imagePath.value = transaction.imagePath
                             }
@@ -555,13 +563,25 @@ class TambahViewModel(
             it?.name ?: "Unknown"
         }
     }
+
+    private fun validateDate(timestamp: Long) {
+        viewModelScope.launch {
+            _isDateClosed.value = bookClosingRepository.isDateClosed(activeBookId, timestamp)
+        }
+    }
+
+    fun setDate(timestamp: Long) {
+        _date.value = timestamp
+        validateDate(timestamp)
+    }
 }
 
 class TambahViewModelFactory(
         private val transactionRepository: TransactionRepository,
         private val categoryRepository: CategoryRepository,
         private val walletRepository: WalletRepository,
-        private val bookRepository: BookRepository, // Add Book Repo
+        private val bookRepository: BookRepository,
+        private val bookClosingRepository: BookClosingRepository, // Added
         private val activeWalletId: Int,
         private val activeBookId: Int
 ) : ViewModelProvider.Factory {
@@ -573,6 +593,7 @@ class TambahViewModelFactory(
                     categoryRepository,
                     walletRepository,
                     bookRepository,
+                    bookClosingRepository, // Added
                     activeWalletId,
                     activeBookId
             ) as

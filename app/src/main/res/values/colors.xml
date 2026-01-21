@@ -52,6 +52,9 @@
     <color name="pending">#FFB84D</color>
     <color name="pending_bg">#FFF4E0</color>
 
+    <!-- Purple - For special tags -->
+    <color name="purple_light">#F0EBFF</color>
+
     <!-- Info - Soft Blue -->
     <color name="info">#5B9EFF</color>
     <color name="info_light">#7AB0FF</color>

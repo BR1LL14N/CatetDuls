@@ -12,7 +12,7 @@ data class AuthData(
         val user: User,
         val token: String,
         val refresh_token: String? = null,
-        val expires_in: Long? = null, // Nullable - backend might not return this
+        val expires_in: Long? = null,
         val token_type: String
 )
 
@@ -27,13 +27,12 @@ data class RemoteUser(
 )
 
 data class PhotoUploadData(
-    @SerializedName("photo_url", alternate = ["image_url", "url"])
-    val photo_url: String
+        @SerializedName("photo_url", alternate = ["image_url", "url"]) val photo_url: String
 )
 
 interface ApiService {
         // ===================================
-
+        // DYNAMIC & TESTING
         // ===================================
 
         @GET("{endpoint}")
@@ -69,7 +68,7 @@ interface ApiService {
         @GET("books") suspend fun testGetBooks(): Response<ResponseBody>
 
         // ===================================
-
+        // AUTHENTICATION
         // ===================================
 
         @POST("auth/register")
@@ -97,7 +96,7 @@ interface ApiService {
         suspend fun changePassword(@Body request: ChangePasswordRequest): Response<MessageResponse>
 
         // ===================================
-
+        // BOOKS
         // ===================================
 
         @GET("books")
@@ -127,7 +126,7 @@ interface ApiService {
         suspend fun getBookWallets(@Path("id") bookId: String): Response<List<Wallet>>
 
         // ===================================
-
+        // WALLETS
         // ===================================
 
         @GET("wallets")
@@ -155,7 +154,7 @@ interface ApiService {
         suspend fun deleteWallet(@Path("id") serverId: String): Response<Unit>
 
         // ===================================
-
+        // CATEGORIES
         // ===================================
 
         @GET("categories")
@@ -186,7 +185,7 @@ interface ApiService {
         @GET("pub-categories") suspend fun getPublicCategories(): Response<List<Category>>
 
         // ===================================
-
+        // TRANSACTIONS
         // ===================================
 
         @GET("transactions")
@@ -266,7 +265,60 @@ interface ApiService {
         ): Response<TransactionSummary>
 
         // ===================================
+        // TAGS / BOOK CLOSINGS / MEMOS
+        // ===================================
 
+        @GET("tags")
+        suspend fun getTags(
+                @Query("updatedSince") lastSyncAt: Long? = null
+        ): Response<ApiResponse<List<TagEntity>>>
+
+        @POST("tags") suspend fun createTag(@Body request: TagRequest): Response<CreateResponse>
+
+        @PUT("tags/{id}")
+        suspend fun updateTag(
+                @Path("id") serverId: String,
+                @Body request: TagRequest
+        ): Response<MessageResponse>
+
+        @DELETE("tags/{id}")
+        suspend fun deleteTag(@Path("id") serverId: String): Response<MessageResponse>
+
+        @GET("book-closings")
+        suspend fun getBookClosings(
+                @Query("updatedSince") lastSyncAt: Long? = null
+        ): Response<ApiResponse<List<BookClosing>>>
+
+        @POST("book-closings")
+        suspend fun createBookClosing(@Body request: BookClosingRequest): Response<CreateResponse>
+
+        @PUT("book-closings/{id}")
+        suspend fun updateBookClosing(
+                @Path("id") serverId: String,
+                @Body request: BookClosingRequest
+        ): Response<MessageResponse>
+
+        @DELETE("book-closings/{id}")
+        suspend fun deleteBookClosing(@Path("id") serverId: String): Response<MessageResponse>
+
+        @GET("memos")
+        suspend fun getMemos(
+                @Query("updatedSince") lastSyncAt: Long? = null
+        ): Response<ApiResponse<List<Memo>>>
+
+        @POST("memos") suspend fun createMemo(@Body request: MemoRequest): Response<CreateResponse>
+
+        @PUT("memos/{id}")
+        suspend fun updateMemo(
+                @Path("id") serverId: String,
+                @Body request: MemoRequest
+        ): Response<MessageResponse>
+
+        @DELETE("memos/{id}")
+        suspend fun deleteMemo(@Path("id") serverId: String): Response<MessageResponse>
+
+        // ===================================
+        // USER PROFILE
         // ===================================
 
         @GET("users") suspend fun getUsers(): Response<List<User>>
@@ -448,3 +500,24 @@ data class User(
 data class UserProfileData(val user: User, val photo_url: String?)
 
 data class PhotoUrlData(val photo_url: String)
+
+data class TagRequest(val name: String, val color: String)
+
+data class MemoRequest(
+        @SerializedName("book_id") val bookId: String,
+        val title: String,
+        val content: String,
+        val tags: String,
+        val date: Long
+)
+
+data class BookClosingRequest(
+        @SerializedName("book_id") val bookId: String,
+        @SerializedName("period_start") val periodStart: Long,
+        @SerializedName("period_end") val periodEnd: Long,
+        @SerializedName("period_label") val periodLabel: String,
+        @SerializedName("closed_at") val closedAt: Long,
+        @SerializedName("final_balance") val finalBalance: Double,
+        @SerializedName("is_verified") val isVerified: Boolean,
+        @SerializedName("notes") val notes: String
+)

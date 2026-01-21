@@ -16,6 +16,9 @@ class AppWorkerFactory(
     private val walletRepository: WalletRepository,
     private val categoryRepository: CategoryRepository,
     private val transactionRepository: TransactionRepository,
+    private val bookClosingRepository: BookClosingRepository,
+    private val memoRepository: MemoRepository,
+    private val tagRepository: TagRepository,
     private val userRepository: UserRepository
 ) : WorkerFactory() {
 
@@ -33,6 +36,9 @@ class AppWorkerFactory(
                     walletRepository,
                     categoryRepository,
                     transactionRepository,
+                    bookClosingRepository,
+                    memoRepository,
+                    tagRepository,
                     userRepository,
                     apiService
                 )

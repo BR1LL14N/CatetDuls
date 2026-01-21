@@ -23,7 +23,9 @@ import com.example.catetduls.data.Wallet
 import com.example.catetduls.data.getBookRepository
 import com.example.catetduls.data.getCategoryRepository
 import com.example.catetduls.data.getTransactionRepository
+import com.example.catetduls.data.getTransactionRepository
 import com.example.catetduls.data.getWalletRepository
+import com.example.catetduls.data.getBookClosingRepository 
 import com.example.catetduls.viewmodel.TambahViewModel
 import com.example.catetduls.viewmodel.TambahViewModelFactory
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -60,10 +62,10 @@ class TambahTransaksiPage : Fragment() {
 
     // Views Dompet
     private lateinit var tvLabelWalletSource: TextView
-    private lateinit var spinnerWallet: Spinner // Dompet Sumber
+    private lateinit var spinnerWallet: Spinner 
     private lateinit var tvLabelWalletTarget: TextView
     private lateinit var cardWalletTarget: MaterialCardView
-    private lateinit var spinnerWalletTarget: Spinner // Dompet Tujuan
+    private lateinit var spinnerWalletTarget: Spinner 
 
     private lateinit var etAmount: EditText
     private lateinit var tvCurrencySymbol: TextView
@@ -105,12 +107,9 @@ class TambahTransaksiPage : Fragment() {
                 if (success) {
                     imageUri?.let { setImageProof(it) }
                 } else {
-                    // Jika pengambilan gambar gagal atau dibatalkan, reset imageUri jika itu adalah
-                    // temp uri
                     if (imageUri?.scheme == "content" &&
                                     imageUri?.authority?.endsWith(".fileprovider") == true
                     ) {
-                        // Hapus file sementara jika ada
                         try {
                             requireContext().contentResolver.delete(imageUri!!, null, null)
                         } catch (_: Exception) {}
@@ -119,6 +118,7 @@ class TambahTransaksiPage : Fragment() {
                 }
             }
 
+            //implisit
     private val requestCameraPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestPermission()) {
                     isGranted: Boolean ->
@@ -169,7 +169,8 @@ class TambahTransaksiPage : Fragment() {
                         transactionRepo,
                         categoryRepo,
                         walletRepo,
-                        requireContext().getBookRepository(), // Add this
+                        requireContext().getBookRepository(),
+                        requireContext().getBookClosingRepository(),
                         activeWalletId,
                         activeBookId
                 )
@@ -221,6 +222,36 @@ class TambahTransaksiPage : Fragment() {
         // Inisialisasi awal UI berdasarkan ViewModel state
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.selectedType.collect { updateCardSelection() }
+        }
+
+        // --- NEW: Validation Observations ---
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.isBookActive.collect { isActive ->
+                if (!isActive) {
+                    Toast.makeText(context, "Buku ini sedang NON-AKTIF (Closed). Tidak bisa menambah transaksi.", Toast.LENGTH_LONG).show()
+                    btnSimpan.isEnabled = false
+                    btnSimpan.text = "Buku Non-Aktif"
+                    // Optional: Disable all inputs
+                }
+            }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.isDateClosed.collect { isClosed ->
+                if (isClosed) {
+                    tvDate.error = "Periode Ditutup"
+                    btnSimpan.isEnabled = false
+                    btnSimpan.text = "Periode Ditutup"
+                    Toast.makeText(context, "Tanggal ini berada dalam periode tutup buku!", Toast.LENGTH_SHORT).show()
+                } else {
+                    tvDate.error = null
+                    val isActive = viewModel.isBookActive.value
+                    if (isActive) {
+                        btnSimpan.isEnabled = true
+                        btnSimpan.text = if(arguments?.getInt("ARG_TRANSACTION_ID", -1) != -1) "Update Transaksi" else "Simpan Transaksi"
+                    }
+                }
+            }
         }
 
         observeData()

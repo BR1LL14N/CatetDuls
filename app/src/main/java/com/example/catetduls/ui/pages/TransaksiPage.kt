@@ -7,7 +7,6 @@ import android.view.ViewGroup
 import android.widget.ImageView // Import ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.widget.SearchView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
@@ -77,6 +76,10 @@ class TransaksiPage : Fragment() {
     private var currentIncome: Double = 0.0
     private var currentExpense: Double = 0.0
 
+    // Child Fragments
+    private var tutupBukuFragment: TutupBukuPage? = null
+    private var memoFragment: MemoPage? = null
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -88,7 +91,10 @@ class TransaksiPage : Fragment() {
         setupRecyclerView()
         loadReferenceData()
         setupListeners()
-        setupCurrencyObserver() // New Observer
+        setupCurrencyObserver()
+
+        // Init child fragments but hide them initially
+        initChildFragments()
 
         // Cek Arguments (dari Calendar Page atau yang lain)
         val args = arguments
@@ -98,13 +104,6 @@ class TransaksiPage : Fragment() {
 
             currentCalendar.timeInMillis = initialDate
             currentTabMode = initialTab
-
-            // Wait for layout to select tab? Or just select.
-            // Post to queue to ensure TabLayout is ready? Usually fine here.
-            tabLayout.getTabAt(initialTab)?.select()
-        } else {
-            // Default: Set Tab "Bulanan" (Index 2)
-            tabLayout.getTabAt(2)?.select()
         }
 
         // Force update initial filter to ensure consistency
@@ -142,33 +141,34 @@ class TransaksiPage : Fragment() {
                         when (tab?.position) {
                             0 -> { // Harian
                                 currentTabMode = 0
+                                updateViewVisibility()
                                 updateDateFilter()
                             }
                             1 -> { // Kalender
+                                // Navigate to CalendarPage (Full Screen replacement)
                                 if (activity is NavigationCallback) {
                                     (activity as NavigationCallback).navigateTo(
                                             com.example.catetduls.ui.pages.CalendarPage()
                                     )
                                 }
+                                // Reset tab to monthly or daily if returning? 
+                                // Ideally CalendarPage should handle return, but for now this is fine.
                             }
                             2 -> { // Bulanan
                                 currentTabMode = 2
+                                updateViewVisibility()
                                 updateDateFilter()
                             }
-                            3 ->
-                                    Toast.makeText(
-                                                    requireContext(),
-                                                    "Tutup Buku: Segera Hadir",
-                                                    Toast.LENGTH_SHORT
-                                            )
-                                            .show()
-                            4 ->
-                                    Toast.makeText(
-                                                    requireContext(),
-                                                    "Memo: Segera Hadir",
-                                                    Toast.LENGTH_SHORT
-                                            )
-                                            .show()
+                            3 -> { // Tutup Buku
+                                currentTabMode = 3
+                                updateViewVisibility()
+                                updateTutupBukuDate()
+                                updateDateText()
+                            }
+                            4 -> { // Memo
+                                currentTabMode = 4
+                                updateViewVisibility()
+                            }
                         }
                     }
                     override fun onTabUnselected(tab: TabLayout.Tab?) {}
@@ -254,13 +254,107 @@ class TransaksiPage : Fragment() {
     /** Mengubah tanggal state (+1 atau -1) */
     private fun navigateDate(offset: Int) {
         if (currentTabMode == 0) {
-            // Mode Harian: Geser Hari
             currentCalendar.add(Calendar.DAY_OF_YEAR, offset)
-        } else if (currentTabMode == 2) {
-            // Mode Bulanan: Geser Bulan
+        } else if (currentTabMode == 2 || currentTabMode == 3) {
+            // Bulanan OR Tutup Buku
             currentCalendar.add(Calendar.MONTH, offset)
         }
-        updateDateFilter()
+        
+        updateDateText()
+
+        if (currentTabMode == 3) {
+            updateTutupBukuDate()
+        } else if (currentTabMode < 3) {
+            updateDateFilter()
+        }
+    }
+    
+    private fun updateDateText() {
+        if (currentTabMode == 0) {
+             val dayFormat = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale("id", "ID"))
+             tvCurrentDate.text = dayFormat.format(currentCalendar.time)
+        } else {
+             val monthFormat = java.text.SimpleDateFormat("MMM yyyy", java.util.Locale("id", "ID"))
+             tvCurrentDate.text = monthFormat.format(currentCalendar.time)
+        }
+    }
+
+    private fun initChildFragments() {
+        val fragmentManager = childFragmentManager
+        
+        tutupBukuFragment = fragmentManager.findFragmentByTag("TUTUP_BUKU") as? TutupBukuPage
+        if (tutupBukuFragment == null) {
+            tutupBukuFragment = TutupBukuPage()
+            fragmentManager.beginTransaction()
+                .add(R.id.child_fragment_container, tutupBukuFragment!!, "TUTUP_BUKU")
+                .hide(tutupBukuFragment!!)
+                .commit()
+        }
+        
+        memoFragment = fragmentManager.findFragmentByTag("MEMO") as? MemoPage
+        if (memoFragment == null) {
+            memoFragment = MemoPage()
+            fragmentManager.beginTransaction()
+                .add(R.id.child_fragment_container, memoFragment!!, "MEMO")
+                .hide(memoFragment!!)
+                .commit()
+        }
+    }
+
+    private fun updateViewVisibility() {
+        val showTransactions = currentTabMode < 3
+        val showTutupBuku = currentTabMode == 3
+        val showMemo = currentTabMode == 4
+        
+        // Views
+        val transactionContainer = view?.findViewById<View>(R.id.rv_transactions)
+        val emptyState = view?.findViewById<View>(R.id.layout_empty_state)
+        val childContainer = view?.findViewById<View>(R.id.child_fragment_container)
+        val fab = view?.findViewById<FloatingActionButton>(R.id.fab_add_transaction)
+        
+        if (showTransactions) {
+            transactionContainer?.visibility = View.VISIBLE
+            // Empty state handled by observer
+            if (transactionAdapter.itemCount == 0) {
+                 emptyState?.visibility = View.VISIBLE
+                 transactionContainer?.visibility = View.GONE
+            } else {
+                 emptyState?.visibility = View.GONE
+            }
+            
+            childContainer?.visibility = View.GONE
+            tutupBukuFragment?.let { if (it.isAdded) childFragmentManager.beginTransaction().hide(it).commit() }
+            memoFragment?.let { if (it.isAdded) childFragmentManager.beginTransaction().hide(it).commit() }
+            fab?.show()
+            
+            btnSearchToggle.visibility = View.VISIBLE
+        } else {
+            transactionContainer?.visibility = View.GONE
+            emptyState?.visibility = View.GONE
+            childContainer?.visibility = View.VISIBLE
+            fab?.hide()
+            
+            if (showTutupBuku) {
+                 tutupBukuFragment?.let { 
+                     childFragmentManager.beginTransaction().show(it).commit()
+                     memoFragment?.let { m -> if (m.isAdded) childFragmentManager.beginTransaction().hide(m).commit() }
+                 }
+                 updateTutupBukuDate()
+                 btnSearchToggle.visibility = View.GONE
+            } else if (showMemo) {
+                 memoFragment?.let {
+                     childFragmentManager.beginTransaction().show(it).commit()
+                     tutupBukuFragment?.let { tb -> if (tb.isAdded) childFragmentManager.beginTransaction().hide(tb).commit() }
+                 }
+                 btnSearchToggle.visibility = View.GONE
+            }
+        }
+    }
+    
+    private fun updateTutupBukuDate() {
+        val year = currentCalendar.get(Calendar.YEAR)
+        val month = currentCalendar.get(Calendar.MONTH) + 1
+        tutupBukuFragment?.updateDate(year, month)
     }
 
     /** Menerapkan filter ke ViewModel berdasarkan Tab & Tanggal aktif */
@@ -383,7 +477,10 @@ class TransaksiPage : Fragment() {
 
     private fun updateSummaryDisplay() {
         val convertedIncome =
-                com.example.catetduls.utils.CurrencyHelper.convertIdrTo(currentIncome, currentCurrencyCode)
+                com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
+                        currentIncome,
+                        currentCurrencyCode
+                )
         val convertedExpense =
                 com.example.catetduls.utils.CurrencyHelper.convertIdrTo(
                         currentExpense,
@@ -407,6 +504,9 @@ class TransaksiPage : Fragment() {
                 )
 
         tvGrandTotal.text =
-                com.example.catetduls.utils.CurrencyHelper.format(convertedTotal, currentCurrencySymbol)
+                com.example.catetduls.utils.CurrencyHelper.format(
+                        convertedTotal,
+                        currentCurrencySymbol
+                )
     }
 }

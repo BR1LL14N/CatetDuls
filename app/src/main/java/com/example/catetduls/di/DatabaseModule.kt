@@ -47,4 +47,19 @@ object DatabaseModule {
     fun provideBookDao(database: AppDatabase): BookDao {
         return database.bookDao()
     }
+
+    @Provides
+    fun provideBookClosingDao(database: AppDatabase): BookClosingDao {
+        return database.bookClosingDao()
+    }
+
+    @Provides
+    fun provideMemoDao(database: AppDatabase): MemoDao {
+        return database.memoDao()
+    }
+
+    @Provides
+    fun provideTagDao(database: AppDatabase): TagDao {
+        return database.tagDao()
+    }
 }
